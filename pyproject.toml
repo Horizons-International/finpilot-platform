@@ -12,6 +12,7 @@ dependencies = [
     "fastapi[standard]>=0.141.1",
     "pydantic>=2.13.4",
     "sqlalchemy>=2.0.51",
+    "swagger-ui>=0.1.2",
     "uvicorn>=0.52.1",
 ]
 
