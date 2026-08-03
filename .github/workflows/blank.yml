@@ -1,0 +1,100 @@
+# This is a basic workflow to help you get started with Actions
+
+name: CI
+
+# Controls when the workflow will run
+on:
+  # Triggers the workflow on push or pull request events but only for the "main" branch
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+  # Allows you to run this workflow manually from the Actions tab
+  workflow_dispatch:
+
+# A workflow run is made up of one or more jobs that can run sequentially or in parallel
+jobs:
+  # This workflow contains a single job called "build"
+  build:
+    # The type of runner that the job will run on
+    runs-on: ubuntu-latest
+
+    # Steps represent a sequence of tasks that will be executed as part of the job
+    steps:
+      # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
+      - uses: actions/checkout@v4
+
+      # Runs a single command using the runners shell
+      - name: Run a one-line script
+        run: echo Hello, world!
+
+      # Runs a set of commands using the runners shell
+      - name: Run a multi-line script
+        run: |
+          echo Add other actions to build,
+          echo test, and deploy your project.
+      - name: astral-sh/setup-uv
+  # You may pin to the exact commit or the version.
+  # uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9
+  uses: astral-sh/setup-uv@v9.0.0
+  with:
+    # The version of uv to install e.g., `0.5.0` Defaults to the version in pyproject.toml or 'latest'.
+    version: # optional, default is 
+    # Path to a file containing the version of uv to install, e.g., uv.toml, pyproject.toml, .tool-versions, requirements.txt or uv.lock. Defaults to searching for uv.toml and if not found pyproject.toml.
+    version-file: # optional, default is 
+    # The version of Python to set UV_PYTHON to
+    python-version: # optional
+    # Use uv venv to activate a venv ready to be used by later steps. 
+    activate-environment: # optional, default is false
+    # Custom path for the virtual environment when using activate-environment. Defaults to '.venv' in the working directory.
+    venv-path: # optional, default is 
+    # Pass --no-project when creating the venv with activate-environment.
+    no-project: # optional, default is false
+    # The directory to execute all commands in and look for files such as pyproject.toml
+    working-directory: # optional, default is ${{ github.workspace }}
+    # The checksum of the uv version to install
+    checksum: # optional
+    # Used when downloading uv from GitHub releases.
+    github-token: # optional, default is ${{ github.token }}
+    # Enable uploading of the uv cache
+    enable-cache: # optional, default is auto
+    # Glob pattern to match files relative to the working directory to control the cache.
+    cache-dependency-glob: # optional, default is **/*requirements*.txt
+**/*requirements*.in
+**/*constraints*.txt
+**/*constraints*.in
+**/pyproject.toml
+**/uv.lock
+**/*.py.lock
+
+    # Whether to restore the cache if found.
+    restore-cache: # optional, default is true
+    # Whether to save the cache after the run.
+    save-cache: # optional, default is true
+    # Suffix for the cache key
+    cache-suffix: # optional
+    # Local path to store the cache.
+    cache-local-path: # optional, default is 
+    # Prune cache before saving.
+    prune-cache: # optional, default is false
+    # Upload managed Python installations to the Github Actions cache.
+    cache-python: # optional, default is false
+    # Ignore when nothing is found to cache.
+    ignore-nothing-to-cache: # optional, default is false
+    # Ignore when the working directory is empty.
+    ignore-empty-workdir: # optional, default is false
+    # Custom path to set UV_TOOL_DIR to.
+    tool-dir: # optional
+    # Custom path to set UV_TOOL_BIN_DIR to.
+    tool-bin-dir: # optional
+    # URL to a custom manifest file in the astral-sh/versions format.
+    manifest-file: # optional
+    # Download uv from the Astral mirror instead of directly from GitHub Releases.
+    download-from-astral-mirror: # optional, default is true
+    # Add problem matchers.
+    add-problem-matchers: # optional, default is true
+    # Suppress info-level log output. Only warnings and errors are shown.
+    quiet: # optional, default is false
+    # Resolution strategy to use when resolving version ranges. 'highest' uses the latest compatible version, 'lowest' uses the oldest compatible version.
+    resolution-strategy: # optional, default is highest
