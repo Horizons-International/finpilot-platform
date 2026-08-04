@@ -1,0 +1,24 @@
+name: Jira Integration
+
+on:
+  pull_request:
+    types: [opened, reopened, synchronize]
+  issues:
+    types: [opened, labeled]
+
+jobs:
+  integrate-with-jira:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Link PRs and Issues to Jira
+        uses: atlassian/gajira-login@v2.0.0
+        with:
+          username: ${{ secrets.JIRA_USERNAME }}
+          password: ${{ secrets.JIRA_TOKEN }}
+      - name: Create Jira issue
+        uses: atlassian/gajira-create@v2.0.1
+        with:
+          project: 'PROJ'
+          issuetype: 'Task'
+          summary: 'New Issue from GitHub: ${{ github.event.issue.title }}'
+          description: 'This task was automatically created from an issue in GitHub: ${{ github.event.issue.html_url }}'
