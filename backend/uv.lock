@@ -100,11 +100,15 @@ version = "0.1.0"
 source = { editable = "." }
 dependencies = [
     { name = "alembic" },
+    { name = "black" },
     { name = "fastapi", extra = ["standard"] },
+    { name = "mypy" },
+    { name = "pre-commit" },
     { name = "psycopg", extra = ["binary"] },
     { name = "pydantic" },
     { name = "pydantic-settings" },
     { name = "pytest" },
+    { name = "ruff" },
     { name = "sqlalchemy" },
     { name = "uvicorn" },
 ]
@@ -123,11 +127,15 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "alembic", specifier = ">=1.19.0" },
+    { name = "black", specifier = ">=26.5.1" },
     { name = "fastapi", extras = ["standard"], specifier = ">=0.141.1" },
+    { name = "mypy", specifier = ">=2.3.0" },
+    { name = "pre-commit", specifier = ">=4.6.1" },
     { name = "psycopg", extras = ["binary"], specifier = ">=3.3.4" },
     { name = "pydantic", specifier = ">=2.13.4" },
     { name = "pydantic-settings", specifier = ">=2.14.2" },
     { name = "pytest", specifier = ">=9.1.1" },
+    { name = "ruff", specifier = ">=0.16.1" },
     { name = "sqlalchemy", specifier = ">=2.0.51" },
     { name = "uvicorn", specifier = ">=0.52.1" },
 ]
