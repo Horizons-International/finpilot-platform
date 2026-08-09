@@ -1,15 +1,29 @@
-from fastapi import FastAPI
+from fastapi import Depends, FastAPI
 
-from app.api.health import router as health_router
+from app.api.auth import router as auth_router
+from app.core.dependencies import get_current_user
+from app.models.user import User
 
 app = FastAPI(
-    title="Backend API",
-    version="0.1.0",
+    title="FinPilot API",
 )
 
-app.include_router(health_router)
+app.include_router(auth_router)
 
 
-@app.get("/")
-async def root():
-    return {"message": "Backend API is running"}
+@app.get("/health")
+def health():
+    return {"status": "healthy"}
+
+
+@app.get("/api/v1/me")
+def get_me(
+    current_user: User = Depends(get_current_user),
+):
+    return {
+        "id": str(current_user.id),
+        "first_name": current_user.first_name,
+        "last_name": current_user.last_name,
+        "email": current_user.email,
+        "role": current_user.role,
+    }
