@@ -9,7 +9,7 @@ os.environ.setdefault(
 os.environ.setdefault("SECRET_KEY", "test-secret-key")
 
 from app.core.database import SessionLocal
-from app.core.security import Roles, hash_password
+from app.core.security import hash_password
 from app.models.user import User, UserStatus
 
 
@@ -58,27 +58,3 @@ def create_test_user():
         return db, user
 
     return _create_test_user
-
-
-@pytest.fixture
-def admin_user():
-    db = SessionLocal()
-
-    user = User(
-        first_name="Admin",
-        last_name="User",
-        email="admin@example.com",
-        password_hash=hash_password("Password123!"),
-        status=UserStatus.ACTIVE,
-        role=Roles.ADMINISTRATOR,
-    )
-
-    db.add(user)
-    db.commit()
-    db.refresh(user)
-
-    yield user
-
-    db.delete(user)
-    db.commit()
-    db.close()
