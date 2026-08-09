@@ -19,6 +19,21 @@ jobs:
       run:
         working-directory: backend
 
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: test_user
+          POSTGRES_PASSWORD: test_password
+          POSTGRES_DB: customers_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U test_user -d customers_test"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -44,4 +59,11 @@ jobs:
         run: uv run mypy .
 
       - name: Pytest
-        run: uv run pytest
+        run: uv run pytest tests/unit
+
+      - name: Integration tests
+        env:
+          DATABASE_URL: postgresql+psycopg://user:123789@localhost:5432/customers_test
+          SECRET_KEY: test-secret-key
+        run: uv run pytest tests/integration
+        
