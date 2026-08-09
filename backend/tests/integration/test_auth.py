@@ -5,7 +5,7 @@ from app.main import app
 client = TestClient(app)
 
 
-def test_login_with_valid_credentials():
+def test_login_with_valid_credentials(test_user):
     response = client.post(
         "/api/v1/auth/login",
         json={
@@ -22,7 +22,7 @@ def test_login_with_valid_credentials():
     assert data["token_type"] == "bearer"
 
 
-def test_login_with_invalid_password():
+def test_login_with_invalid_password(test_user):
     response = client.post(
         "/api/v1/auth/login",
         json={
