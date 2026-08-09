@@ -58,6 +58,12 @@ jobs:
       - name: MyPy
         run: uv run mypy .
 
+      - name: Run database migrations
+        env:
+          DATABASE_URL: postgresql+psycopg://user:123789@postgres:5432/customers
+          SECRET_KEY: test-secret-key
+        run: uv run alembic upgrade head
+
       - name: Pytest
         env:
           DATABASE_URL: postgresql+psycopg://user:123789@postgres:5432/customers
