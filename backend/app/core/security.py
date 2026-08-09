@@ -1,6 +1,8 @@
 from datetime import datetime, timedelta, timezone
-from typing import Any, cast
+from typing import Any, Callable, cast
 
+from fastapi import Depends, HTTPException, status
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jose import JWTError, jwt
 from passlib.context import CryptContext
 
@@ -16,6 +18,23 @@ pwd_context = CryptContext(
 )
 
 
+# ---------------------------------------------------------------------------
+# Roles
+# ---------------------------------------------------------------------------
+
+
+class Roles:
+    ADMINISTRATOR = "Administrator"
+    COMPLIANCE_OFFICER = "Compliance Officer"
+    REVIEWER = "Reviewer"
+    AUDITOR = "Auditor"
+
+
+# ---------------------------------------------------------------------------
+# Password hashing
+# ---------------------------------------------------------------------------
+
+
 def verify_password(
     plain_password: str,
     hashed_password: str,
@@ -25,6 +44,11 @@ def verify_password(
 
 def hash_password(password: str) -> str:
     return str(pwd_context.hash(password))
+
+
+# ---------------------------------------------------------------------------
+# Access token
+# ---------------------------------------------------------------------------
 
 
 def create_access_token(
@@ -56,6 +80,11 @@ def create_access_token(
     )
 
 
+# ---------------------------------------------------------------------------
+# Refresh token
+# ---------------------------------------------------------------------------
+
+
 def create_refresh_token(
     data: dict,
     expires_delta: timedelta | None = None,
@@ -83,6 +112,11 @@ def create_refresh_token(
     )
 
 
+# ---------------------------------------------------------------------------
+# Token decoding
+# ---------------------------------------------------------------------------
+
+
 def decode_access_token(token: str) -> dict[str, Any]:
     payload = jwt.decode(
         token,
@@ -94,13 +128,91 @@ def decode_access_token(token: str) -> dict[str, Any]:
 
 
 def decode_refresh_token(token: str) -> dict[str, Any]:
-    payload = jwt.decode(
-        token,
-        settings.SECRET_KEY,
-        algorithms=[ALGORITHM],
-    )
+    try:
+        payload = jwt.decode(
+            token,
+            settings.SECRET_KEY,
+            algorithms=[ALGORITHM],
+        )
 
-    if payload.get("type") != "refresh":
-        raise JWTError("Invalid token type")
+        if payload.get("type") != "refresh":
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid refresh token",
+            )
 
-    return cast(dict[str, Any], payload)
+        return cast(dict[str, Any], payload)
+    except JWTError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid or expired refresh token",
+        ) from exc
+
+
+# ---------------------------------------------------------------------------
+# Authentication dependency
+# ---------------------------------------------------------------------------
+
+security = HTTPBearer()
+
+
+def get_current_user(
+    credentials: HTTPAuthorizationCredentials = Depends(security),
+) -> dict[str, Any]:
+    """
+    Validate the access token and return its payload.
+    """
+
+    token = credentials.credentials
+
+    try:
+        payload = decode_access_token(token)
+    except JWTError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid or expired access token",
+            headers={"WWW-Authenticate": "Bearer"},
+        ) from exc
+
+    if payload.get("type") != "access":
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid access token",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    if not payload.get("sub"):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid access token",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    return payload
+
+
+# ---------------------------------------------------------------------------
+# RBAC
+# ---------------------------------------------------------------------------
+
+
+def require_roles(*allowed_roles: str) -> Callable:
+    """
+    Create a reusable dependency that restricts an endpoint
+    to the specified roles.
+    """
+
+    def role_checker(
+        current_user: dict[str, Any] = Depends(get_current_user),
+    ) -> dict[str, Any]:
+        user_role = current_user.get("role")
+
+        if user_role not in allowed_roles:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Insufficient permissions",
+            )
+
+        return current_user
+
+    return role_checker

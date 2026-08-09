@@ -1,12 +1,16 @@
+from typing import Any
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from jose import JWTError
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.core.security import (
+    Roles,
     create_access_token,
     create_refresh_token,
     decode_refresh_token,
+    require_roles,
     verify_password,
 )
 from app.models.user import User, UserStatus
@@ -121,3 +125,15 @@ def refresh_token(
         access_token=access_token,
         token_type="bearer",
     )
+
+
+@router.get(
+    "/admin-only",
+)
+def admin_only(
+    current_user: dict[str, Any] = Depends(require_roles(Roles.ADMINISTRATOR)),
+):
+    return {
+        "message": "Administrator access granted",
+        "user_id": current_user["sub"],
+    }
