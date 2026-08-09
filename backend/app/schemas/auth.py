@@ -1,9 +1,18 @@
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, ConfigDict, EmailStr
 
 
 class LoginRequest(BaseModel):
     email: EmailStr
     password: str
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "example": {
+                "email": "admin@example.com",
+                "password": "Password12345",
+            }
+        }
+    )
 
 
 class RefreshTokenRequest(BaseModel):
