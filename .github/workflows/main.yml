@@ -23,13 +23,13 @@ jobs:
       postgres:
         image: postgres:17
         env:
-          POSTGRES_USER: test_user
-          POSTGRES_PASSWORD: test_password
-          POSTGRES_DB: customers_test
+          POSTGRES_USER: user
+          POSTGRES_PASSWORD: 123789
+          POSTGRES_DB: customers
         ports:
           - 5432:5432
         options: >-
-          --health-cmd="pg_isready -U test_user -d customers_test"
+          --health-cmd="pg_isready -U user -d customers"
           --health-interval=10s
           --health-timeout=5s
           --health-retries=5
@@ -63,7 +63,7 @@ jobs:
 
       - name: Integration tests
         env:
-          DATABASE_URL: postgresql+psycopg://user:123789@postgres:5432/customers
+          DATABASE_URL: postgresql+psycopg://user:123789@localhost:5432/customers
           SECRET_KEY: test-secret-key
         run: uv run pytest tests/integration
         
