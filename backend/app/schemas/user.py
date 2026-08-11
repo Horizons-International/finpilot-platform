@@ -45,3 +45,21 @@ class UserListResponse(BaseModel):
     page: int
     page_size: int
     total_pages: int
+
+
+class ProfileUpdateRequest(BaseModel):
+    first_name: str
+    last_name: str
+    phone_number: str | None = None
+
+
+class ProfileResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    first_name: str
+    last_name: str
+    email: EmailStr
+    phone_number: str | None
+    status: UserStatus
+    role: str
