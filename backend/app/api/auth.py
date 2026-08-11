@@ -57,10 +57,16 @@ def login(
             detail="Invalid email or password",
         )
 
-    if user.status != UserStatus.ACTIVE:
+    if user.status == UserStatus.INACTIVE:
         raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="User account is not active",
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="User account is inactive",
+        )
+
+    if user.status == UserStatus.LOCKED:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="User account is locked",
         )
 
     token_data = {
