@@ -9,7 +9,7 @@ class LoginRequest(BaseModel):
         json_schema_extra={
             "example": {
                 "email": "admin@example.com",
-                "password": "Password12345",
+                "password": "StrongPassword123*",
             }
         }
     )

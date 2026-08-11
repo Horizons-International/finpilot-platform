@@ -1,6 +1,7 @@
 from fastapi import Depends, FastAPI
 
 from app.api.auth import router as auth_router
+from app.api.profile import router as profile_router
 from app.api.users import router as users_router
 from app.core.dependencies import get_current_user
 from app.models.user import User
@@ -11,6 +12,7 @@ app = FastAPI(
 
 app.include_router(auth_router)
 app.include_router(users_router)
+app.include_router(profile_router)
 
 
 @app.get("/health")
