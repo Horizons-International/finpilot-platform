@@ -1,36 +1,28 @@
-import os
-
+from app.core.config import settings
 from app.core.database import SessionLocal
 from app.core.security import hash_password
 from app.models.user import User, UserStatus
 
-DEFAULT_ADMIN_EMAIL = os.getenv(
-    "ADMIN_EMAIL",
-    "admin@example.com",
-)
-
 
 def seed_admin() -> None:
-    admin_password = os.getenv("ADMIN_PASSWORD")
-
+    admin_email = "admin@example.com"
+    admin_password = settings.ADMIN_PASSWORD
     if admin_password is None:
         raise RuntimeError("ADMIN_PASSWORD environment variable is required")
 
     db = SessionLocal()
 
     try:
-        existing_admin = (
-            db.query(User).filter(User.email == DEFAULT_ADMIN_EMAIL).first()
-        )
+        existing_admin = db.query(User).filter(User.email == admin_email).first()
 
         if existing_admin:
-            print(f"Administrator already exists: {DEFAULT_ADMIN_EMAIL}")
+            print(f"Administrator already exists: {admin_email}")
             return
 
         admin = User(
             first_name="System",
             last_name="Administrator",
-            email=DEFAULT_ADMIN_EMAIL,
+            email=admin_email,
             password_hash=hash_password(admin_password),
             status=UserStatus.ACTIVE,
             role="Administrator",
@@ -39,7 +31,7 @@ def seed_admin() -> None:
         db.add(admin)
         db.commit()
 
-        print(f"Administrator created successfully: {DEFAULT_ADMIN_EMAIL}")
+        print(f"Administrator created successfully: {admin_email}")
 
     finally:
         db.close()
