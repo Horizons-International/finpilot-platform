@@ -10,11 +10,15 @@ from app.core.security import (
     create_access_token,
     create_refresh_token,
     decode_refresh_token,
+    get_current_user,
+    hash_password,
     require_roles,
+    validate_password,
     verify_password,
 )
 from app.models.user import User, UserStatus
 from app.schemas.auth import (
+    ChangePasswordRequest,
     LoginRequest,
     LoginResponse,
     RefreshTokenRequest,
@@ -137,3 +141,47 @@ def admin_only(
         "message": "Administrator access granted",
         "user_id": current_user["sub"],
     }
+
+
+@router.post("/change-password")
+def change_password(
+    password_data: ChangePasswordRequest,
+    db: Session = Depends(get_db),
+    current_user: dict[str, Any] = Depends(get_current_user),
+):
+    user = db.query(User).filter(User.id == current_user["sub"]).first()
+
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User not found",
+        )
+
+    if not verify_password(
+        password_data.current_password,
+        user.password_hash,
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Current password is incorrect",
+        )
+
+    if password_data.current_password == password_data.new_password:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="New password must be different from current password",
+        )
+
+    try:
+        validate_password(password_data.new_password)
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(exc),
+        ) from exc
+
+    user.password_hash = hash_password(password_data.new_password)
+
+    db.commit()
+
+    return {"message": "Password changed successfully"}
