@@ -30,7 +30,7 @@ def test_user_can_get_own_profile(client, create_test_user):
 
         assert response.status_code == 200
 
-        data = response.json()
+        data = response.json()["data"]
 
         assert data["id"] == str(user.id)
         assert data["first_name"] == "Test"
@@ -73,7 +73,7 @@ def test_user_can_update_own_profile(client, create_test_user):
 
         assert response.status_code == 200
 
-        data = response.json()
+        data = response.json()["data"]
 
         assert data["first_name"] == "Updated"
         assert data["last_name"] == "Profile"
@@ -124,7 +124,7 @@ def test_user_cannot_change_role(client, create_test_user):
 
         assert response.status_code == 200
 
-        data = response.json()
+        data = response.json()["data"]
 
         assert data["role"] == original_role
 

@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
+from app.core.responses import APIResponse
 from app.core.security import get_current_user
 from app.models.user import User
 from app.schemas.user import ProfileResponse, ProfileUpdateRequest
@@ -16,7 +17,7 @@ router = APIRouter(
 
 @router.get(
     "",
-    response_model=ProfileResponse,
+    response_model=APIResponse[ProfileResponse],
 )
 def get_profile(
     current_user: dict[str, Any] = Depends(get_current_user),
@@ -30,12 +31,16 @@ def get_profile(
             detail="User not found",
         )
 
-    return user
+    return APIResponse(
+        success=True,
+        message="Profile retrieved successfully.",
+        data=ProfileResponse.model_validate(user),
+    )
 
 
 @router.put(
     "",
-    response_model=ProfileResponse,
+    response_model=APIResponse[ProfileResponse],
 )
 def update_profile(
     profile_data: ProfileUpdateRequest,
@@ -57,4 +62,8 @@ def update_profile(
     db.commit()
     db.refresh(user)
 
-    return user
+    return APIResponse(
+        success=True,
+        message="Profile updated successfully.",
+        data=ProfileResponse.model_validate(user),
+    )

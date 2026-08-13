@@ -5,6 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
+from app.core.responses import APIResponse
 from app.core.security import (
     Roles,
     hash_password,
@@ -27,7 +28,7 @@ router = APIRouter(
 
 @router.post(
     "",
-    response_model=UserResponse,
+    response_model=APIResponse[UserResponse],
     status_code=status.HTTP_201_CREATED,
 )
 def create_user(
@@ -57,12 +58,16 @@ def create_user(
     db.commit()
     db.refresh(user)
 
-    return user
+    return APIResponse(
+        success=True,
+        message="User created successfully.",
+        data=UserResponse.model_validate(user),
+    )
 
 
 @router.get(
     "/{user_id}",
-    response_model=UserResponse,
+    response_model=APIResponse[UserResponse],
 )
 def get_user(
     user_id: UUID,
@@ -84,12 +89,16 @@ def get_user(
             detail="User not found",
         )
 
-    return user
+    return APIResponse(
+        success=True,
+        message="User retrieved successfully.",
+        data=UserResponse.model_validate(user),
+    )
 
 
 @router.get(
     "",
-    response_model=UserListResponse,
+    response_model=APIResponse[UserListResponse],
 )
 def get_users(
     page: int = 1,
@@ -121,7 +130,7 @@ def get_users(
 
     user_responses = [UserResponse.model_validate(user) for user in users]
 
-    return UserListResponse(
+    user_list = UserListResponse(
         users=user_responses,
         total=total,
         page=page,
@@ -129,10 +138,16 @@ def get_users(
         total_pages=total_pages,
     )
 
+    return APIResponse(
+        success=True,
+        message="Users retrieved successfully.",
+        data=user_list,
+    )
+
 
 @router.put(
     "/{user_id}",
-    response_model=UserResponse,
+    response_model=APIResponse[UserResponse],
 )
 def update_user(
     user_id: UUID,
@@ -186,12 +201,16 @@ def update_user(
     db.commit()
     db.refresh(user)
 
-    return user
+    return APIResponse(
+        success=True,
+        message="User updated successfully.",
+        data=UserResponse.model_validate(user),
+    )
 
 
 @router.patch(
     "/{user_id}/status",
-    response_model=UserResponse,
+    response_model=APIResponse[UserResponse],
 )
 def update_user_status(
     user_id: UUID,
@@ -219,12 +238,16 @@ def update_user_status(
     db.commit()
     db.refresh(user)
 
-    return user
+    return APIResponse(
+        success=True,
+        message="User status updated successfully.",
+        data=UserResponse.model_validate(user),
+    )
 
 
 @router.delete(
     "/{user_id}",
-    response_model=UserResponse,
+    response_model=APIResponse[UserResponse],
 )
 def delete_user(
     user_id: UUID,
@@ -252,4 +275,8 @@ def delete_user(
     db.commit()
     db.refresh(user)
 
-    return user
+    return APIResponse(
+        success=True,
+        message="User deleted successfully.",
+        data=UserResponse.model_validate(user),
+    )

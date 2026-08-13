@@ -5,6 +5,7 @@ from jose import JWTError
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
+from app.core.responses import APIResponse
 from app.core.security import (
     Roles,
     create_access_token,
@@ -36,7 +37,7 @@ router = APIRouter(
 
 @router.post(
     "/login",
-    response_model=LoginResponse,
+    response_model=APIResponse[LoginResponse],
 )
 def login(
     login_data: LoginRequest,
@@ -130,24 +131,28 @@ def login(
         user_agent=request.headers.get("user-agent"),
     )
 
-    return LoginResponse(
-        access_token=access_token,
-        refresh_token=refresh_token,
-        token_type="bearer",
-        user=UserResponse(
-            id=str(user.id),
-            first_name=user.first_name,
-            last_name=user.last_name,
-            email=user.email,
-            status=user.status.value,
-            role=user.role,
+    return APIResponse(
+        success=True,
+        message="Login successful.",
+        data=LoginResponse(
+            access_token=access_token,
+            refresh_token=refresh_token,
+            token_type="bearer",
+            user=UserResponse(
+                id=str(user.id),
+                first_name=user.first_name,
+                last_name=user.last_name,
+                email=user.email,
+                status=user.status.value,
+                role=user.role,
+            ),
         ),
     )
 
 
 @router.post(
     "/refresh",
-    response_model=RefreshTokenResponse,
+    response_model=APIResponse[RefreshTokenResponse],
 )
 def refresh_token(
     refresh_data: RefreshTokenRequest,
@@ -178,9 +183,13 @@ def refresh_token(
         }
     )
 
-    return RefreshTokenResponse(
-        access_token=access_token,
-        token_type="bearer",
+    return APIResponse(
+        success=True,
+        message="Access token refreshed successfully.",
+        data=RefreshTokenResponse(
+            access_token=access_token,
+            token_type="bearer",
+        ),
     )
 
 
@@ -190,13 +199,17 @@ def refresh_token(
 def admin_only(
     current_user: dict[str, Any] = Depends(require_roles(Roles.ADMINISTRATOR)),
 ):
-    return {
-        "message": "Administrator access granted",
-        "user_id": current_user["sub"],
-    }
+    return APIResponse(
+        success=True,
+        message="Administrator access granted",
+        data={"user_id": current_user["sub"]},
+    )
 
 
-@router.post("/change-password")
+@router.post(
+    "/change-password",
+    response_model=APIResponse[dict[str, str]],
+)
 def change_password(
     password_data: ChangePasswordRequest,
     request: Request,
@@ -247,4 +260,8 @@ def change_password(
         user_agent=request.headers.get("user-agent"),
     )
 
-    return {"message": "Password changed successfully"}
+    return APIResponse(
+        success=True,
+        message="Password changed successfully.",
+        data={"message": "Password changed successfully."},
+    )

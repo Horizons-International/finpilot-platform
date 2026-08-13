@@ -18,7 +18,7 @@ def test_login_with_valid_credentials(client, test_user):
 
     assert response.status_code == 200
 
-    data = response.json()
+    data = response.json()["data"]
 
     assert "access_token" in data
     assert "refresh_token" in data
@@ -49,7 +49,7 @@ def test_refresh_token(client, test_user):
 
     assert login_response.status_code == 200
 
-    refresh_token = login_response.json()["refresh_token"]
+    refresh_token = login_response.json()["data"]["refresh_token"]
 
     # Use the refresh token to get a new access token
     response = client.post(
@@ -61,7 +61,7 @@ def test_refresh_token(client, test_user):
 
     assert response.status_code == 200
 
-    data = response.json()
+    data = response.json()["data"]
 
     assert "access_token" in data
     assert data["token_type"] == "bearer"

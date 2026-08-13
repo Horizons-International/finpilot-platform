@@ -38,7 +38,7 @@ def test_create_user(client, create_test_user):
 
         assert response.status_code == 201
 
-        data = response.json()
+        data = response.json()["data"]
 
         assert data["first_name"] == "New"
         assert data["last_name"] == "User"
@@ -87,7 +87,7 @@ def test_get_user(client, create_test_user):
 
         assert response.status_code == 200
 
-        data = response.json()
+        data = response.json()["data"]
 
         assert data["id"] == str(target_user.id)
         assert data["email"] == target_user.email
@@ -132,7 +132,7 @@ def test_get_all_users(client, create_test_user):
 
         assert response.status_code == 200
 
-        data = response.json()
+        data = response.json()["data"]
 
         assert "users" in data
         assert "total" in data
@@ -184,7 +184,7 @@ def test_update_user(client, create_test_user):
 
         assert response.status_code == 200
 
-        data = response.json()
+        data = response.json()["data"]
 
         assert data["first_name"] == "Updated"
         assert data["last_name"] == "Name"
@@ -231,7 +231,7 @@ def test_deactivate_user(client, create_test_user):
 
         assert response.status_code == 200
 
-        data = response.json()
+        data = response.json()["data"]
 
         assert data["status"] == "inactive"
 
