@@ -1,11 +1,13 @@
 from fastapi.testclient import TestClient
 
 from app.main import app
+from app.models.audit_log import AuditLog
+from tests.conftest import TestSessionLocal
 
 client = TestClient(app)
 
 
-def test_login_with_valid_credentials(test_user):
+def test_login_with_valid_credentials(client, test_user):
     response = client.post(
         "/api/v1/auth/login",
         json={
@@ -23,7 +25,7 @@ def test_login_with_valid_credentials(test_user):
     assert data["token_type"] == "bearer"
 
 
-def test_login_with_invalid_password(test_user):
+def test_login_with_invalid_password(client, test_user):
     response = client.post(
         "/api/v1/auth/login",
         json={
@@ -35,7 +37,7 @@ def test_login_with_invalid_password(test_user):
     assert response.status_code == 401
 
 
-def test_refresh_token(test_user):
+def test_refresh_token(client, test_user):
     # First, log in to get a refresh token
     login_response = client.post(
         "/api/v1/auth/login",
@@ -66,7 +68,7 @@ def test_refresh_token(test_user):
     assert data["access_token"]
 
 
-def test_refresh_with_invalid_token():
+def test_refresh_with_invalid_token(client):
     response = client.post(
         "/api/v1/auth/refresh",
         json={
@@ -77,7 +79,7 @@ def test_refresh_with_invalid_token():
     assert response.status_code == 401
 
 
-def test_login_with_nonexistent_user():
+def test_login_with_nonexistent_user(client):
     response = client.post(
         "/api/v1/auth/login",
         json={
@@ -87,3 +89,14 @@ def test_login_with_nonexistent_user():
     )
 
     assert response.status_code == 401
+
+    db = TestSessionLocal()
+
+    try:
+        db.query(AuditLog).filter(AuditLog.email == "doesnotexist@example.com").delete(
+            synchronize_session=False
+        )
+
+        db.commit()
+    finally:
+        db.close()

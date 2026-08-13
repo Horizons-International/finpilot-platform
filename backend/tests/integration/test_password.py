@@ -2,11 +2,12 @@ from fastapi.testclient import TestClient
 
 from app.core.security import create_access_token
 from app.main import app
+from app.models.audit_log import AuditLog
 
 client = TestClient(app)
 
 
-def test_change_password_success(create_test_user):
+def test_change_password_success(client, create_test_user):
     db, user = create_test_user(
         role="Reviewer",
         email="password-change@example.com",
@@ -35,12 +36,16 @@ def test_change_password_success(create_test_user):
         assert response.status_code == 200
 
     finally:
+        db.query(AuditLog).filter(AuditLog.user_id == user.id).delete(
+            synchronize_session=False
+        )
+
         db.delete(user)
         db.commit()
         db.close()
 
 
-def test_change_password_invalid_current_password(create_test_user):
+def test_change_password_invalid_current_password(client, create_test_user):
     db, user = create_test_user(
         role="Reviewer",
         email="password-invalid-current@example.com",
@@ -74,7 +79,7 @@ def test_change_password_invalid_current_password(create_test_user):
         db.close()
 
 
-def test_change_password_rejects_weak_password(create_test_user):
+def test_change_password_rejects_weak_password(client, create_test_user):
     db, user = create_test_user(
         role="Reviewer",
         email="password-weak@example.com",
@@ -108,7 +113,7 @@ def test_change_password_rejects_weak_password(create_test_user):
         db.close()
 
 
-def test_change_password_rejects_same_password(create_test_user):
+def test_change_password_rejects_same_password(client, create_test_user):
     db, user = create_test_user(
         role="Reviewer",
         email="password-same@example.com",

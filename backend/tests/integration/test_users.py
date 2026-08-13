@@ -7,7 +7,7 @@ from app.models.user import User
 client = TestClient(app)
 
 
-def test_create_user(create_test_user):
+def test_create_user(client, create_test_user):
     db, admin = create_test_user(
         role="Administrator",
         email="admin-user-test@example.com",
@@ -58,7 +58,7 @@ def test_create_user(create_test_user):
         db.close()
 
 
-def test_get_user(create_test_user):
+def test_get_user(client, create_test_user):
     db, admin = create_test_user(
         role="Administrator",
         email="admin-get-user@example.com",
@@ -103,7 +103,7 @@ def test_get_user(create_test_user):
         db2.close()
 
 
-def test_get_all_users(create_test_user):
+def test_get_all_users(client, create_test_user):
     db, admin = create_test_user(
         role="Administrator",
         email="admin-list-users@example.com",
@@ -150,7 +150,7 @@ def test_get_all_users(create_test_user):
         db2.close()
 
 
-def test_update_user(create_test_user):
+def test_update_user(client, create_test_user):
     db, admin = create_test_user(
         role="Administrator",
         email="admin-update-user@example.com",
@@ -199,7 +199,7 @@ def test_update_user(create_test_user):
         db2.close()
 
 
-def test_deactivate_user(create_test_user):
+def test_deactivate_user(client, create_test_user):
     db, admin = create_test_user(
         role="Administrator",
         email="admin-deactivate@example.com",
@@ -245,7 +245,7 @@ def test_deactivate_user(create_test_user):
         db2.close()
 
 
-def test_delete_user(create_test_user):
+def test_delete_user(client, create_test_user):
     db, admin = create_test_user(
         role="Administrator",
         email="admin-delete-user@example.com",

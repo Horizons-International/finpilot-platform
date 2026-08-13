@@ -6,7 +6,7 @@ from app.main import app
 client = TestClient(app)
 
 
-def test_user_can_get_own_profile(create_test_user):
+def test_user_can_get_own_profile(client, create_test_user):
     db, user = create_test_user(
         role="Reviewer",
         email="profile-get@example.com",
@@ -44,7 +44,7 @@ def test_user_can_get_own_profile(create_test_user):
         db.close()
 
 
-def test_user_can_update_own_profile(create_test_user):
+def test_user_can_update_own_profile(client, create_test_user):
     db, user = create_test_user(
         role="Reviewer",
         email="profile-update@example.com",
@@ -86,13 +86,13 @@ def test_user_can_update_own_profile(create_test_user):
         db.close()
 
 
-def test_unauthenticated_user_cannot_get_profile():
+def test_unauthenticated_user_cannot_get_profile(client):
     response = client.get("/api/v1/profile")
 
     assert response.status_code == 401
 
 
-def test_user_cannot_change_role(create_test_user):
+def test_user_cannot_change_role(client, create_test_user):
     db, user = create_test_user(
         role="Reviewer",
         email="profile-role@example.com",

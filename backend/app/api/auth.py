@@ -1,6 +1,6 @@
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from jose import JWTError
 from sqlalchemy.orm import Session
 
@@ -16,6 +16,7 @@ from app.core.security import (
     validate_password,
     verify_password,
 )
+from app.models.audit_log import AuditEventType
 from app.models.user import User, UserStatus
 from app.schemas.auth import (
     ChangePasswordRequest,
@@ -25,6 +26,7 @@ from app.schemas.auth import (
     RefreshTokenResponse,
     UserResponse,
 )
+from app.services.audit import log_auth_event
 
 router = APIRouter(
     prefix="/api/v1/auth",
@@ -38,11 +40,20 @@ router = APIRouter(
 )
 def login(
     login_data: LoginRequest,
+    request: Request,
     db: Session = Depends(get_db),
 ):
     user = db.query(User).filter(User.email == login_data.email).first()
 
     if not user:
+        log_auth_event(
+            db=db,
+            event_type=AuditEventType.LOGIN_FAILURE,
+            email=login_data.email,
+            ip_address=request.client.host if request.client else None,
+            user_agent=request.headers.get("user-agent"),
+        )
+
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid email or password",
@@ -52,18 +63,45 @@ def login(
         login_data.password,
         user.password_hash,
     ):
+        log_auth_event(
+            db=db,
+            event_type=AuditEventType.LOGIN_FAILURE,
+            user_id=user.id,
+            email=user.email,
+            ip_address=request.client.host if request.client else None,
+            user_agent=request.headers.get("user-agent"),
+        )
+
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid email or password",
         )
 
     if user.status == UserStatus.INACTIVE:
+        log_auth_event(
+            db=db,
+            event_type=AuditEventType.LOGIN_FAILURE,
+            user_id=user.id,
+            email=user.email,
+            ip_address=request.client.host if request.client else None,
+            user_agent=request.headers.get("user-agent"),
+        )
+
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="User account is inactive",
         )
 
     if user.status == UserStatus.LOCKED:
+        log_auth_event(
+            db=db,
+            event_type=AuditEventType.LOGIN_FAILURE,
+            user_id=user.id,
+            email=user.email,
+            ip_address=request.client.host if request.client else None,
+            user_agent=request.headers.get("user-agent"),
+        )
+
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="User account is locked",
@@ -81,6 +119,15 @@ def login(
 
     refresh_token = create_refresh_token(
         data=token_data,
+    )
+
+    log_auth_event(
+        db=db,
+        event_type=AuditEventType.LOGIN_SUCCESS,
+        user_id=user.id,
+        email=user.email,
+        ip_address=request.client.host if request.client else None,
+        user_agent=request.headers.get("user-agent"),
     )
 
     return LoginResponse(
@@ -152,6 +199,7 @@ def admin_only(
 @router.post("/change-password")
 def change_password(
     password_data: ChangePasswordRequest,
+    request: Request,
     db: Session = Depends(get_db),
     current_user: dict[str, Any] = Depends(get_current_user),
 ):
@@ -189,5 +237,14 @@ def change_password(
     user.password_hash = hash_password(password_data.new_password)
 
     db.commit()
+
+    log_auth_event(
+        db=db,
+        event_type=AuditEventType.PASSWORD_CHANGE,
+        user_id=user.id,
+        email=user.email,
+        ip_address=request.client.host if request.client else None,
+        user_agent=request.headers.get("user-agent"),
+    )
 
     return {"message": "Password changed successfully"}
