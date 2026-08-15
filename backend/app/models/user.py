@@ -15,6 +15,13 @@ class UserStatus(str, enum.Enum):
     LOCKED = "locked"
 
 
+class UserRole(str, enum.Enum):
+    ADMINISTRATOR = "Administrator"
+    REVIEWER = "Reviewer"
+    COMPLIANCE_OFFICER = "Compliance Officer"
+    AUDITOR = "Auditor"
+
+
 class User(Base):
     __tablename__ = "users"
 
@@ -64,7 +71,7 @@ class User(Base):
         server_default="false",
     )
 
-    role: Mapped[str] = mapped_column(
+    role: Mapped[UserRole] = mapped_column(
         String(50),
         nullable=False,
     )

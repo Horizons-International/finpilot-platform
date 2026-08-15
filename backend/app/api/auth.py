@@ -20,12 +20,12 @@ from app.core.security import (
 from app.models.audit_log import AuditEventType
 from app.models.user import User, UserStatus
 from app.schemas.auth import (
+    AuthUserResponse,
     ChangePasswordRequest,
     LoginRequest,
     LoginResponse,
     RefreshTokenRequest,
     RefreshTokenResponse,
-    UserResponse,
 )
 from app.services.audit import log_auth_event
 
@@ -138,7 +138,7 @@ def login(
             access_token=access_token,
             refresh_token=refresh_token,
             token_type="bearer",
-            user=UserResponse(
+            user=AuthUserResponse(
                 id=str(user.id),
                 first_name=user.first_name,
                 last_name=user.last_name,
