@@ -1,4 +1,7 @@
-from fastapi import Depends, FastAPI, HTTPException
+import time
+from contextlib import asynccontextmanager
+
+from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.exceptions import RequestValidationError
 from sqlalchemy.exc import SQLAlchemyError
 
@@ -12,12 +15,28 @@ from app.core.exceptions import (
     unexpected_exception_handler,
     validation_exception_handler,
 )
+from app.core.logger import get_logger, setup_logging
 from app.core.responses import APIResponse
 from app.models.user import User
 from app.schemas.auth import MeResponse
 
+setup_logging()
+
+logger = get_logger(__name__)
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    logger.info("FinPilot API starting")
+
+    yield
+
+    logger.info("FinPilot API shutting down")
+
+
 app = FastAPI(
     title="FinPilot API",
+    lifespan=lifespan,
 )
 
 app.include_router(auth_router)
@@ -68,3 +87,35 @@ def get_me(
             role=current_user.role,
         ),
     )
+
+
+@app.middleware("http")
+async def log_requests(request: Request, call_next):
+    start_time = time.perf_counter()
+
+    try:
+        response = await call_next(request)
+
+        elapsed_time = (time.perf_counter() - start_time) * 1000
+
+        logger.info(
+            "%s %s | %s | %.2fms",
+            request.method,
+            request.url.path,
+            response.status_code,
+            elapsed_time,
+        )
+
+        return response
+
+    except Exception:
+        elapsed_time = (time.perf_counter() - start_time) * 1000
+
+        logger.exception(
+            "%s %s | unexpected error | %.2fms",
+            request.method,
+            request.url.path,
+            elapsed_time,
+        )
+
+        raise

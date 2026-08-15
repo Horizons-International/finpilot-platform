@@ -1,13 +1,12 @@
-import logging
-
 from fastapi import HTTPException, Request, status
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from sqlalchemy.exc import SQLAlchemyError
 
+from app.core.logger import get_logger
 from app.core.responses import APIResponse, ErrorDetail
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 async def http_exception_handler(
@@ -46,9 +45,10 @@ async def validation_exception_handler(
         raise exc
 
     logger.warning(
-        "Validation error: %s %s",
+        "Validation error: %s %s - %s",
         request.method,
         request.url.path,
+        exc.errors(),
     )
 
     errors: list[ErrorDetail] = []
@@ -92,15 +92,14 @@ async def database_exception_handler(
         raise exc
 
     logger.exception(
-        "Database error: %s %s",
+        "Database error while processing %s %s",
         request.method,
         request.url.path,
-        exc_info=exc,
     )
 
     response: APIResponse[None] = APIResponse(
         success=False,
-        message="A database error occurred. Please try again later.",
+        message="A database error occurred.",
         data=None,
         errors=None,
     )
@@ -116,15 +115,14 @@ async def unexpected_exception_handler(
     exc: Exception,
 ) -> JSONResponse:
     logger.exception(
-        "Unexpected error: %s %s",
+        "Unexpected error while processing %s %s",
         request.method,
         request.url.path,
-        exc_info=exc,
     )
 
     response: APIResponse[None] = APIResponse(
         success=False,
-        message="An unexpected error occurred. Please try again later.",
+        message="An unexpected error occurred.",
         data=None,
         errors=None,
     )
