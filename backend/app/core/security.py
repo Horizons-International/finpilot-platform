@@ -2,21 +2,16 @@ import re
 from datetime import datetime, timedelta, timezone
 from typing import Any, Callable, cast
 
+import bcrypt
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jose import JWTError, jwt
-from passlib.context import CryptContext
 
 from app.core.config import settings
 
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 30
 REFRESH_TOKEN_EXPIRE_DAYS = 7
-
-pwd_context = CryptContext(
-    schemes=["bcrypt"],
-    deprecated="auto",
-)
 
 
 # ---------------------------------------------------------------------------
@@ -36,15 +31,27 @@ class Roles:
 # ---------------------------------------------------------------------------
 
 
+def hash_password(password: str) -> str:
+    password_bytes = password.encode("utf-8")
+
+    salt = bcrypt.gensalt()
+
+    hashed = bcrypt.hashpw(password_bytes, salt)
+
+    return hashed.decode("utf-8")
+
+
 def verify_password(
     plain_password: str,
     hashed_password: str,
 ) -> bool:
-    return bool(pwd_context.verify(plain_password, hashed_password))
+    password_bytes = plain_password.encode("utf-8")
+    hashed_bytes = hashed_password.encode("utf-8")
 
-
-def hash_password(password: str) -> str:
-    return str(pwd_context.hash(password))
+    return bcrypt.checkpw(
+        password_bytes,
+        hashed_bytes,
+    )
 
 
 # ---------------------------------------------------------------------------

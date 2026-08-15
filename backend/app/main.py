@@ -17,6 +17,7 @@ from app.core.exceptions import (
 )
 from app.core.logger import get_logger, setup_logging
 from app.core.responses import APIResponse
+from app.middleware.request_id import RequestIDMiddleware
 from app.models.user import User
 from app.schemas.auth import MeResponse
 
@@ -38,6 +39,8 @@ app = FastAPI(
     title="FinPilot API",
     lifespan=lifespan,
 )
+
+app.add_middleware(RequestIDMiddleware)
 
 app.include_router(auth_router)
 app.include_router(users_router)
@@ -98,8 +101,15 @@ async def log_requests(request: Request, call_next):
 
         elapsed_time = (time.perf_counter() - start_time) * 1000
 
+        request_id = getattr(
+            request.state,
+            "request_id",
+            "unknown",
+        )
+
         logger.info(
-            "%s %s | %s | %.2fms",
+            "Request ID=%s | %s %s | %s | %.2fms",
+            request_id,
             request.method,
             request.url.path,
             response.status_code,
@@ -109,13 +119,17 @@ async def log_requests(request: Request, call_next):
         return response
 
     except Exception:
-        elapsed_time = (time.perf_counter() - start_time) * 1000
+        request_id = getattr(
+            request.state,
+            "request_id",
+            "unknown",
+        )
 
         logger.exception(
-            "%s %s | unexpected error | %.2fms",
+            "Request ID=%s | %s %s | unexpected error",
+            request_id,
             request.method,
             request.url.path,
-            elapsed_time,
         )
 
         raise
