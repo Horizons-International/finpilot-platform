@@ -9,11 +9,10 @@ authors = [
 requires-python = ">=3.12"
 dependencies = [
     "alembic>=1.19.0",
-    "bcrypt<5",
+    "bcrypt==4.3.0",
     "black>=26.5.1",
     "fastapi[standard]>=0.141.1",
     "mypy>=2.3.0",
-    "passlib[bcrypt]>=1.7.4",
     "pre-commit>=4.6.1",
     "psycopg[binary]>=3.3.4",
     "pydantic>=2.13.4",
