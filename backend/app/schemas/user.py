@@ -1,24 +1,42 @@
 from datetime import datetime
+from typing import Optional
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, EmailStr
+from pydantic import BaseModel, ConfigDict, EmailStr, Field
 
-from app.models.user import UserStatus
+from app.models.user import UserRole, UserStatus
 
 
 class UserCreate(BaseModel):
-    first_name: str
-    last_name: str
+    first_name: str = Field(
+        min_length=1,
+        max_length=100,
+    )
+    last_name: str = Field(
+        min_length=1,
+        max_length=100,
+    )
     email: EmailStr
-    password: str
-    role: str
+    password: str = Field(
+        min_length=8,
+        max_length=128,
+    )
+    role: UserRole
 
 
 class UserUpdate(BaseModel):
-    first_name: str | None = None
-    last_name: str | None = None
+    first_name: Optional[str] = Field(
+        default=None,
+        min_length=1,
+        max_length=100,
+    )
+    last_name: Optional[str] = Field(
+        default=None,
+        min_length=1,
+        max_length=100,
+    )
     email: EmailStr | None = None
-    role: str | None = None
+    role: UserRole | None = None
 
 
 class UserStatusUpdate(BaseModel):
@@ -33,7 +51,7 @@ class UserResponse(BaseModel):
     last_name: str
     email: EmailStr
     status: UserStatus
-    role: str
+    role: UserRole
     is_deleted: bool
     created_at: datetime
     updated_at: datetime
@@ -48,9 +66,20 @@ class UserListResponse(BaseModel):
 
 
 class ProfileUpdateRequest(BaseModel):
-    first_name: str
-    last_name: str
-    phone_number: str | None = None
+    first_name: str = Field(
+        min_length=1,
+        max_length=100,
+    )
+
+    last_name: str = Field(
+        min_length=1,
+        max_length=100,
+    )
+
+    phone_number: str | None = Field(
+        default=None,
+        max_length=30,
+    )
 
 
 class ProfileResponse(BaseModel):
@@ -62,4 +91,4 @@ class ProfileResponse(BaseModel):
     email: EmailStr
     phone_number: str | None
     status: UserStatus
-    role: str
+    role: UserRole

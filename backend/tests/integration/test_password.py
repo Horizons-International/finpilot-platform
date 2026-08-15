@@ -105,7 +105,7 @@ def test_change_password_rejects_weak_password(client, create_test_user):
             },
         )
 
-        assert response.status_code == 400
+        assert response.status_code == 422
 
     finally:
         db.delete(user)
