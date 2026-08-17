@@ -18,7 +18,8 @@ from app.core.security import (
     verify_password,
 )
 from app.models.audit_log import AuditEventType
-from app.models.user import User, UserStatus
+from app.models.user import UserStatus
+from app.repositories.user_repository import UserRepository
 from app.schemas.auth import (
     AuthUserResponse,
     ChangePasswordRequest,
@@ -44,7 +45,11 @@ def login(
     request: Request,
     db: Session = Depends(get_db),
 ):
-    user = db.query(User).filter(User.email == login_data.email).first()
+    user_repository = UserRepository(db)
+
+    user = user_repository.get_by_email(
+        login_data.email,
+    )
 
     if not user:
         log_auth_event(
@@ -216,7 +221,11 @@ def change_password(
     db: Session = Depends(get_db),
     current_user: dict[str, Any] = Depends(get_current_user),
 ):
-    user = db.query(User).filter(User.id == current_user["sub"]).first()
+    user_repository = UserRepository(db)
+
+    user = user_repository.get_by_id(
+        current_user["sub"],
+    )
 
     if not user:
         raise HTTPException(
@@ -249,7 +258,7 @@ def change_password(
 
     user.password_hash = hash_password(password_data.new_password)
 
-    db.commit()
+    user_repository.update(user)
 
     log_auth_event(
         db=db,

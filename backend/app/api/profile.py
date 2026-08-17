@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.core.responses import APIResponse
 from app.core.security import get_current_user
-from app.models.user import User
+from app.repositories.user_repository import UserRepository
 from app.schemas.user import ProfileResponse, ProfileUpdateRequest
 
 router = APIRouter(
@@ -23,7 +23,11 @@ def get_profile(
     current_user: dict[str, Any] = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    user = db.query(User).filter(User.id == current_user["sub"]).first()
+    user_repository = UserRepository(db)
+
+    user = user_repository.get_by_id(
+        current_user["sub"],
+    )
 
     if not user:
         raise HTTPException(
@@ -47,7 +51,9 @@ def update_profile(
     current_user: dict[str, Any] = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    user = db.query(User).filter(User.id == current_user["sub"]).first()
+    user_repository = UserRepository(db)
+
+    user = user_repository.get_by_id(current_user["sub"])
 
     if not user:
         raise HTTPException(
@@ -59,8 +65,7 @@ def update_profile(
     user.last_name = profile_data.last_name
     user.phone_number = profile_data.phone_number
 
-    db.commit()
-    db.refresh(user)
+    user_repository.update(user)
 
     return APIResponse(
         success=True,
