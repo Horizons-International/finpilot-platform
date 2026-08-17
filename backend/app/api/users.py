@@ -1,4 +1,3 @@
-from typing import Any
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -12,6 +11,7 @@ from app.core.security import (
     require_roles,
 )
 from app.models.user import User, UserStatus
+from app.repositories.user_repository import UserRepository
 from app.schemas.user import (
     UserCreate,
     UserListResponse,
@@ -36,9 +36,9 @@ def create_user(
     db: Session = Depends(get_db),
     _: dict = Depends(require_roles(Roles.ADMINISTRATOR)),
 ):
-    existing_user = db.query(User).filter(User.email == user_data.email).first()
+    user_repository = UserRepository(db)
 
-    if existing_user:
+    if user_repository.email_exists(user_data.email):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Email is already registered",
@@ -54,9 +54,7 @@ def create_user(
         is_deleted=False,
     )
 
-    db.add(user)
-    db.commit()
-    db.refresh(user)
+    user_repository.create(user)
 
     return APIResponse(
         success=True,
@@ -74,14 +72,9 @@ def get_user(
     db: Session = Depends(get_db),
     _: dict = Depends(require_roles(Roles.ADMINISTRATOR)),
 ):
-    user = (
-        db.query(User)
-        .filter(
-            User.id == user_id,
-            User.is_deleted.is_(False),
-        )
-        .first()
-    )
+    user_repository = UserRepository(db)
+
+    user = user_repository.get_by_id(user_id)
 
     if not user:
         raise HTTPException(
@@ -118,13 +111,16 @@ def get_users(
             detail="Page size must be between 1 and 100",
         )
 
-    query = db.query(User).filter(User.is_deleted.is_(False))
+    user_repository = UserRepository(db)
 
-    total = query.count()
+    total = user_repository.count_active()
 
     offset = (page - 1) * page_size
 
-    users = query.offset(offset).limit(page_size).all()
+    users = user_repository.get_all_active(
+        offset=offset,
+        limit=page_size,
+    )
 
     total_pages = (total + page_size - 1) // page_size if total > 0 else 0
 
@@ -155,14 +151,9 @@ def update_user(
     db: Session = Depends(get_db),
     _: dict = Depends(require_roles(Roles.ADMINISTRATOR)),
 ):
-    user = (
-        db.query(User)
-        .filter(
-            User.id == user_id,
-            User.is_deleted.is_(False),
-        )
-        .first()
-    )
+    user_repository = UserRepository(db)
+
+    user = user_repository.get_by_id(user_id)
 
     if not user:
         raise HTTPException(
@@ -171,17 +162,10 @@ def update_user(
         )
 
     if user_data.email is not None:
-        existing_user = (
-            db.query(User)
-            .filter(
-                User.email == user_data.email,
-                User.id != user_id,
-                User.is_deleted.is_(False),
-            )
-            .first()
-        )
-
-        if existing_user:
+        if user_repository.email_exists(
+            user_data.email,
+            exclude_user_id=user_id,
+        ):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Email is already registered",
@@ -198,8 +182,7 @@ def update_user(
     if user_data.role is not None:
         user.role = user_data.role
 
-    db.commit()
-    db.refresh(user)
+    user_repository.update(user)
 
     return APIResponse(
         success=True,
@@ -216,16 +199,11 @@ def update_user_status(
     user_id: UUID,
     status_data: UserStatusUpdate,
     db: Session = Depends(get_db),
-    current_user: dict[str, Any] = Depends(require_roles(Roles.ADMINISTRATOR)),
+    _: dict = Depends(require_roles(Roles.ADMINISTRATOR)),
 ):
-    user = (
-        db.query(User)
-        .filter(
-            User.id == user_id,
-            User.is_deleted.is_(False),
-        )
-        .first()
-    )
+    user_repository = UserRepository(db)
+
+    user = user_repository.get_by_id(user_id)
 
     if not user:
         raise HTTPException(
@@ -235,8 +213,7 @@ def update_user_status(
 
     user.status = status_data.status
 
-    db.commit()
-    db.refresh(user)
+    user_repository.update(user)
 
     return APIResponse(
         success=True,
@@ -252,16 +229,11 @@ def update_user_status(
 def delete_user(
     user_id: UUID,
     db: Session = Depends(get_db),
-    current_user: dict[str, Any] = Depends(require_roles(Roles.ADMINISTRATOR)),
+    _: dict = Depends(require_roles(Roles.ADMINISTRATOR)),
 ):
-    user = (
-        db.query(User)
-        .filter(
-            User.id == user_id,
-            User.is_deleted.is_(False),
-        )
-        .first()
-    )
+    user_repository = UserRepository(db)
+
+    user = user_repository.get_by_id(user_id)
 
     if not user:
         raise HTTPException(
@@ -269,11 +241,7 @@ def delete_user(
             detail="User not found",
         )
 
-    user.is_deleted = True
-    user.status = UserStatus.INACTIVE
-
-    db.commit()
-    db.refresh(user)
+    user_repository.soft_delete(user)
 
     return APIResponse(
         success=True,

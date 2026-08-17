@@ -2,6 +2,7 @@ from app.core.config import settings
 from app.core.database import SessionLocal
 from app.core.security import hash_password
 from app.models.user import User, UserStatus
+from app.repositories.user_repository import UserRepository
 
 
 def seed_admin() -> None:
@@ -13,7 +14,11 @@ def seed_admin() -> None:
     db = SessionLocal()
 
     try:
-        existing_admin = db.query(User).filter(User.email == admin_email).first()
+        user_repository = UserRepository(db)
+
+        existing_admin = user_repository.get_by_email(
+            admin_email,
+        )
 
         if existing_admin:
             print(f"Administrator already exists: {admin_email}")
@@ -28,8 +33,7 @@ def seed_admin() -> None:
             role="Administrator",
         )
 
-        db.add(admin)
-        db.commit()
+        user_repository.create(admin)
 
         print(f"Administrator created successfully: {admin_email}")
 
