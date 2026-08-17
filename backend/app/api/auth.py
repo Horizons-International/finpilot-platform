@@ -29,6 +29,8 @@ router = APIRouter(
 @router.post(
     "/login",
     response_model=APIResponse[LoginResponse],
+    summary="Authenticate user",
+    description="Authenticates a user and returns access and refresh tokens.",
 )
 def login(
     login_data: LoginRequest,
@@ -50,6 +52,8 @@ def login(
 @router.post(
     "/refresh",
     response_model=APIResponse[RefreshTokenResponse],
+    summary="Refresh access token",
+    description="Generates a new access token using a valid refresh token.",
 )
 def refresh_token(
     refresh_data: RefreshTokenRequest,
@@ -80,6 +84,8 @@ def admin_only(
 @router.post(
     "/change-password",
     response_model=APIResponse[dict[str, str]],
+    summary="Change password",
+    description="Changes the password of the currently authenticated user.",
 )
 def change_password(
     password_data: ChangePasswordRequest,

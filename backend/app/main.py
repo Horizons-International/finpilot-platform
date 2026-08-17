@@ -38,6 +38,14 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="FinPilot API",
     lifespan=lifespan,
+    description=(
+        "FinPilot Platform API for user management, authentication, "
+        "profiles, and administration."
+    ),
+    version="1.0.0",
+    docs_url="/docs",
+    redoc_url="/redoc",
+    openapi_url="/openapi.json",
 )
 
 app.add_middleware(RequestIDMiddleware)
@@ -66,7 +74,12 @@ app.add_exception_handler(
 )
 
 
-@app.get("/health")
+@app.get(
+    "/health",
+    tags=["Health"],
+    summary="Check API health",
+    description="Returns the current health status of the API.",
+)
 def health():
     return APIResponse(
         success=True,
@@ -75,7 +88,13 @@ def health():
     )
 
 
-@app.get("/api/v1/me", response_model=APIResponse[MeResponse])
+@app.get(
+    "/api/v1/me",
+    response_model=APIResponse[MeResponse],
+    tags=["Users"],
+    summary="Get current user",
+    description="Returns the profile information of the currently authenticated user.",
+)
 def get_me(
     current_user: User = Depends(get_current_user),
 ):
