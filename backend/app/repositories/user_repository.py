@@ -87,3 +87,20 @@ class UserRepository(BaseRepository[User]):
         self.db.refresh(user)
 
         return user
+
+    def get_paginated(
+        self,
+        page: int,
+        page_size: int,
+    ) -> tuple[list[User], int]:
+        query = self.db.query(User).filter(
+            User.is_deleted.is_(False),
+        )
+
+        total = query.count()
+
+        offset = (page - 1) * page_size
+
+        users = query.offset(offset).limit(page_size).all()
+
+        return users, total
