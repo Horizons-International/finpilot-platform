@@ -31,5 +31,16 @@ class Settings(BaseSettings):
         extra="ignore",
     )
 
+    # Storage Settings
+    STORAGE_TYPE: str = "local"
+    STORAGE_PATH: str = "./storage"
+    MAX_FILE_SIZE: int = 10 * 1024 * 1024
+    ALLOWED_FILE_TYPES: list[str] = [
+        "application/pdf",
+        "image/png",
+        "image/jpeg",
+        "text/plain",
+    ]
+
 
 settings = Settings()  # type: ignore[call-arg]
