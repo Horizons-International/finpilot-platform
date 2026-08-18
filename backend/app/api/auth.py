@@ -18,7 +18,7 @@ from app.schemas.auth import (
     RefreshTokenRequest,
     RefreshTokenResponse,
 )
-from app.services.auth_services import AuthService
+from app.services.auth_service import AuthService
 
 router = APIRouter(
     prefix="/api/v1/auth",

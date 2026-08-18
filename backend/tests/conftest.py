@@ -9,6 +9,7 @@ from app.core.database import get_db
 from app.core.security import hash_password
 from app.main import app
 from app.models.audit_log import AuditLog
+from app.models.file import File
 from app.models.user import User, UserStatus
 
 os.environ.setdefault(
@@ -45,34 +46,6 @@ def client():
 
 
 @pytest.fixture
-def test_user():
-    db = TestSessionLocal()
-
-    user = User(
-        first_name="Test",
-        last_name="User",
-        email="test@example.com",
-        password_hash=hash_password("Password123!"),
-        status=UserStatus.ACTIVE,
-        role="Administrator",
-    )
-
-    db.add(user)
-    db.commit()
-    db.refresh(user)
-
-    yield user
-
-    db.query(AuditLog).filter(AuditLog.user_id == user.id).delete(
-        synchronize_session=False
-    )
-
-    db.delete(user)
-    db.commit()
-    db.close()
-
-
-@pytest.fixture
 def create_test_user():
     created_users = []
 
@@ -92,6 +65,8 @@ def create_test_user():
         db.commit()
         db.refresh(user)
 
+        created_users.append((db, user))
+
         return db, user
 
     yield _create_test_user
@@ -103,4 +78,27 @@ def create_test_user():
 
         db.delete(user)
         db.commit()
+        db.close()
+
+
+@pytest.fixture
+def cleanup_test_files():
+    created_files = []
+
+    def _track_file(file_id):
+        created_files.append(file_id)
+
+    yield _track_file
+
+    db = TestSessionLocal()
+
+    try:
+        for file_id in created_files:
+            file_record = db.query(File).filter(File.id == file_id).first()
+
+            if file_record:
+                db.delete(file_record)
+
+        db.commit()
+    finally:
         db.close()

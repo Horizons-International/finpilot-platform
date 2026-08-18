@@ -2,146 +2,117 @@ from fastapi.testclient import TestClient
 
 from app.core.security import create_access_token
 from app.main import app
-from app.models.audit_log import AuditLog
 
 client = TestClient(app)
 
 
 def test_change_password_success(client, create_test_user):
-    db, user = create_test_user(
+    _, user = create_test_user(
         role="Reviewer",
         email="password-change@example.com",
     )
 
-    try:
-        token = create_access_token(
-            data={
-                "sub": str(user.id),
-                "email": user.email,
-                "role": user.role,
-            }
-        )
+    token = create_access_token(
+        data={
+            "sub": str(user.id),
+            "email": user.email,
+            "role": user.role,
+        }
+    )
 
-        response = client.post(
-            "/api/v1/auth/change-password",
-            headers={
-                "Authorization": f"Bearer {token}",
-            },
-            json={
-                "current_password": "Password123!",
-                "new_password": "NewPassword123!",
-            },
-        )
+    response = client.post(
+        "/api/v1/auth/change-password",
+        headers={
+            "Authorization": f"Bearer {token}",
+        },
+        json={
+            "current_password": "Password123!",
+            "new_password": "NewPassword123!",
+        },
+    )
 
-        assert response.status_code == 200
-
-    finally:
-        db.query(AuditLog).filter(AuditLog.user_id == user.id).delete(
-            synchronize_session=False
-        )
-
-        db.delete(user)
-        db.commit()
-        db.close()
+    assert response.status_code == 200
 
 
 def test_change_password_invalid_current_password(client, create_test_user):
-    db, user = create_test_user(
+    _, user = create_test_user(
         role="Reviewer",
         email="password-invalid-current@example.com",
     )
 
-    try:
-        token = create_access_token(
-            data={
-                "sub": str(user.id),
-                "email": user.email,
-                "role": user.role,
-            }
-        )
+    token = create_access_token(
+        data={
+            "sub": str(user.id),
+            "email": user.email,
+            "role": user.role,
+        }
+    )
 
-        response = client.post(
-            "/api/v1/auth/change-password",
-            headers={
-                "Authorization": f"Bearer {token}",
-            },
-            json={
-                "current_password": "WrongPassword123!",
-                "new_password": "NewPassword123!",
-            },
-        )
+    response = client.post(
+        "/api/v1/auth/change-password",
+        headers={
+            "Authorization": f"Bearer {token}",
+        },
+        json={
+            "current_password": "WrongPassword123!",
+            "new_password": "NewPassword123!",
+        },
+    )
 
-        assert response.status_code == 400
-
-    finally:
-        db.delete(user)
-        db.commit()
-        db.close()
+    assert response.status_code == 400
 
 
 def test_change_password_rejects_weak_password(client, create_test_user):
-    db, user = create_test_user(
+    _, user = create_test_user(
         role="Reviewer",
         email="password-weak@example.com",
     )
 
-    try:
-        token = create_access_token(
-            data={
-                "sub": str(user.id),
-                "email": user.email,
-                "role": user.role,
-            }
-        )
+    token = create_access_token(
+        data={
+            "sub": str(user.id),
+            "email": user.email,
+            "role": user.role,
+        }
+    )
 
-        response = client.post(
-            "/api/v1/auth/change-password",
-            headers={
-                "Authorization": f"Bearer {token}",
-            },
-            json={
-                "current_password": "Password123!",
-                "new_password": "weak",
-            },
-        )
+    response = client.post(
+        "/api/v1/auth/change-password",
+        headers={
+            "Authorization": f"Bearer {token}",
+        },
+        json={
+            "current_password": "Password123!",
+            "new_password": "weak",
+        },
+    )
 
-        assert response.status_code == 422
-
-    finally:
-        db.delete(user)
-        db.commit()
-        db.close()
+    assert response.status_code == 422
 
 
 def test_change_password_rejects_same_password(client, create_test_user):
-    db, user = create_test_user(
+    _, user = create_test_user(
         role="Reviewer",
         email="password-same@example.com",
     )
 
-    try:
-        token = create_access_token(
-            data={
-                "sub": str(user.id),
-                "email": user.email,
-                "role": user.role,
-            }
-        )
+    token = create_access_token(
+        data={
+            "sub": str(user.id),
+            "email": user.email,
+            "role": user.role,
+        }
+    )
 
-        response = client.post(
-            "/api/v1/auth/change-password",
-            headers={
-                "Authorization": f"Bearer {token}",
-            },
-            json={
-                "current_password": "Password123!",
-                "new_password": "Password123!",
-            },
-        )
+    response = client.post(
+        "/api/v1/auth/change-password",
+        headers={
+            "Authorization": f"Bearer {token}",
+        },
+        json={
+            "current_password": "Password123!",
+            "new_password": "Password123!",
+        },
+    )
 
-        assert response.status_code == 400
-
-    finally:
-        db.delete(user)
-        db.commit()
-        db.close()
+    assert response.status_code == 400
