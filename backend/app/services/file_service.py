@@ -5,9 +5,11 @@ from fastapi import HTTPException, UploadFile, status
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
+from app.models.audit_log import AuditEventType
 from app.models.file import File
 from app.repositories.file_repository import FileRepository
-from app.storage.base_storage import BaseStorage
+from app.services.audit_service import AuditService
+from app.storages.base_storage import BaseStorage
 
 
 class FileService:
@@ -16,7 +18,9 @@ class FileService:
         db: Session,
         storage: BaseStorage,
     ):
+        self.db = db
         self.file_repository = FileRepository(db)
+        self.audit_service = AuditService(db)
         self.storage = storage
 
     async def upload_file(
@@ -39,6 +43,7 @@ class FileService:
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="File content type is required.",
             )
+
         if file.content_type not in settings.ALLOWED_FILE_TYPES:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
@@ -55,34 +60,67 @@ class FileService:
                 detail="File size exceeds the maximum allowed size.",
             )
 
-        # Store file
-        storage_path = self.storage.save(
-            file_content=file_content,
-            filename=file.filename,
-            folder=f"{module}/{folder}",
-        )
+        storage_path: str | None = None
 
-        stored_filename = Path(storage_path).name
+        try:
+            # Store physical file
+            storage_path = self.storage.save(
+                file_content=file_content,
+                filename=file.filename,
+                folder=f"{module}/{folder}",
+            )
 
-        # Create database record
-        file_record = File(
-            original_filename=file.filename,
-            stored_filename=stored_filename,
-            storage_path=storage_path,
-            folder=folder,
-            module=module,
-            content_type=file.content_type,
-            file_size=len(file_content),
-            uploaded_by=uploaded_by,
-        )
+            stored_filename = Path(storage_path).name
 
-        self.file_repository.create(file_record)
+            # Create database record
+            file_record = File(
+                original_filename=file.filename,
+                stored_filename=stored_filename,
+                storage_path=storage_path,
+                folder=folder,
+                module=module,
+                content_type=file.content_type,
+                file_size=len(file_content),
+                uploaded_by=uploaded_by,
+            )
 
-        return file_record
+            self.file_repository.create(file_record)
+
+            # Create audit record
+            self.audit_service.log_event(
+                event_type=AuditEventType.FILE_UPLOAD,
+                user_id=uploaded_by,
+                resource_type="file",
+                resource_id=file_record.id,
+            )
+
+            # Commit file metadata + audit record together
+            self.db.commit()
+
+            # Refresh so the returned object contains committed DB values
+            self.db.refresh(file_record)
+
+            return file_record
+
+        except Exception:
+            # Roll back database changes
+            self.db.rollback()
+
+            # Remove physical file if it was already created
+            if storage_path is not None:
+                try:
+                    if self.storage.exists(storage_path):
+                        self.storage.delete(storage_path)
+                except Exception:
+                    # Do not hide the original exception
+                    pass
+
+            raise
 
     def download_file(
         self,
         file_id: UUID,
+        user_id: UUID,
     ) -> tuple[bytes, str, str]:
         file_record = self.file_repository.get_by_id(file_id)
 
@@ -102,6 +140,21 @@ class FileService:
             file_record.storage_path,
         )
 
+        try:
+            # Record successful download
+            self.audit_service.log_event(
+                event_type=AuditEventType.FILE_DOWNLOAD,
+                user_id=user_id,
+                resource_type="file",
+                resource_id=file_record.id,
+            )
+
+            self.db.commit()
+
+        except Exception:
+            self.db.rollback()
+            raise
+
         return (
             content,
             file_record.original_filename,
@@ -111,6 +164,7 @@ class FileService:
     def delete_file(
         self,
         file_id: UUID,
+        user_id: UUID,
     ) -> None:
         file_record = self.file_repository.get_by_id(file_id)
 
@@ -120,8 +174,26 @@ class FileService:
                 detail="File not found.",
             )
 
-        self.storage.delete(
-            file_record.storage_path,
-        )
+        storage_path = file_record.storage_path
 
-        self.file_repository.delete(file_record)
+        try:
+            # Delete physical file
+            self.storage.delete(storage_path)
+
+            # Delete database metadata
+            self.file_repository.delete(file_record)
+
+            # Record successful deletion
+            self.audit_service.log_event(
+                event_type=AuditEventType.FILE_DELETE,
+                user_id=user_id,
+                resource_type="file",
+                resource_id=file_id,
+            )
+
+            # Commit metadata deletion + audit record together
+            self.db.commit()
+
+        except Exception:
+            self.db.rollback()
+            raise

@@ -83,7 +83,7 @@ class UserRepository(BaseRepository[User]):
         user.is_deleted = True
         user.status = UserStatus.INACTIVE
 
-        self.db.commit()
+        self.db.flush()
         self.db.refresh(user)
 
         return user

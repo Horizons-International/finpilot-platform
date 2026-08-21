@@ -2,6 +2,7 @@ from fastapi.testclient import TestClient
 
 from app.core.security import create_access_token
 from app.main import app
+from app.models.audit_log import AuditLog
 from app.models.user import User
 
 client = TestClient(app)
@@ -44,14 +45,21 @@ def test_create_user(client, create_test_user):
     assert data["email"] == "new-user-test@example.com"
     assert data["role"] == "Reviewer"
 
-    # Clean up the user created by the endpoint.
+    # The endpoint-created user is not created by create_test_user,
+    # so explicitly remove it and its audit records.
     created_user = (
         db.query(User).filter(User.email == "new-user-test@example.com").first()
     )
 
     if created_user:
+        db.query(AuditLog).filter(AuditLog.user_id == created_user.id).delete(
+            synchronize_session=False
+        )
+
         db.delete(created_user)
         db.commit()
+
+    db.close()
 
 
 def test_get_user(client, create_test_user):

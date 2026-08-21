@@ -22,13 +22,14 @@ from app.schemas.auth import (
     LoginResponse,
     RefreshTokenResponse,
 )
-from app.services.audit import log_auth_event
+from app.services.audit_service import AuditService
 
 
 class AuthService:
     def __init__(self, db: Session):
         self.db = db
         self.user_repository = UserRepository(db)
+        self.audit_service = AuditService(db)
 
     def login(
         self,
@@ -40,13 +41,13 @@ class AuthService:
         user = self.user_repository.get_by_email(email)
 
         if not user:
-            log_auth_event(
-                db=self.db,
+            self.audit_service.log_event(
                 event_type=AuditEventType.LOGIN_FAILURE,
                 email=email,
                 ip_address=ip_address,
                 user_agent=user_agent,
             )
+            self.db.commit()
 
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
@@ -54,14 +55,14 @@ class AuthService:
             )
 
         if not verify_password(password, user.password_hash):
-            log_auth_event(
-                db=self.db,
+            self.audit_service.log_event(
                 event_type=AuditEventType.LOGIN_FAILURE,
                 user_id=user.id,
                 email=user.email,
                 ip_address=ip_address,
                 user_agent=user_agent,
             )
+            self.db.commit()
 
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
@@ -69,14 +70,14 @@ class AuthService:
             )
 
         if user.status == UserStatus.INACTIVE:
-            log_auth_event(
-                db=self.db,
+            self.audit_service.log_event(
                 event_type=AuditEventType.LOGIN_FAILURE,
                 user_id=user.id,
                 email=user.email,
                 ip_address=ip_address,
                 user_agent=user_agent,
             )
+            self.db.commit()
 
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
@@ -84,14 +85,14 @@ class AuthService:
             )
 
         if user.status == UserStatus.LOCKED:
-            log_auth_event(
-                db=self.db,
+            self.audit_service.log_event(
                 event_type=AuditEventType.LOGIN_FAILURE,
                 user_id=user.id,
                 email=user.email,
                 ip_address=ip_address,
                 user_agent=user_agent,
             )
+            self.db.commit()
 
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
@@ -107,14 +108,15 @@ class AuthService:
         access_token = create_access_token(data=token_data)
         refresh_token = create_refresh_token(data=token_data)
 
-        log_auth_event(
-            db=self.db,
+        self.audit_service.log_event(
             event_type=AuditEventType.LOGIN_SUCCESS,
             user_id=user.id,
             email=user.email,
             ip_address=ip_address,
             user_agent=user_agent,
         )
+
+        self.db.commit()
 
         return LoginResponse(
             access_token=access_token,
@@ -205,11 +207,12 @@ class AuthService:
 
         self.user_repository.update(user)
 
-        log_auth_event(
-            db=self.db,
+        self.audit_service.log_event(
             event_type=AuditEventType.PASSWORD_CHANGE,
             user_id=user.id,
             email=user.email,
             ip_address=ip_address,
             user_agent=user_agent,
         )
+
+        self.db.commit()

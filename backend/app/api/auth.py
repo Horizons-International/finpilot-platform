@@ -36,7 +36,7 @@ def login(
     login_data: LoginRequest,
     request: Request,
     db: Session = Depends(get_db),
-):
+) -> APIResponse[LoginResponse]:
     service = AuthService(db)
 
     result = service.login(

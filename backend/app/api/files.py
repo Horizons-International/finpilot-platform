@@ -12,7 +12,7 @@ from app.core.responses import APIResponse
 from app.core.security import Roles, get_current_user, require_roles
 from app.schemas.file import FileResponse
 from app.services.file_service import FileService
-from app.storage.local_storage import LocalStorage
+from app.storages.local_storage import LocalStorage
 
 router = APIRouter(
     prefix="/api/v1/files",
@@ -42,7 +42,7 @@ async def upload_file(
     file: UploadFile = FastAPIFile(...),
     module: str = "customers",
     folder: str = "uploads",
-    current_user: dict = Depends(get_current_user),
+    current_user: dict[str, Any] = Depends(get_current_user),
     service: FileService = Depends(get_file_service),
 ):
     file_record = await service.upload_file(
@@ -63,9 +63,11 @@ async def upload_file(
 def download_file(
     file_id: UUID,
     service: FileService = Depends(get_file_service),
+    current_user: dict[str, Any] = Depends(require_roles(Roles.ADMINISTRATOR)),
 ):
     content, filename, content_type = service.download_file(
-        file_id,
+        file_id=file_id,
+        user_id=UUID(current_user["sub"]),
     )
 
     return Response(
@@ -83,17 +85,10 @@ def download_file(
 )
 def delete_file(
     file_id: UUID,
-    db: Session = Depends(get_db),
+    service: FileService = Depends(get_file_service),
     current_user: dict[str, Any] = Depends(require_roles(Roles.ADMINISTRATOR)),
 ):
-    storage = LocalStorage(settings.STORAGE_PATH)
-
-    file_service = FileService(
-        db=db,
-        storage=storage,
-    )
-
-    file_service.delete_file(file_id)
+    service.delete_file(file_id=file_id, user_id=current_user["sub"])
 
     return APIResponse(
         success=True,
