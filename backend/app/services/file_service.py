@@ -1,7 +1,6 @@
-from pathlib import Path
 from uuid import UUID
 
-from fastapi import HTTPException, UploadFile, status
+from fastapi import UploadFile
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
@@ -10,6 +9,8 @@ from app.models.file import File
 from app.repositories.file_repository import FileRepository
 from app.services.audit_service import AuditService
 from app.storages.base_storage import BaseStorage
+from app.utils.errors import bad_request, not_found
+from app.utils.files import get_filename
 
 
 class FileService:
@@ -32,33 +33,21 @@ class FileService:
     ) -> File:
         # Validate filename
         if not file.filename:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Filename is required.",
-            )
+            raise bad_request("Filename is required.")
 
         # Validate file type
         if file.content_type is None:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="File content type is required.",
-            )
+            raise bad_request("File content type is required.")
 
         if file.content_type not in settings.ALLOWED_FILE_TYPES:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="File type is not supported.",
-            )
+            raise bad_request("File type is not supported.")
 
         # Read file
         file_content = await file.read()
 
         # Validate file size
         if len(file_content) > settings.MAX_FILE_SIZE:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="File size exceeds the maximum allowed size.",
-            )
+            raise bad_request("File size exceeds the maximum allowed size.")
 
         storage_path: str | None = None
 
@@ -70,7 +59,7 @@ class FileService:
                 folder=f"{module}/{folder}",
             )
 
-            stored_filename = Path(storage_path).name
+            stored_filename = get_filename(storage_path)
 
             # Create database record
             file_record = File(
@@ -125,16 +114,10 @@ class FileService:
         file_record = self.file_repository.get_by_id(file_id)
 
         if not file_record:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="File not found.",
-            )
+            raise not_found("File")
 
         if not self.storage.exists(file_record.storage_path):
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Stored file not found.",
-            )
+            raise not_found("Stored file")
 
         content = self.storage.read(
             file_record.storage_path,
@@ -169,10 +152,7 @@ class FileService:
         file_record = self.file_repository.get_by_id(file_id)
 
         if not file_record:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="File not found.",
-            )
+            raise not_found("File")
 
         storage_path = file_record.storage_path
 
