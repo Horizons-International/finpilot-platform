@@ -15,10 +15,11 @@ class FileRepository(BaseRepository[File]):
 
     def create(self, entity: File) -> File:
         self.db.add(entity)
-        self.db.commit()
+        self.db.flush()
         self.db.refresh(entity)
+
         return entity
 
     def delete(self, entity: File) -> None:
         self.db.delete(entity)
-        self.db.commit()
+        self.db.flush()

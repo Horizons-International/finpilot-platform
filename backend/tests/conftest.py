@@ -25,6 +25,7 @@ TestSessionLocal = sessionmaker(
     bind=test_engine,
     autoflush=False,
     autocommit=False,
+    expire_on_commit=False,
 )
 
 
@@ -40,14 +41,15 @@ def client():
 
     app.dependency_overrides[get_db] = override_get_db
 
-    yield TestClient(app)
+    with TestClient(app) as test_client:
+        yield test_client
 
     app.dependency_overrides.clear()
 
 
 @pytest.fixture
 def create_test_user():
-    created_users = []
+    created_user_ids = []
 
     def _create_test_user(role: str, email: str):
         db = TestSessionLocal()
@@ -59,41 +61,53 @@ def create_test_user():
             password_hash=hash_password("Password123!"),
             status=UserStatus.ACTIVE,
             role=role,
+            is_deleted=False,
         )
 
         db.add(user)
         db.commit()
         db.refresh(user)
 
-        created_users.append((db, user))
+        user_id = user.id
+
+        created_user_ids.append((db, user_id))
 
         return db, user
 
     yield _create_test_user
 
-    for db, user in created_users:
-        db.query(AuditLog).filter(AuditLog.user_id == user.id).delete(
-            synchronize_session=False
-        )
+    try:
+        for db, user_id in created_user_ids:
+            # Delete audit records first because they reference the user.
+            db.query(AuditLog).filter(AuditLog.user_id == user_id).delete(
+                synchronize_session=False
+            )
 
-        db.delete(user)
-        db.commit()
+            # Retrieve the current User from this session.
+            user = db.query(User).filter(User.id == user_id).first()
+
+            if user:
+                db.delete(user)
+
+            db.commit()
+
+    finally:
         db.close()
 
 
 @pytest.fixture
 def cleanup_test_files():
-    created_files = []
+    created_file_ids = []
 
     def _track_file(file_id):
-        created_files.append(file_id)
+        created_file_ids.append(file_id)
 
     yield _track_file
 
     db = TestSessionLocal()
 
     try:
-        for file_id in created_files:
+        for file_id in created_file_ids:
             file_record = db.query(File).filter(File.id == file_id).first()
 
             if file_record:

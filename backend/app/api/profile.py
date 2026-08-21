@@ -1,4 +1,5 @@
 from typing import Any
+from uuid import UUID
 
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
@@ -26,7 +27,7 @@ def get_profile(
     service = ProfileService(db)
 
     user = service.get_profile(
-        current_user["sub"],
+        UUID(current_user["sub"]),
     )
 
     return APIResponse(
@@ -48,7 +49,7 @@ def update_profile(
     service = ProfileService(db)
 
     user = service.update_profile(
-        current_user["sub"],
+        UUID(current_user["sub"]),
         profile_data,
     )
 

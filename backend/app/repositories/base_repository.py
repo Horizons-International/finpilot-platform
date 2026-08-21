@@ -21,17 +21,17 @@ class BaseRepository(Generic[ModelType]):
 
     def create(self, entity: ModelType) -> ModelType:
         self.db.add(entity)
-        self.db.commit()
+        self.db.flush()
         self.db.refresh(entity)
 
         return entity
 
     def update(self, entity: ModelType) -> ModelType:
-        self.db.commit()
+        self.db.flush()
         self.db.refresh(entity)
 
         return entity
 
     def delete(self, entity: ModelType) -> None:
         self.db.delete(entity)
-        self.db.commit()
+        self.db.flush()

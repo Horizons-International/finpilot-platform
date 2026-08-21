@@ -4,6 +4,7 @@ from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.core.security import hash_password
+from app.models.audit_log import AuditEventType
 from app.models.user import User, UserStatus
 from app.repositories.user_repository import UserRepository
 from app.schemas.user import (
@@ -13,11 +14,14 @@ from app.schemas.user import (
     UserStatusUpdate,
     UserUpdate,
 )
+from app.services.audit_service import AuditService
 
 
 class UserService:
     def __init__(self, db: Session):
+        self.db = db
         self.repository = UserRepository(db)
+        self.audit_service = AuditService(db)
 
     def create_user(self, user_data: UserCreate) -> User:
         existing_user = self.repository.get_by_email(
@@ -40,7 +44,23 @@ class UserService:
             is_deleted=False,
         )
 
-        return self.repository.create(user)
+        user = self.repository.create(user)
+
+        # Make sure the generated user ID is available
+        self.db.flush()
+
+        self.audit_service.log_event(
+            event_type=AuditEventType.USER_CREATED,
+            user_id=user.id,
+            email=user.email,
+            resource_type="user",
+            resource_id=user.id,
+        )
+
+        self.db.commit()
+        self.db.refresh(user)
+
+        return user
 
     def get_user(self, user_id: UUID) -> User:
         user = self.repository.get_by_id(user_id)
@@ -82,7 +102,20 @@ class UserService:
         if user_data.role is not None:
             user.role = user_data.role
 
-        return self.repository.update(user)
+        user = self.repository.update(user)
+
+        self.audit_service.log_event(
+            event_type=AuditEventType.USER_UPDATED,
+            user_id=user.id,
+            email=user.email,
+            resource_type="user",
+            resource_id=user.id,
+        )
+
+        self.db.commit()
+        self.db.refresh(user)
+
+        return user
 
     def update_status(
         self,
@@ -93,12 +126,36 @@ class UserService:
 
         user.status = status_data.status
 
-        return self.repository.update(user)
+        user = self.repository.update(user)
+
+        self.audit_service.log_event(
+            event_type=AuditEventType.USER_STATUS_CHANGED,
+            user_id=user.id,
+            email=user.email,
+            resource_type="user",
+            resource_id=user.id,
+        )
+
+        self.db.commit()
+        self.db.refresh(user)
+
+        return user
 
     def delete_user(self, user_id: UUID) -> User:
         user = self.get_user(user_id)
 
         self.repository.soft_delete(user)
+
+        self.audit_service.log_event(
+            event_type=AuditEventType.USER_DELETED,
+            user_id=user.id,
+            email=user.email,
+            resource_type="user",
+            resource_id=user.id,
+        )
+
+        self.db.commit()
+        self.db.refresh(user)
 
         return user
 
