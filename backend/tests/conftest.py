@@ -5,12 +5,14 @@ from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
+from app.core.config import settings
 from app.core.database import get_db
 from app.core.security import hash_password
 from app.main import app
 from app.models.audit_log import AuditLog
 from app.models.file import File
 from app.models.user import User, UserStatus
+from app.storages.local_storage import LocalStorage
 
 os.environ.setdefault(
     "TEST_DATABASE_URL",
@@ -105,12 +107,18 @@ def cleanup_test_files():
     yield _track_file
 
     db = TestSessionLocal()
+    storage = LocalStorage(settings.STORAGE_PATH)
 
     try:
         for file_id in created_file_ids:
             file_record = db.query(File).filter(File.id == file_id).first()
 
             if file_record:
+                # Delete physical file first.
+                if storage.exists(file_record.storage_path):
+                    storage.delete(file_record.storage_path)
+
+                # Delete database record.
                 db.delete(file_record)
 
         db.commit()
