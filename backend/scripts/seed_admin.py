@@ -35,6 +35,9 @@ def seed_admin() -> None:
 
         user_repository.create(admin)
 
+        db.add(admin)
+        db.commit()
+
         print(f"Administrator created successfully: {admin_email}")
 
     finally:
