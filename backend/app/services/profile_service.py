@@ -1,6 +1,5 @@
 from uuid import UUID
 
-from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.models.audit_log import AuditEventType
@@ -8,6 +7,7 @@ from app.models.user import User
 from app.repositories.user_repository import UserRepository
 from app.schemas.user import ProfileUpdateRequest
 from app.services.audit_service import AuditService
+from app.utils.errors import not_found
 
 
 class ProfileService:
@@ -20,10 +20,7 @@ class ProfileService:
         user = self.repository.get_by_id(user_id)
 
         if not user:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="User not found",
-            )
+            raise not_found("User")
 
         return user
 

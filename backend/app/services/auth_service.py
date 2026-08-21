@@ -1,7 +1,6 @@
 from typing import Any
 from uuid import UUID
 
-from fastapi import HTTPException, status
 from jose import JWTError
 from sqlalchemy.orm import Session
 
@@ -23,6 +22,7 @@ from app.schemas.auth import (
     RefreshTokenResponse,
 )
 from app.services.audit_service import AuditService
+from app.utils.errors import bad_request, forbidden, not_found, unauthorized
 
 
 class AuthService:
@@ -49,10 +49,7 @@ class AuthService:
             )
             self.db.commit()
 
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Invalid email or password",
-            )
+            raise unauthorized("Invalid email or password")
 
         if not verify_password(password, user.password_hash):
             self.audit_service.log_event(
@@ -64,10 +61,7 @@ class AuthService:
             )
             self.db.commit()
 
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Invalid email or password",
-            )
+            raise unauthorized("Invalid email or password")
 
         if user.status == UserStatus.INACTIVE:
             self.audit_service.log_event(
@@ -79,10 +73,7 @@ class AuthService:
             )
             self.db.commit()
 
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="User account is inactive",
-            )
+            raise forbidden("User account is inactive")
 
         if user.status == UserStatus.LOCKED:
             self.audit_service.log_event(
@@ -94,10 +85,7 @@ class AuthService:
             )
             self.db.commit()
 
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="User account is locked",
-            )
+            raise forbidden("User account is locked")
 
         token_data: dict[str, Any] = {
             "sub": str(user.id),
@@ -139,18 +127,12 @@ class AuthService:
         try:
             payload = decode_refresh_token(refresh_token)
         except JWTError as exc:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Invalid or expired refresh token",
-            ) from exc
+            raise unauthorized("Invalid or expired refresh token") from exc
 
         user_id = payload.get("sub")
 
         if not user_id:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Invalid refresh token",
-            )
+            raise unauthorized("Invalid refresh token")
 
         access_token = create_access_token(
             data={
@@ -175,33 +157,21 @@ class AuthService:
         user = self.user_repository.get_by_id(user_id)
 
         if not user:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="User not found",
-            )
+            raise not_found("User")
 
         if not verify_password(
             password_data.current_password,
             user.password_hash,
         ):
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Current password is incorrect",
-            )
+            raise bad_request("Current password is incorrect")
 
         if password_data.current_password == password_data.new_password:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="New password must be different from current password",
-            )
+            raise bad_request("New password must be different from current password")
 
         try:
             validate_password(password_data.new_password)
         except ValueError as exc:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=str(exc),
-            ) from exc
+            raise bad_request(str(exc)) from exc
 
         user.password_hash = hash_password(password_data.new_password)
 

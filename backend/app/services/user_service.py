@@ -1,6 +1,5 @@
 from uuid import UUID
 
-from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.core.security import hash_password
@@ -15,6 +14,8 @@ from app.schemas.user import (
     UserUpdate,
 )
 from app.services.audit_service import AuditService
+from app.utils.errors import bad_request, not_found
+from app.utils.pagination import Pagination, validate_pagination
 
 
 class UserService:
@@ -29,10 +30,7 @@ class UserService:
         )
 
         if existing_user:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Email is already registered",
-            )
+            raise bad_request("Email is already registered")
 
         user = User(
             first_name=user_data.first_name,
@@ -66,10 +64,7 @@ class UserService:
         user = self.repository.get_by_id(user_id)
 
         if not user:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="User not found",
-            )
+            raise not_found("User")
 
         return user
 
@@ -86,11 +81,7 @@ class UserService:
             )
 
             if existing_user and existing_user.id != user_id:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="Email is already registered",
-                )
-
+                raise bad_request("Email is already registered")
             user.email = user_data.email
 
         if user_data.first_name is not None:
@@ -164,31 +155,25 @@ class UserService:
         page: int = 1,
         page_size: int = 20,
     ) -> UserListResponse:
-        if page < 1:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Page must be greater than or equal to 1",
-            )
-
-        if page_size < 1 or page_size > 100:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Page size must be between 1 and 100",
-            )
+        validate_pagination(page, page_size)
 
         users, total = self.repository.get_paginated(
             page=page,
             page_size=page_size,
         )
 
-        user_responses = [UserResponse.model_validate(user) for user in users]
+        pagination = Pagination(
+            page=page,
+            page_size=page_size,
+            total=total,
+        )
 
-        total_pages = (total + page_size - 1) // page_size if total > 0 else 0
+        user_responses = [UserResponse.model_validate(user) for user in users]
 
         return UserListResponse(
             users=user_responses,
             total=total,
             page=page,
             page_size=page_size,
-            total_pages=total_pages,
+            total_pages=pagination.total_pages,
         )
