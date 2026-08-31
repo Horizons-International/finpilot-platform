@@ -141,7 +141,7 @@ def create_test_customer():
         country_of_residence: str | None = None,
         email: str | None = None,
         phone_number: str = "+249123456789",
-        status: CustomerStatus = CustomerStatus.ACTIVE,
+        status: CustomerStatus = CustomerStatus.NEW,
     ):
         db = TestSessionLocal()
 

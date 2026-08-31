@@ -63,7 +63,7 @@ class Customer(Base):
     status: Mapped[CustomerStatus] = mapped_column(
         SQLAlchemyEnum(CustomerStatus, name="customer_status"),
         nullable=False,
-        default=CustomerStatus.ACTIVE,
+        default=CustomerStatus.NEW,
     )
 
     created_at: Mapped[datetime] = mapped_column(

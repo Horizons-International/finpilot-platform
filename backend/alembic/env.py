@@ -9,6 +9,7 @@ from app.core.config import settings
 from app.core.database import Base
 from app.models.audit_log import AuditLog  # noqa: F401
 from app.models.customer import Customer  # noqa: F401
+from app.models.customer_status_history import CustomerStatusHistory  # noqa: F401
 from app.models.file import File  # noqa: F401
 from app.models.user import User  # noqa: F401
 
