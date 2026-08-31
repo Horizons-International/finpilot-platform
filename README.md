@@ -6,25 +6,6 @@ AI-powered platform for banks, fintech companies, money transfer operators, and 
 
 FinPilot Platform is a backend foundation designed to provide a secure, maintainable, and extensible platform for financial applications.
 
-Phase 1 establishes the core platform infrastructure required for future business-feature development, including:
-
-* Secure authentication and authorization
-* Role-based access control (RBAC)
-* User and role management
-* PostgreSQL database integration
-* SQLAlchemy ORM
-* Alembic database migrations
-* Docker-based development environment
-* Centralized configuration management
-* Structured logging and error handling
-* File storage and management
-* Audit logging
-* Health and readiness monitoring
-* Reusable development utilities
-* Automated testing and code-quality checks
-* CI/CD automation
-
-The platform is currently ready to proceed to Phase 2 feature development.
 
 ## Project Structure
 
@@ -71,6 +52,23 @@ PostgreSQL
 ```
 
 Supporting components such as authentication, configuration, logging, storage, audit logging, and reusable utilities are provided through shared application modules.
+
+## Backend
+
+The backend provides the platform foundation, including:
+
+* Authentication and JWT token management
+* Role-based access control
+* User management
+* Customer management
+* Profile management
+* File storage
+* Audit logging
+* Health and readiness monitoring
+* Database migrations
+* Reusable utilities
+* Centralized configuration
+* Structured error handling and logging
 
 ## Technology Stack
 
@@ -366,6 +364,16 @@ PUT /api/v1/profile
 
 Profile information includes user identity and contact information supported by the current user model.
 
+## Customer Management
+
+Customers are a core business entity in FinPilot. The customer entity provides a centralized source of customer information that can be referenced by future identity verification, compliance, risk, and operational modules.
+
+```text
+POST /api/v1/customers
+GET /api/v1/customers/{id} 
+PUT /api/v1/customers/{id}
+```
+
 ## File Storage
 
 The platform provides a reusable file-storage service.
@@ -625,33 +633,3 @@ The following foundation areas have been implemented and verified:
 * [x] Documentation
 
 Phase 1 is considered complete and provides a stable foundation for implementing business features in Phase 2.
-
-## Phase 2
-
-Phase 2 can build on the existing platform foundation without requiring changes to the core development architecture.
-
-New business features should follow the established patterns:
-
-```text
-API endpoint
-    ↓
-Service
-    ↓
-Repository
-    ↓
-Database
-```
-
-Shared functionality should use the existing:
-
-* Configuration system
-* Authentication system
-* RBAC system
-* Error handling
-* Audit framework
-* Storage abstraction
-* Utility library
-* Testing conventions
-* Code-quality tooling
-
-This keeps future feature development consistent and maintainable.
