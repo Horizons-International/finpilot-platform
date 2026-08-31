@@ -1,9 +1,11 @@
+from datetime import datetime, timezone
 from uuid import UUID
 
 from sqlalchemy.orm import Session
 
 from app.models.audit_log import AuditEventType
 from app.models.customer import Customer, CustomerStatus
+from app.models.customer_status_history import CustomerStatusHistory
 from app.repositories.customer_repository import CustomerRepository
 from app.schemas.customer import (
     CustomerCreate,
@@ -22,7 +24,7 @@ class CustomerService:
     def create_customer(
         self,
         customer_data: CustomerCreate,
-        user_id: UUID,
+        created_by: UUID,
     ) -> Customer:
         existing_customer = self.repository.get_by_email(
             customer_data.email,
@@ -40,7 +42,7 @@ class CustomerService:
             country_of_residence=customer_data.country_of_residence,
             email=customer_data.email,
             phone_number=customer_data.phone_number,
-            status=CustomerStatus.ACTIVE,
+            status=CustomerStatus.NEW,
         )
 
         customer = self.repository.create(customer)
@@ -49,7 +51,7 @@ class CustomerService:
 
         self.audit_service.log_event(
             event_type=AuditEventType.CUSTOMER_CREATED,
-            user_id=user_id,
+            user_id=created_by,
             resource_type="customer",
             resource_id=customer.id,
         )
@@ -74,7 +76,7 @@ class CustomerService:
         self,
         customer_id: UUID,
         customer_data: CustomerUpdate,
-        user_id: UUID,
+        updated_by: UUID,
     ) -> Customer:
         customer = self.get_customer(customer_id)
 
@@ -116,7 +118,70 @@ class CustomerService:
 
         self.audit_service.log_event(
             event_type=AuditEventType.CUSTOMER_UPDATED,
-            user_id=user_id,
+            user_id=updated_by,
+            resource_type="customer",
+            resource_id=customer.id,
+        )
+
+        self.db.commit()
+        self.db.refresh(customer)
+
+        return customer
+
+    def update_status(
+        self,
+        customer_id: UUID,
+        new_status: CustomerStatus,
+        changed_by: UUID,
+    ) -> Customer:
+        customer = self.get_customer(customer_id)
+
+        ALLOWED_STATUS_TRANSITIONS = {
+            CustomerStatus.NEW: {
+                CustomerStatus.PENDING_VERIFICATION,
+                CustomerStatus.REJECTED,
+            },
+            CustomerStatus.PENDING_VERIFICATION: {
+                CustomerStatus.VERIFIED,
+                CustomerStatus.REJECTED,
+            },
+            CustomerStatus.VERIFIED: {
+                CustomerStatus.SUSPENDED,
+            },
+            CustomerStatus.SUSPENDED: {
+                CustomerStatus.VERIFIED,
+                CustomerStatus.REJECTED,
+            },
+            CustomerStatus.REJECTED: set(),
+        }
+
+        old_status = customer.status
+
+        if new_status not in ALLOWED_STATUS_TRANSITIONS[old_status]:
+            raise bad_request(
+                f"Invalid status transition: {old_status.value} -> {new_status.value}"
+            )
+
+        if old_status == new_status:
+            raise bad_request("Customer already has this status.")
+
+        customer.status = new_status
+
+        self.repository.update(customer)
+
+        history = CustomerStatusHistory(
+            customer_id=customer.id,
+            old_status=old_status,
+            new_status=new_status,
+            changed_by=changed_by,
+            changed_at=datetime.now(timezone.utc),
+        )
+
+        self.db.add(history)
+
+        self.audit_service.log_event(
+            event_type=AuditEventType.CUSTOMER_STATUS_CHANGED,
+            user_id=changed_by,
             resource_type="customer",
             resource_id=customer.id,
         )

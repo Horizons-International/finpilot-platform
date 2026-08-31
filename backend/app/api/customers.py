@@ -10,6 +10,7 @@ from app.core.security import Roles, require_roles
 from app.schemas.customer import (
     CustomerCreate,
     CustomerResponse,
+    CustomerStatusUpdate,
     CustomerUpdate,
 )
 from app.services.customer_service import CustomerService
@@ -36,7 +37,7 @@ def create_customer(
 
     customer = service.create_customer(
         customer_data=customer_data,
-        user_id=UUID(current_user["sub"]),
+        created_by=UUID(current_user["sub"]),
     )
 
     return APIResponse(
@@ -87,11 +88,40 @@ def update_customer(
     customer = service.update_customer(
         customer_id=customer_id,
         customer_data=customer_data,
-        user_id=UUID(current_user["sub"]),
+        updated_by=UUID(current_user["sub"]),
     )
 
     return APIResponse(
         success=True,
         message="Customer updated successfully.",
+        data=CustomerResponse.model_validate(customer),
+    )
+
+
+@router.patch(
+    "/{customer_id}/status",
+    response_model=APIResponse[CustomerResponse],
+)
+def update_customer_status(
+    customer_id: UUID,
+    status_data: CustomerStatusUpdate,
+    db: Session = Depends(get_db),
+    current_user: dict[str, Any] = Depends(
+        require_roles(
+            Roles.ADMINISTRATOR,
+        )
+    ),
+):
+    service = CustomerService(db)
+
+    customer = service.update_status(
+        customer_id=customer_id,
+        new_status=status_data.status,
+        changed_by=UUID(current_user["sub"]),
+    )
+
+    return APIResponse(
+        success=True,
+        message="Customer status updated successfully.",
         data=CustomerResponse.model_validate(customer),
     )

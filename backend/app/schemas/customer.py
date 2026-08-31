@@ -145,3 +145,7 @@ class CustomerResponse(BaseModel):
     status: CustomerStatus
     created_at: datetime
     updated_at: datetime
+
+
+class CustomerStatusUpdate(BaseModel):
+    status: CustomerStatus

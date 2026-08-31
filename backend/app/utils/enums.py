@@ -15,8 +15,11 @@ class HealthStatus(StrEnum):
 
 
 class CustomerStatus(StrEnum):
-    ACTIVE = "active"
-    INACTIVE = "inactive"
+    NEW = "new"
+    PENDING_VERIFICATION = "pending_verification"
+    VERIFIED = "verified"
+    SUSPENDED = "suspended"
+    REJECTED = "rejected"
 
 
 class AuditEventType(str, enum.Enum):
@@ -36,6 +39,7 @@ class AuditEventType(str, enum.Enum):
 
     CUSTOMER_CREATED = "CUSTOMER_CREATED"
     CUSTOMER_UPDATED = "CUSTOMER_UPDATED"
+    CUSTOMER_STATUS_CHANGED = "CUSTOMER_STATUS_CHANGED"
 
 
 class UserStatus(str, enum.Enum):
