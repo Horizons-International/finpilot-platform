@@ -1,4 +1,3 @@
-import enum
 import uuid
 from datetime import datetime
 
@@ -7,19 +6,7 @@ from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.database import Base
-
-
-class UserStatus(str, enum.Enum):
-    ACTIVE = "active"
-    INACTIVE = "inactive"
-    LOCKED = "locked"
-
-
-class UserRole(str, enum.Enum):
-    ADMINISTRATOR = "Administrator"
-    REVIEWER = "Reviewer"
-    COMPLIANCE_OFFICER = "Compliance Officer"
-    AUDITOR = "Auditor"
+from app.utils.enums import UserRole, UserStatus
 
 
 class User(Base):

@@ -17,6 +17,7 @@ env/
 .pytest_cache/
 .coverage
 htmlcov/
+.postman/
 
 # Tool caches
 .mypy_cache/

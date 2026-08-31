@@ -1,4 +1,5 @@
 import os
+from datetime import date
 
 import pytest
 from fastapi.testclient import TestClient
@@ -10,6 +11,7 @@ from app.core.database import get_db
 from app.core.security import hash_password
 from app.main import app
 from app.models.audit_log import AuditLog
+from app.models.customer import Customer, CustomerStatus
 from app.models.file import File
 from app.models.user import User, UserStatus
 from app.storages.local_storage import LocalStorage
@@ -120,6 +122,61 @@ def cleanup_test_files():
 
                 # Delete database record.
                 db.delete(file_record)
+
+        db.commit()
+    finally:
+        db.close()
+
+
+@pytest.fixture
+def create_test_customer():
+    created_customer_ids = []
+
+    def _create_test_customer(
+        first_name: str = "Test",
+        middle_name: str | None = None,
+        last_name: str = "Customer",
+        date_of_birth: date | None = None,
+        nationality: str | None = None,
+        country_of_residence: str | None = None,
+        email: str | None = None,
+        phone_number: str = "+249123456789",
+        status: CustomerStatus = CustomerStatus.ACTIVE,
+    ):
+        db = TestSessionLocal()
+
+        customer = Customer(
+            first_name=first_name,
+            middle_name=middle_name,
+            last_name=last_name,
+            date_of_birth=date_of_birth,
+            nationality=nationality,
+            country_of_residence=country_of_residence,
+            email=email,
+            phone_number=phone_number,
+            status=status,
+        )
+
+        db.add(customer)
+        db.commit()
+        db.refresh(customer)
+
+        created_customer_ids.append(customer)
+
+        db.close()
+
+        return customer
+
+    yield _create_test_customer
+
+    db = TestSessionLocal()
+
+    try:
+        for customer_id in created_customer_ids:
+            customer = db.query(Customer).filter(Customer.id == customer_id).first()
+
+            if customer:
+                db.delete(customer)
 
         db.commit()
     finally:
