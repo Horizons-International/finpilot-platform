@@ -34,6 +34,9 @@ class AuditEventType(str, enum.Enum):
     USER_DELETED = "USER_DELETED"
     USER_STATUS_CHANGED = "USER_STATUS_CHANGED"
 
+    CUSTOMER_CREATED = "CUSTOMER_CREATED"
+    CUSTOMER_UPDATED = "CUSTOMER_UPDATED"
+
 
 class UserStatus(str, enum.Enum):
     ACTIVE = "active"

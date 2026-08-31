@@ -101,7 +101,7 @@ class CustomerUpdate(BaseModel):
         max_length=30,
     )
 
-    CustomerStatus: str | None = None
+    status: CustomerStatus | None = None
 
     @field_validator(
         "first_name",
