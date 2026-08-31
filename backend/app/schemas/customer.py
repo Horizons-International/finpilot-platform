@@ -137,7 +137,7 @@ class CustomerResponse(BaseModel):
     first_name: str
     middle_name: str | None
     last_name: str
-    date_of_birth: str | None
+    date_of_birth: date | None
     nationality: str | None
     country_of_residence: str | None
     email: EmailStr | None
