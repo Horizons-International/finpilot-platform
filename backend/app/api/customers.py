@@ -82,6 +82,8 @@ def update_customer(
 @router.patch(
     "/{customer_id}/status",
     response_model=APIResponse[CustomerResponse],
+    summary="Change customer status",
+    description="Change the status of a existing customer.",
 )
 def update_customer_status(
     customer_id: UUID,

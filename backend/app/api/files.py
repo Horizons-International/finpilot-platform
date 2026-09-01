@@ -37,6 +37,8 @@ def get_file_service(
     "",
     response_model=APIResponse[FileResponse],
     status_code=status.HTTP_201_CREATED,
+    summary="Upload a file",
+    description="Upload a file to the storage service.",
 )
 async def upload_file(
     file: UploadFile = FastAPIFile(...),
@@ -59,7 +61,11 @@ async def upload_file(
     )
 
 
-@router.get("/{file_id}")
+@router.get(
+    "/{file_id}",
+    summary="Get file",
+    description="Retrieve an file from the storage service by ID.",
+)
 def download_file(
     file_id: UUID,
     service: FileService = Depends(get_file_service),
@@ -82,6 +88,8 @@ def download_file(
 @router.delete(
     "/{file_id}",
     response_model=APIResponse[None],
+    summary="Delete a file",
+    description="Delete a file from storage services by ID.",
 )
 def delete_file(
     file_id: UUID,

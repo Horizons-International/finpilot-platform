@@ -28,6 +28,8 @@ router = APIRouter(
     "",
     response_model=APIResponse[UserResponse],
     status_code=status.HTTP_201_CREATED,
+    summary="Create user",
+    description="Creates a new user account.",
 )
 def create_user(
     user_data: UserCreate,
@@ -48,6 +50,8 @@ def create_user(
 @router.get(
     "/{user_id}",
     response_model=APIResponse[UserResponse],
+    summary="Get user",
+    description="Retrieves a user by ID.",
 )
 def get_user(
     user_id: UUID,
@@ -68,6 +72,8 @@ def get_user(
 @router.get(
     "",
     response_model=APIResponse[UserListResponse],
+    summary="Get users",
+    description="Retrieves all the users in the database.",
 )
 def get_users(
     page: int = 1,
@@ -92,6 +98,8 @@ def get_users(
 @router.put(
     "/{user_id}",
     response_model=APIResponse[UserResponse],
+    summary="Update user",
+    description="Updates an existing user information.",
 )
 def update_user(
     user_id: UUID,
@@ -116,6 +124,8 @@ def update_user(
 @router.patch(
     "/{user_id}/status",
     response_model=APIResponse[UserResponse],
+    summary="Update user status",
+    description="Updates the status of an existing user.",
 )
 def update_user_status(
     user_id: UUID,
@@ -140,6 +150,8 @@ def update_user_status(
 @router.delete(
     "/{user_id}",
     response_model=APIResponse[UserResponse],
+    summary="Delete user",
+    description="Delete an existing user by ID",
 )
 def delete_user(
     user_id: UUID,
