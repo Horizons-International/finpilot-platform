@@ -19,6 +19,8 @@ router = APIRouter(
 @router.get(
     "",
     response_model=APIResponse[ProfileResponse],
+    summary="Get profile",
+    description="Retreive information the current user account.",
 )
 def get_profile(
     current_user: dict[str, Any] = Depends(get_current_user),
@@ -40,6 +42,8 @@ def get_profile(
 @router.put(
     "",
     response_model=APIResponse[ProfileResponse],
+    summary="Update profile",
+    description="Updates the information of the current user.",
 )
 def update_profile(
     profile_data: ProfileUpdateRequest,

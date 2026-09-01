@@ -70,6 +70,11 @@ def refresh_token(
 
 @router.get(
     "/admin-only",
+    summary="For administrators",
+    description=(
+        "Endpoint to test out administrator authentication."
+        "Only administrators are able to use this endpoint."
+    ),
 )
 def admin_only(
     current_user: dict[str, Any] = Depends(require_roles(Roles.ADMINISTRATOR)),

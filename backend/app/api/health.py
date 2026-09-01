@@ -17,7 +17,11 @@ router = APIRouter(
 logger = logging.getLogger(__name__)
 
 
-@router.get("/health")
+@router.get(
+    "/health",
+    summary="Health check",
+    description="Check if the api endpoint is functional and ready to use.",
+)
 def health_check():
     return {
         "success": True,
@@ -30,7 +34,11 @@ def health_check():
     }
 
 
-@router.get("/ready")
+@router.get(
+    "/ready",
+    summary="Readiness check",
+    description="Check if the database is ready to be used.",
+)
 def readiness_check(
     db: Session = Depends(get_db),
 ):
