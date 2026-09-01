@@ -12,6 +12,7 @@ from app.core.security import hash_password
 from app.main import app
 from app.models.audit_log import AuditLog
 from app.models.customer import Customer, CustomerStatus
+from app.models.customer_status_history import CustomerStatusHistory
 from app.models.file import File
 from app.models.user import User, UserStatus
 from app.repositories.customer_repository import CustomerRepository
@@ -197,6 +198,11 @@ def cleanup_test_customers():
 
     for customer in current_customers:
         if customer.id not in existing_customers:
+            db.query(CustomerStatusHistory).filter(
+                CustomerStatusHistory.customer_id == customer.id
+            ).delete(synchronize_session=False)
+
             repository.delete(customer)
 
     db.commit()
+    db.close()

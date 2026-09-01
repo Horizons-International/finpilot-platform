@@ -1,4 +1,5 @@
 from datetime import date, datetime
+from enum import Enum
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
@@ -149,3 +150,20 @@ class CustomerResponse(BaseModel):
 
 class CustomerStatusUpdate(BaseModel):
     status: CustomerStatus
+
+
+class CustomerListResponse(BaseModel):
+    customers: list[CustomerResponse]
+    total: int
+    page: int
+    page_size: int
+    total_pages: int
+
+
+class CustomerSortField(str, Enum):
+    CREATED_AT = "created_at"
+    UPDATED_AT = "updated_at"
+    FIRST_NAME = "first_name"
+    LAST_NAME = "last_name"
+    EMAIL = "email"
+    DATE_OF_BIRTH = "date_of_birth"

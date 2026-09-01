@@ -38,6 +38,27 @@ def create_customer(client):
     )
 
 
+def create_customer_with_data(client, **overrides):
+    data = {
+        "first_name": "John",
+        "middle_name": "Michael",
+        "last_name": "Smith",
+        "date_of_birth": "1990-05-15",
+        "nationality": "US",
+        "country_of_residence": "US",
+        "email": "john.smith@example.com",
+        "phone_number": "+1234567890",
+        "status": "new",
+    }
+
+    data.update(overrides)
+
+    return client.post(
+        "/api/v1/customers",
+        json=data,
+    )
+
+
 def test_create_customer(client, create_test_user, cleanup_test_customers):
     _, user = create_test_user(
         role=UserRole.ADMINISTRATOR,
@@ -310,3 +331,329 @@ def test_create_customer_validates_required_fields(
     )
 
     assert response.status_code == 422
+
+
+def test_search_customers_by_name(client, create_test_user, cleanup_test_customers):
+    _, user = create_test_user(
+        role=UserRole.ADMINISTRATOR,
+        email="customer-search-name@example.com",
+    )
+
+    authenticate_client(client, user)
+
+    response = create_customer_with_data(
+        client,
+        first_name="Alice",
+        last_name="Johnson",
+        email="alice.johnson@example.com",
+        phone_number="+1111111111",
+    )
+
+    assert response.status_code == 201
+
+    customer = response.json()["data"]
+    customer_id = customer["id"]
+
+    response = client.get(
+        "/api/v1/customers",
+        params={"name": "Alice"},
+    )
+
+    assert response.status_code == 200
+
+    body = response.json()
+
+    assert body["success"] is True
+
+    customers = body["data"]["customers"]
+
+    assert any(customer["id"] == customer_id for customer in customers)
+
+
+def test_search_customers_by_email(
+    client,
+    create_test_user,
+    cleanup_test_customers,
+):
+    _, user = create_test_user(
+        role=UserRole.ADMINISTRATOR,
+        email="customer-search-email@example.com",
+    )
+
+    authenticate_client(client, user)
+
+    response = create_customer_with_data(
+        client,
+        email="search.email@example.com",
+    )
+
+    assert response.status_code == 201
+
+    customer_id = response.json()["data"]["id"]
+
+    response = client.get(
+        "/api/v1/customers",
+        params={
+            "email": "search.email@example.com",
+        },
+    )
+
+    assert response.status_code == 200
+
+    body = response.json()
+
+    assert body["success"] is True
+
+    customers = body["data"]["customers"]
+
+    assert len(customers) == 1
+    assert customers[0]["id"] == customer_id
+    assert customers[0]["email"] == "search.email@example.com"
+
+
+def test_search_customers_by_phone_number(
+    client,
+    create_test_user,
+    cleanup_test_customers,
+):
+    _, user = create_test_user(
+        role=UserRole.ADMINISTRATOR,
+        email="customer-search-phone@example.com",
+    )
+
+    authenticate_client(client, user)
+
+    response = create_customer_with_data(
+        client,
+        email="search.phone@example.com",
+        phone_number="+19998887777",
+    )
+
+    assert response.status_code == 201
+
+    customer_id = response.json()["data"]["id"]
+
+    response = client.get(
+        "/api/v1/customers",
+        params={
+            "phone_number": "+19998887777",
+        },
+    )
+
+    assert response.status_code == 200
+
+    body = response.json()
+
+    assert body["success"] is True
+
+    customers = body["data"]["customers"]
+
+    assert len(customers) == 1
+    assert customers[0]["id"] == customer_id
+    assert customers[0]["phone_number"] == "+19998887777"
+
+
+def test_search_customers_by_id(
+    client,
+    create_test_user,
+    cleanup_test_customers,
+):
+    _, user = create_test_user(
+        role=UserRole.ADMINISTRATOR,
+        email="customer-search-id@example.com",
+    )
+
+    authenticate_client(client, user)
+
+    response = create_customer_with_data(
+        client,
+        email="search.id@example.com",
+    )
+
+    assert response.status_code == 201
+
+    customer_id = response.json()["data"]["id"]
+
+    response = client.get(
+        "/api/v1/customers",
+        params={
+            "customer_id": customer_id,
+        },
+    )
+
+    assert response.status_code == 200
+
+    body = response.json()
+
+    assert body["success"] is True
+
+    customers = body["data"]["customers"]
+
+    assert len(customers) == 1
+    assert customers[0]["id"] == customer_id
+
+
+def test_search_customers_returns_empty_results(
+    client,
+    create_test_user,
+):
+    _, user = create_test_user(
+        role=UserRole.ADMINISTRATOR,
+        email="customer-search-empty@example.com",
+    )
+
+    authenticate_client(client, user)
+
+    response = client.get(
+        "/api/v1/customers",
+        params={
+            "email": "does-not-exist@example.com",
+        },
+    )
+
+    assert response.status_code == 200
+
+    body = response.json()
+
+    assert body["success"] is True
+    assert body["data"]["customers"] == []
+    assert body["data"]["total"] == 0
+
+
+def test_search_customers_pagination(
+    client,
+    create_test_user,
+    cleanup_test_customers,
+):
+    _, user = create_test_user(
+        role=UserRole.ADMINISTRATOR,
+        email="customer-search-pagination@example.com",
+    )
+
+    authenticate_client(client, user)
+
+    customer_ids = []
+
+    for index in range(3):
+        response = create_customer_with_data(
+            client,
+            first_name=f"Pagination{index}",
+            email=f"pagination{index}@example.com",
+            phone_number=f"+100000000{index}",
+        )
+
+        assert response.status_code == 201
+
+        customer_ids.append(
+            response.json()["data"]["id"],
+        )
+
+    response = client.get(
+        "/api/v1/customers",
+        params={
+            "name": "Pagination",
+            "page": 1,
+            "page_size": 2,
+        },
+    )
+
+    assert response.status_code == 200
+
+    body = response.json()
+
+    assert body["success"] is True
+    assert body["data"]["page"] == 1
+    assert body["data"]["page_size"] == 2
+    assert body["data"]["total"] == 3
+    assert body["data"]["total_pages"] == 2
+    assert len(body["data"]["customers"]) == 2
+
+    response = client.get(
+        "/api/v1/customers",
+        params={
+            "name": "Pagination",
+            "page": 2,
+            "page_size": 2,
+        },
+    )
+
+    assert response.status_code == 200
+
+    body = response.json()
+
+    assert body["data"]["page"] == 2
+    assert len(body["data"]["customers"]) == 1
+
+
+def test_search_customers_by_status(
+    client,
+    create_test_user,
+    cleanup_test_customers,
+):
+    _, user = create_test_user(
+        role=UserRole.ADMINISTRATOR,
+        email="customer-search-status@example.com",
+    )
+
+    authenticate_client(client, user)
+
+    create_response = create_customer_with_data(
+        client,
+        email="search.status@example.com",
+    )
+
+    assert create_response.status_code == 201
+
+    customer = create_response.json()["data"]
+    customer_id = customer["id"]
+
+    assert customer["status"] == "new"
+
+    status_response = client.patch(
+        f"/api/v1/customers/{customer_id}/status",
+        json={"status": "pending_verification"},
+    )
+
+    assert status_response.status_code == 200
+
+    status_body = status_response.json()
+
+    assert status_body["success"] is True
+    assert status_body["data"]["status"] == "pending_verification"
+
+    response = client.get(
+        "/api/v1/customers",
+        params={
+            "status": "pending_verification",
+        },
+    )
+
+    assert response.status_code == 200
+
+    body = response.json()
+
+    assert body["success"] is True
+
+    customers = body["data"]["customers"]
+
+    assert any(customer["id"] == customer_id for customer in customers)
+
+    assert all(customer["status"] == "pending_verification" for customer in customers)
+
+
+def test_search_customers_requires_authorization(
+    client,
+    create_test_user,
+):
+    _, user = create_test_user(
+        role=UserRole.AUDITOR,
+        email="customer-search-unauthorized@example.com",
+    )
+
+    authenticate_client(client, user)
+
+    response = client.get(
+        "/api/v1/customers",
+    )
+
+    assert response.status_code == 403
