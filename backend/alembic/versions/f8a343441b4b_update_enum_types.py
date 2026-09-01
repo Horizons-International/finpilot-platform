@@ -1,4 +1,5 @@
 # mypy: ignore-errors
+# fmt: off
 
 """update enum types
 
