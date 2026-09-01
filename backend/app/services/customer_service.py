@@ -9,10 +9,14 @@ from app.models.customer_status_history import CustomerStatusHistory
 from app.repositories.customer_repository import CustomerRepository
 from app.schemas.customer import (
     CustomerCreate,
+    CustomerListResponse,
+    CustomerResponse,
     CustomerUpdate,
 )
 from app.services.audit_service import AuditService
+from app.utils.constants import DEFAULT_PAGE, DEFAULT_PAGE_SIZE
 from app.utils.errors import bad_request, not_found
+from app.utils.pagination import validate_pagination
 
 
 class CustomerService:
@@ -190,3 +194,50 @@ class CustomerService:
         self.db.refresh(customer)
 
         return customer
+
+    def search_customers(
+        self,
+        customer_id: UUID | None = None,
+        name: str | None = None,
+        phone_number: str | None = None,
+        email: str | None = None,
+        status: CustomerStatus | None = None,
+        page: int = DEFAULT_PAGE,
+        page_size: int = DEFAULT_PAGE_SIZE,
+        sort_by: str = "created_at",
+        sort_order: str = "desc",
+    ) -> CustomerListResponse:
+        validate_pagination(
+            page,
+            page_size,
+        )
+
+        try:
+            customers, total = self.repository.search(
+                customer_id=customer_id,
+                name=name,
+                phone_number=phone_number,
+                email=email,
+                status=status,
+                page=page,
+                page_size=page_size,
+                sort_by=sort_by,
+                sort_order=sort_order,
+            )
+
+        except ValueError as exc:
+            raise bad_request(str(exc)) from exc
+
+        customer_responses = [
+            CustomerResponse.model_validate(customer) for customer in customers
+        ]
+
+        total_pages = (total + page_size - 1) // page_size if total > 0 else 0
+
+        return CustomerListResponse(
+            customers=customer_responses,
+            total=total,
+            page=page,
+            page_size=page_size,
+            total_pages=total_pages,
+        )
