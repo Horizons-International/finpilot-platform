@@ -14,6 +14,7 @@ from app.models.audit_log import AuditLog
 from app.models.customer import Customer, CustomerStatus
 from app.models.file import File
 from app.models.user import User, UserStatus
+from app.repositories.customer_repository import CustomerRepository
 from app.storages.local_storage import LocalStorage
 
 os.environ.setdefault(
@@ -181,3 +182,21 @@ def create_test_customer():
         db.commit()
     finally:
         db.close()
+
+
+@pytest.fixture
+def cleanup_test_customers():
+    db = TestSessionLocal()
+    repository = CustomerRepository(db)
+
+    existing_customers = {customer.id for customer in repository.get_all()}
+
+    yield
+
+    current_customers = repository.get_all()
+
+    for customer in current_customers:
+        if customer.id not in existing_customers:
+            repository.delete(customer)
+
+    db.commit()
