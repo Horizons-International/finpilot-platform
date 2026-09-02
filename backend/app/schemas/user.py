@@ -10,7 +10,7 @@ from pydantic import (
     field_validator,
 )
 
-from app.models.user import UserRole, UserStatus
+from app.utils.enums import UserRole, UserStatus
 from app.utils.validators import validate_email, validate_name, validate_phone
 
 

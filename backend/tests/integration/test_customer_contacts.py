@@ -1,6 +1,6 @@
 from uuid import UUID
 
-from app.models.user import UserRole
+from app.utils.enums import UserRole
 
 
 def authenticate_client(client, user):

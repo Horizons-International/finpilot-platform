@@ -3,7 +3,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-from app.models.customer_address import AddressType
+from app.utils.enums import AddressType
 from app.utils.strings import normalize_whitespace
 
 

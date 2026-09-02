@@ -2,11 +2,11 @@ from uuid import UUID
 
 from sqlalchemy.orm import Session
 
-from app.models.audit_log import AuditEventType
 from app.models.user import User
 from app.repositories.user_repository import UserRepository
 from app.schemas.user import ProfileUpdateRequest
 from app.services.audit_service import AuditService
+from app.utils.enums import AuditEventType
 from app.utils.errors import not_found
 
 

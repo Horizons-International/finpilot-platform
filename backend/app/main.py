@@ -7,6 +7,7 @@ from sqlalchemy.exc import SQLAlchemyError
 
 from app.api.auth import router as auth_router
 from app.api.customer_addresses import router as customer_addresses_router
+from app.api.customer_audit_logs import router as customer_audit_logs_router
 from app.api.customer_contacts import router as customer_contacts_router
 from app.api.customers import router as customer_router
 from app.api.files import router as files_router
@@ -63,6 +64,7 @@ app.include_router(profile_router)
 app.include_router(customer_router)
 app.include_router(customer_contacts_router)
 app.include_router(customer_addresses_router)
+app.include_router(customer_audit_logs_router)
 
 app.add_exception_handler(
     HTTPException,

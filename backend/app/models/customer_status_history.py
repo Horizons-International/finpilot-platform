@@ -6,7 +6,7 @@ from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.database import Base
-from app.models.customer import CustomerStatus
+from app.utils.enums import CustomerStatus
 
 
 class CustomerStatusHistory(Base):

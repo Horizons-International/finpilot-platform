@@ -2,8 +2,9 @@ from uuid import UUID
 
 from sqlalchemy.orm import Session
 
-from app.models.user import User, UserStatus
+from app.models.user import User
 from app.repositories.base_repository import BaseRepository
+from app.utils.enums import UserStatus
 
 
 class UserRepository(BaseRepository[User]):

@@ -3,8 +3,9 @@ from uuid import UUID
 from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
-from app.models.customer import Customer, CustomerStatus
+from app.models.customer import Customer
 from app.repositories.base_repository import BaseRepository
+from app.utils.enums import CustomerStatus
 
 
 class CustomerRepository(BaseRepository[Customer]):

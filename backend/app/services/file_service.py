@@ -4,11 +4,11 @@ from fastapi import UploadFile
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
-from app.models.audit_log import AuditEventType
 from app.models.file import File
 from app.repositories.file_repository import FileRepository
 from app.services.audit_service import AuditService
 from app.storages.base_storage import BaseStorage
+from app.utils.enums import AuditEventType
 from app.utils.errors import bad_request, not_found
 from app.utils.files import get_filename
 

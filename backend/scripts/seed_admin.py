@@ -1,8 +1,9 @@
 from app.core.config import settings
 from app.core.database import SessionLocal
 from app.core.security import hash_password
-from app.models.user import User, UserStatus
+from app.models.user import User
 from app.repositories.user_repository import UserRepository
+from app.utils.enums import UserStatus
 
 
 def seed_admin() -> None:

@@ -11,13 +11,15 @@ from app.core.database import get_db
 from app.core.security import hash_password
 from app.main import app
 from app.models.audit_log import AuditLog
-from app.models.customer import Customer, CustomerStatus
+from app.models.customer import Customer
+from app.models.customer_audit_log import CustomerAuditLog
 from app.models.customer_contact import CustomerContact
 from app.models.customer_status_history import CustomerStatusHistory
 from app.models.file import File
-from app.models.user import User, UserStatus
+from app.models.user import User
 from app.repositories.customer_repository import CustomerRepository
 from app.storages.local_storage import LocalStorage
+from app.utils.enums import CustomerStatus, UserStatus
 
 os.environ.setdefault(
     "TEST_DATABASE_URL",
@@ -205,6 +207,10 @@ def cleanup_test_customers():
 
             db.query(CustomerContact).filter(
                 CustomerContact.customer_id == customer.id
+            ).delete(synchronize_session=False)
+
+            db.query(CustomerAuditLog).filter(
+                CustomerAuditLog.customer_id == customer.id
             ).delete(synchronize_session=False)
 
             repository.delete(customer)

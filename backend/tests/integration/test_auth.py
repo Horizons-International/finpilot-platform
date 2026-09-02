@@ -1,6 +1,6 @@
 from app.core.security import create_access_token
 from app.models.audit_log import AuditLog
-from app.models.user import UserRole
+from app.utils.enums import UserRole
 from tests.conftest import TestSessionLocal
 
 

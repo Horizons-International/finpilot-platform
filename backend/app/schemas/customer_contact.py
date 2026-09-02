@@ -3,7 +3,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
 
-from app.models.customer_contact import PreferredContactMethod
+from app.utils.enums import PreferredContactMethod
 from app.utils.validators import validate_email, validate_phone
 
 
