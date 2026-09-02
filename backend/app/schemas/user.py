@@ -24,7 +24,11 @@ class UserCreate(BaseModel):
     )
     role: UserRole
 
-    @field_validator("first_name", "last_name")
+    @field_validator(
+        "first_name",
+        "last_name",
+        mode="before",
+    )
     @classmethod
     def normalize_names(cls, value: str) -> str:
         return normalize_whitespace(value)
@@ -49,7 +53,11 @@ class UserUpdate(BaseModel):
     email: EmailStr | None = None
     role: UserRole | None = None
 
-    @field_validator("first_name", "last_name")
+    @field_validator(
+        "first_name",
+        "last_name",
+        mode="before",
+    )
     @classmethod
     def normalize_names(cls, value: str | None) -> str | None:
         if value is None:

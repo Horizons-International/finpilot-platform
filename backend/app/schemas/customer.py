@@ -50,6 +50,7 @@ class CustomerCreate(BaseModel):
         "nationality",
         "country_of_residence",
         "phone_number",
+        mode="before",
     )
     @classmethod
     def normalize_strings(cls, value: str | None) -> str | None:
@@ -111,6 +112,7 @@ class CustomerUpdate(BaseModel):
         "nationality",
         "country_of_residence",
         "phone_number",
+        mode="before",
     )
     @classmethod
     def normalize_strings(cls, value: str | None) -> str | None:
