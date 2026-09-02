@@ -9,6 +9,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 if TYPE_CHECKING:
     from app.models.customer_address import CustomerAddress
+    from app.models.customer_contact import CustomerContact
 
 from app.core.database import Base
 from app.utils.enums import CustomerStatus
@@ -85,6 +86,12 @@ class Customer(Base):
 
     addresses: Mapped[list["CustomerAddress"]] = relationship(
         "CustomerAddress",
+        back_populates="customer",
+        cascade="all, delete-orphan",
+    )
+
+    contacts: Mapped[list["CustomerContact"]] = relationship(
+        "CustomerContact",
         back_populates="customer",
         cascade="all, delete-orphan",
     )

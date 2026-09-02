@@ -58,3 +58,8 @@ class UserRole(str, enum.Enum):
 class AddressType(str, enum.Enum):
     RESIDENTIAL = "residential"
     MAILING = "mailing"
+
+
+class PreferredContactMethod(str, enum.Enum):
+    PHONE = "phone"
+    EMAIL = "email"
