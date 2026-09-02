@@ -32,7 +32,7 @@ def create_customer(client):
             "nationality": "US",
             "country_of_residence": "US",
             "email": "john.smith@example.com",
-            "phone_number": "+1234567890",
+            "phone_number": "+249912345678",
             "status": "new",
         },
     )
@@ -47,7 +47,7 @@ def create_customer_with_data(client, **overrides):
         "nationality": "US",
         "country_of_residence": "US",
         "email": "john.smith@example.com",
-        "phone_number": "+1234567890",
+        "phone_number": "+249912345678",
         "status": "new",
     }
 
@@ -210,7 +210,7 @@ def test_update_customer_contact(
     response = client.put(
         f"/api/v1/customers/{customer_id}/contacts/{contact_id}",
         json={
-            "phone_number": "+447700900123",
+            "phone_number": "+249912349999",
             "email": "updated@example.com",
             "preferred_contact_method": "email",
             "phone_verified": True,
@@ -229,7 +229,7 @@ def test_update_customer_contact(
 
     assert contact["id"] == contact_id
     assert contact["customer_id"] == customer_id
-    assert contact["phone_number"] == "+447700900123"
+    assert contact["phone_number"] == "+249912349999"
     assert contact["email"] == "updated@example.com"
     assert contact["preferred_contact_method"] == "email"
     assert contact["phone_verified"] is True

@@ -4,7 +4,7 @@ from uuid import UUID
 from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
 
 from app.models.customer_contact import PreferredContactMethod
-from app.utils.strings import normalize_email, normalize_whitespace
+from app.utils.validators import validate_email, validate_phone
 
 
 class CustomerContactCreate(BaseModel):
@@ -20,7 +20,7 @@ class CustomerContactCreate(BaseModel):
         if value is None:
             return None
 
-        return normalize_whitespace(value)
+        return validate_phone(value)
 
     @field_validator("email", mode="before")
     @classmethod
@@ -28,7 +28,7 @@ class CustomerContactCreate(BaseModel):
         if value is None:
             return None
 
-        return normalize_email(value)
+        return validate_email(value)
 
 
 class CustomerContactUpdate(BaseModel):
@@ -44,7 +44,7 @@ class CustomerContactUpdate(BaseModel):
         if value is None:
             return None
 
-        return normalize_whitespace(value)
+        return validate_phone(value)
 
     @field_validator("email", mode="before")
     @classmethod
@@ -52,7 +52,7 @@ class CustomerContactUpdate(BaseModel):
         if value is None:
             return None
 
-        return normalize_email(value)
+        return validate_email(value)
 
 
 class CustomerContactResponse(BaseModel):

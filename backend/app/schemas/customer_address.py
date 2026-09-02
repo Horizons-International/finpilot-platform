@@ -8,11 +8,20 @@ from app.utils.strings import normalize_whitespace
 
 
 class CustomerAddressCreate(BaseModel):
-    address_line_1: str = Field(..., min_length=1, max_length=255)
+    address_line_1: str = Field(
+        min_length=1,
+        max_length=255,
+    )
     address_line_2: str | None = Field(default=None, max_length=255)
-    city: str = Field(..., min_length=1, max_length=100)
+    city: str = Field(
+        min_length=1,
+        max_length=100,
+    )
     state: str | None = Field(default=None, max_length=100)
-    country: str = Field(..., min_length=1, max_length=100)
+    country: str = Field(
+        min_length=1,
+        max_length=100,
+    )
     postal_code: str | None = Field(default=None, max_length=30)
     address_type: AddressType
     is_primary: bool = False

@@ -1,11 +1,17 @@
 from datetime import datetime
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    EmailStr,
+    Field,
+    ValidationInfo,
+    field_validator,
+)
 
 from app.models.user import UserRole, UserStatus
-from app.utils.strings import normalize_email as nonormalize_email_value
-from app.utils.strings import normalize_whitespace
+from app.utils.validators import validate_email, validate_name, validate_phone
 
 
 class UserCreate(BaseModel):
@@ -30,13 +36,23 @@ class UserCreate(BaseModel):
         mode="before",
     )
     @classmethod
-    def normalize_names(cls, value: str) -> str:
-        return normalize_whitespace(value)
+    def validate_names(
+        cls,
+        value: str,
+        info: ValidationInfo,
+    ) -> str:
+        field_name = info.field_name
 
-    @field_validator("email")
+        if field_name is None:
+            field_name = "Name"
+
+        field_name = field_name.replace("_", " ").title()
+        return validate_name(value, field_name=field_name)
+
+    @field_validator("email", mode="before")
     @classmethod
-    def normalize_email(cls, value: EmailStr) -> EmailStr:
-        return nonormalize_email_value(value)
+    def validate_email_address(cls, value: str) -> str:
+        return validate_email(value)
 
 
 class UserUpdate(BaseModel):
@@ -59,17 +75,27 @@ class UserUpdate(BaseModel):
         mode="before",
     )
     @classmethod
-    def normalize_names(cls, value: str | None) -> str | None:
+    def normalize_names(
+        cls,
+        value: str | None,
+        info: ValidationInfo,
+    ) -> str | None:
         if value is None:
             return None
-        return normalize_whitespace(value)
+        field_name = info.field_name
 
-    @field_validator("email")
+        if field_name is None:
+            field_name = "Name"
+
+        field_name = field_name.replace("_", " ").title()
+        return validate_name(value, field_name=field_name)
+
+    @field_validator("email", mode="before")
     @classmethod
-    def normalize_email(cls, value: EmailStr | None) -> EmailStr | None:
+    def normalize_email(cls, value: str | None) -> str | None:
         if value is None:
             return None
-        return nonormalize_email_value(value)
+        return validate_email(value)
 
 
 class UserStatusUpdate(BaseModel):
@@ -114,10 +140,32 @@ class ProfileUpdateRequest(BaseModel):
         max_length=30,
     )
 
-    @field_validator("first_name", "last_name")
+    @field_validator(
+        "first_name",
+        "last_name",
+        mode="before",
+    )
     @classmethod
-    def normalize_names(cls, value: str) -> str:
-        return normalize_whitespace(value)
+    def normalize_names(
+        cls,
+        value: str,
+        info: ValidationInfo,
+    ) -> str:
+        field_name = info.field_name
+
+        if field_name is None:
+            field_name = "Name"
+
+        field_name = field_name.replace("_", " ").title()
+        return validate_name(value, field_name=field_name)
+
+    @field_validator("phone_number", mode="before")
+    @classmethod
+    def validate_phone_number(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+
+        return validate_phone(value)
 
 
 class ProfileResponse(BaseModel):

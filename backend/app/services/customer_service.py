@@ -115,9 +115,6 @@ class CustomerService:
         if customer_data.phone_number is not None:
             customer.phone_number = customer_data.phone_number
 
-        if customer_data.status is not None:
-            customer.status = customer_data.status
-
         customer = self.repository.update(customer)
 
         self.audit_service.log_event(
