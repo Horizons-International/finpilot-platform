@@ -2,10 +2,23 @@ from datetime import date, datetime
 from enum import Enum
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    EmailStr,
+    Field,
+    ValidationInfo,
+    field_validator,
+)
 
 from app.models.customer import CustomerStatus
-from app.utils.strings import normalize_email, normalize_whitespace
+from app.utils.strings import normalize_whitespace
+from app.utils.validators import (
+    validate_date_of_birth,
+    validate_email,
+    validate_name,
+    validate_phone,
+)
 
 
 class CustomerCreate(BaseModel):
@@ -43,26 +56,72 @@ class CustomerCreate(BaseModel):
         max_length=30,
     )
 
+    status: CustomerStatus = CustomerStatus.NEW
+
+    @field_validator("middle_name", mode="before")
+    @classmethod
+    def validate_middle_name(
+        cls,
+        value: str,
+    ) -> str | None:
+        if value is None:
+            return None
+
+        return validate_name(
+            value,
+            field_name="Middle name",
+        )
+
+    @field_validator("first_name", "last_name", mode="before")
+    @classmethod
+    def validate_names(
+        cls,
+        value: str,
+        info: ValidationInfo,
+    ) -> str:
+        field_name = info.field_name
+
+        if field_name is None:
+            field_name = "Name"
+
+        field_name = field_name.replace("_", " ").title()
+
+        return validate_name(
+            value,
+            field_name=field_name,
+        )
+
+    @field_validator("email", mode="before")
+    @classmethod
+    def validate_email_address(cls, value: str) -> str:
+        return validate_email(value)
+
+    @field_validator("phone_number", mode="before")
+    @classmethod
+    def validate_phone_number(cls, value: str) -> str:
+        return validate_phone(value)
+
+    @field_validator("date_of_birth")
+    @classmethod
+    def validate_birth_date(cls, value: date | None) -> date | None:
+        if value is None:
+            return None
+
+        return validate_date_of_birth(value)
+
     @field_validator(
-        "first_name",
-        "middle_name",
-        "last_name",
         "nationality",
         "country_of_residence",
-        "phone_number",
         mode="before",
     )
     @classmethod
-    def normalize_strings(cls, value: str | None) -> str | None:
+    def normalize_optional_strings(
+        cls,
+        value: str | None,
+    ) -> str | None:
         if value is None:
             return None
-        return normalize_whitespace(value)
 
-    @field_validator("email")
-    @classmethod
-    def normalize_customer_email(cls, value: EmailStr | None) -> EmailStr | None:
-        if value is None:
-            return None
         return normalize_whitespace(value)
 
 
@@ -103,34 +162,89 @@ class CustomerUpdate(BaseModel):
         max_length=30,
     )
 
-    status: CustomerStatus | None = None
+    @field_validator("middle_name")
+    @classmethod
+    def validate_middle_name(
+        cls,
+        value: str | None,
+    ) -> str | None:
+        if value is None:
+            return None
+
+        return validate_name(
+            value,
+            field_name="Middle name",
+        )
+
+    @field_validator("first_name", "last_name", mode="before")
+    @classmethod
+    def validate_names(
+        cls,
+        value: str | None,
+        info: ValidationInfo,
+    ) -> str | None:
+        if value is None:
+            return None
+
+        field_name = info.field_name
+
+        if field_name is None:
+            field_name = "Name"
+
+        field_name = field_name.replace("_", " ").title()
+
+        return validate_name(
+            value,
+            field_name=field_name,
+        )
+
+    @field_validator("email", mode="before")
+    @classmethod
+    def validate_email_address(
+        cls,
+        value: str | None,
+    ) -> str | None:
+        if value is None:
+            return None
+
+        return validate_email(value)
+
+    @field_validator("phone_number", mode="before")
+    @classmethod
+    def validate_phone_number(
+        cls,
+        value: str | None,
+    ) -> str | None:
+        if value is None:
+            return None
+
+        return validate_phone(value)
+
+    @field_validator("date_of_birth")
+    @classmethod
+    def validate_birth_date(
+        cls,
+        value: date | None,
+    ) -> date | None:
+        if value is None:
+            return None
+
+        return validate_date_of_birth(value)
 
     @field_validator(
-        "first_name",
-        "middle_name",
-        "last_name",
         "nationality",
         "country_of_residence",
-        "phone_number",
         mode="before",
     )
     @classmethod
-    def normalize_strings(cls, value: str | None) -> str | None:
+    def normalize_optional_strings(
+        cls,
+        value: str | None,
+    ) -> str | None:
         if value is None:
             return None
 
         return normalize_whitespace(value)
-
-    @field_validator("email")
-    @classmethod
-    def normalize_customer_email(
-        cls,
-        value: EmailStr | None,
-    ) -> EmailStr | None:
-        if value is None:
-            return None
-
-        return normalize_email(value)
 
 
 class CustomerResponse(BaseModel):

@@ -32,7 +32,7 @@ def create_customer(client):
             "nationality": "US",
             "country_of_residence": "US",
             "email": "address.customer@example.com",
-            "phone_number": "+1234567890",
+            "phone_number": "+249912345678",
             "status": "new",
         },
     )
@@ -47,7 +47,7 @@ def create_customer_with_data(client, **overrides):
         "nationality": "US",
         "country_of_residence": "US",
         "email": "john.smith@example.com",
-        "phone_number": "+1234567890",
+        "phone_number": "+249912345678",
         "status": "new",
     }
 

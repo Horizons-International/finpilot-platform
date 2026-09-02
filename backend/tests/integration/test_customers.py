@@ -32,7 +32,7 @@ def create_customer(client):
             "nationality": "US",
             "country_of_residence": "US",
             "email": "john.smith@example.com",
-            "phone_number": "+1234567890",
+            "phone_number": "+249912345678",
             "status": "new",
         },
     )
@@ -47,7 +47,7 @@ def create_customer_with_data(client, **overrides):
         "nationality": "US",
         "country_of_residence": "US",
         "email": "john.smith@example.com",
-        "phone_number": "+1234567890",
+        "phone_number": "+249912345678",
         "status": "new",
     }
 
@@ -86,7 +86,7 @@ def test_create_customer(client, create_test_user, cleanup_test_customers):
     assert customer["nationality"] == "US"
     assert customer["country_of_residence"] == "US"
     assert customer["email"] == "john.smith@example.com"
-    assert customer["phone_number"] == "+1234567890"
+    assert customer["phone_number"] == "+249912345678"
     assert customer["status"] == "new"
 
 
@@ -147,7 +147,7 @@ def test_update_customer(client, create_test_user, cleanup_test_customers):
             "nationality": "US",
             "country_of_residence": "US",
             "email": "johnathan.smith@example.com",
-            "phone_number": "+1987654321",
+            "phone_number": "+249912349999",
             "status": "new",
         },
     )
@@ -164,7 +164,7 @@ def test_update_customer(client, create_test_user, cleanup_test_customers):
     assert customer["id"] == customer_id
     assert customer["first_name"] == "Jonathan"
     assert customer["email"] == "johnathan.smith@example.com"
-    assert customer["phone_number"] == "+1987654321"
+    assert customer["phone_number"] == "+249912349999"
 
 
 def test_update_customer_preserves_unchanged_fields(
@@ -202,7 +202,7 @@ def test_update_customer_preserves_unchanged_fields(
     assert customer["nationality"] == "US"
     assert customer["country_of_residence"] == "US"
     assert customer["email"] == "john.smith@example.com"
-    assert customer["phone_number"] == "+1234567890"
+    assert customer["phone_number"] == "+249912345678"
     assert customer["status"] == "new"
 
 
@@ -346,7 +346,7 @@ def test_search_customers_by_name(client, create_test_user, cleanup_test_custome
         first_name="Alice",
         last_name="Johnson",
         email="alice.johnson@example.com",
-        phone_number="+1111111111",
+        phone_number="+249912341111",
     )
 
     assert response.status_code == 201
@@ -426,7 +426,7 @@ def test_search_customers_by_phone_number(
     response = create_customer_with_data(
         client,
         email="search.phone@example.com",
-        phone_number="+19998887777",
+        phone_number="+249912347777",
     )
 
     assert response.status_code == 201
@@ -436,7 +436,7 @@ def test_search_customers_by_phone_number(
     response = client.get(
         "/api/v1/customers",
         params={
-            "phone_number": "+19998887777",
+            "phone_number": "+249912347777",
         },
     )
 
@@ -450,7 +450,7 @@ def test_search_customers_by_phone_number(
 
     assert len(customers) == 1
     assert customers[0]["id"] == customer_id
-    assert customers[0]["phone_number"] == "+19998887777"
+    assert customers[0]["phone_number"] == "+249912347777"
 
 
 def test_search_customers_by_id(
@@ -534,12 +534,18 @@ def test_search_customers_pagination(
 
     customer_ids = []
 
-    for index in range(3):
+    first_names = [
+        "PaginationAlice",
+        "PaginationBob",
+        "PaginationCharlie",
+    ]
+
+    for index, first_name in enumerate(first_names):
         response = create_customer_with_data(
             client,
-            first_name=f"Pagination{index}",
+            first_name=first_name,
             email=f"pagination{index}@example.com",
-            phone_number=f"+100000000{index}",
+            phone_number=f"+24991234567{index}",
         )
 
         assert response.status_code == 201
