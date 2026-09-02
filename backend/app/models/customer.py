@@ -1,10 +1,14 @@
 import uuid
 from datetime import date, datetime
+from typing import TYPE_CHECKING
 
 from sqlalchemy import Date, DateTime, String, func
 from sqlalchemy import Enum as SQLAlchemyEnum
 from sqlalchemy.dialects.postgresql import UUID
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
+
+if TYPE_CHECKING:
+    from app.models.customer_address import CustomerAddress
 
 from app.core.database import Base
 from app.utils.enums import CustomerStatus
@@ -51,7 +55,7 @@ class Customer(Base):
 
     email: Mapped[str] = mapped_column(
         String(255),
-        nullable=False,
+        nullable=True,
         index=True,
     )
 
@@ -68,7 +72,7 @@ class Customer(Base):
 
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
-        default=func.now(),
+        server_default=func.now(),
         nullable=False,
     )
 
@@ -77,4 +81,10 @@ class Customer(Base):
         server_default=func.now(),
         onupdate=func.now(),
         nullable=False,
+    )
+
+    addresses: Mapped[list["CustomerAddress"]] = relationship(
+        "CustomerAddress",
+        back_populates="customer",
+        cascade="all, delete-orphan",
     )

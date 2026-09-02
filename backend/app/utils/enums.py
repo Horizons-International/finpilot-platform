@@ -53,3 +53,8 @@ class UserRole(str, enum.Enum):
     REVIEWER = "Reviewer"
     COMPLIANCE_OFFICER = "Compliance Officer"
     AUDITOR = "Auditor"
+
+
+class AddressType(str, enum.Enum):
+    RESIDENTIAL = "residential"
+    MAILING = "mailing"
