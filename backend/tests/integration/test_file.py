@@ -1,5 +1,5 @@
 from app.core.config import settings
-from app.models.user import UserRole
+from app.utils.enums import UserRole
 
 
 def authenticate_client(client, user):

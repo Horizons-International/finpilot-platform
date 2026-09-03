@@ -11,7 +11,7 @@ from pydantic import (
     field_validator,
 )
 
-from app.models.customer import CustomerStatus
+from app.utils.enums import CustomerStatus
 from app.utils.strings import normalize_whitespace
 from app.utils.validators import (
     validate_date_of_birth,
@@ -49,7 +49,7 @@ class CustomerCreate(BaseModel):
         max_length=100,
     )
 
-    email: EmailStr | None = None
+    email: EmailStr
 
     phone_number: str = Field(
         min_length=1,

@@ -8,7 +8,6 @@ from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.core.responses import APIResponse
 from app.core.security import Roles, require_roles
-from app.models.customer import CustomerStatus
 from app.schemas.customer import (
     CustomerCreate,
     CustomerListResponse,
@@ -19,6 +18,7 @@ from app.schemas.customer import (
 )
 from app.services.customer_service import CustomerService
 from app.utils.constants import DEFAULT_PAGE, DEFAULT_PAGE_SIZE
+from app.utils.enums import CustomerStatus
 
 router = APIRouter(
     prefix="/api/v1/customers",

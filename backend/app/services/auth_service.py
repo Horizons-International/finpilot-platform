@@ -12,8 +12,6 @@ from app.core.security import (
     validate_password,
     verify_password,
 )
-from app.models.audit_log import AuditEventType
-from app.models.user import UserStatus
 from app.repositories.user_repository import UserRepository
 from app.schemas.auth import (
     AuthUserResponse,
@@ -22,6 +20,7 @@ from app.schemas.auth import (
     RefreshTokenResponse,
 )
 from app.services.audit_service import AuditService
+from app.utils.enums import AuditEventType, UserStatus
 from app.utils.errors import bad_request, forbidden, not_found, unauthorized
 
 

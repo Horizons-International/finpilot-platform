@@ -1,6 +1,6 @@
 from pydantic import BaseModel, ConfigDict, EmailStr, Field
 
-from app.models.user import UserRole, UserStatus
+from app.utils.enums import UserRole, UserStatus
 
 
 class LoginRequest(BaseModel):

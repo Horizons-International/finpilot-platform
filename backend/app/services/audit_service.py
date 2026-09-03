@@ -2,7 +2,8 @@ from uuid import UUID
 
 from sqlalchemy.orm import Session
 
-from app.models.audit_log import AuditEventType, AuditLog
+from app.models.audit_log import AuditLog
+from app.utils.enums import AuditEventType
 
 
 class AuditService:

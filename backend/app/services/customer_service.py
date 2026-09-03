@@ -3,8 +3,7 @@ from uuid import UUID
 
 from sqlalchemy.orm import Session
 
-from app.models.audit_log import AuditEventType
-from app.models.customer import Customer, CustomerStatus
+from app.models.customer import Customer
 from app.models.customer_status_history import CustomerStatusHistory
 from app.repositories.customer_repository import CustomerRepository
 from app.schemas.customer import (
@@ -14,7 +13,10 @@ from app.schemas.customer import (
     CustomerUpdate,
 )
 from app.services.audit_service import AuditService
+from app.services.customer_audit_log_service import CustomerAuditLogService
+from app.utils.audit import serialize_audit_value
 from app.utils.constants import DEFAULT_PAGE, DEFAULT_PAGE_SIZE
+from app.utils.enums import AuditEventType, CustomerStatus
 from app.utils.errors import bad_request, not_found
 from app.utils.pagination import validate_pagination
 
@@ -24,6 +26,7 @@ class CustomerService:
         self.db = db
         self.repository = CustomerRepository(db)
         self.audit_service = AuditService(db)
+        self.customer_audit_service = CustomerAuditLogService(db)
 
     def create_customer(
         self,
@@ -84,38 +87,55 @@ class CustomerService:
     ) -> Customer:
         customer = self.get_customer(customer_id)
 
-        if customer_data.email is not None:
+        update_data = customer_data.model_dump(exclude_unset=True)
+
+        if not update_data:
+            raise bad_request("No customer fields were provided for update.")
+
+        if "email" in update_data:
             existing_customer = self.repository.get_by_email(
-                customer_data.email,
+                update_data["email"],
             )
 
             if existing_customer and existing_customer.id != customer_id:
                 raise bad_request("Email is already registered.")
 
-            customer.email = customer_data.email
+        changed_fields: list[tuple[str, object | None, object | None]] = []
 
-        if customer_data.first_name is not None:
-            customer.first_name = customer_data.first_name
+        for field, new_value in update_data.items():
+            old_value = getattr(customer, field)
 
-        if customer_data.middle_name is not None:
-            customer.middle_name = customer_data.middle_name
+            if old_value == new_value:
+                continue
 
-        if customer_data.last_name is not None:
-            customer.last_name = customer_data.last_name
+            changed_fields.append(
+                (
+                    field,
+                    old_value,
+                    new_value,
+                )
+            )
 
-        if customer_data.date_of_birth is not None:
-            customer.date_of_birth = customer_data.date_of_birth
+            setattr(
+                customer,
+                field,
+                new_value,
+            )
 
-        if customer_data.nationality is not None:
-            customer.nationality = customer_data.nationality
-
-        if customer_data.country_of_residence is not None:
-            customer.country_of_residence = customer_data.country_of_residence
-
-        if customer_data.phone_number is not None:
-            customer.phone_number = customer_data.phone_number
+        if not changed_fields:
+            raise bad_request("No customer fields were changed.")
 
         customer = self.repository.update(customer)
+
+        for field, old_value, new_value in changed_fields:
+            self.customer_audit_service.create_audit_log(
+                customer_id=customer.id,
+                user_id=updated_by,
+                action="UPDATE",
+                changed_field=field,
+                old_value=serialize_audit_value(old_value),
+                new_value=serialize_audit_value(new_value),
+            )
 
         self.audit_service.log_event(
             event_type=AuditEventType.CUSTOMER_UPDATED,

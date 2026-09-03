@@ -3,8 +3,7 @@ from uuid import UUID
 from sqlalchemy.orm import Session
 
 from app.core.security import hash_password
-from app.models.audit_log import AuditEventType
-from app.models.user import User, UserStatus
+from app.models.user import User
 from app.repositories.user_repository import UserRepository
 from app.schemas.user import (
     UserCreate,
@@ -14,6 +13,7 @@ from app.schemas.user import (
     UserUpdate,
 )
 from app.services.audit_service import AuditService
+from app.utils.enums import AuditEventType, UserStatus
 from app.utils.errors import bad_request, not_found
 from app.utils.pagination import Pagination, validate_pagination
 
