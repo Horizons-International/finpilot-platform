@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.core.responses import APIResponse
-from app.core.security import Roles, require_roles
+from app.core.security import require_roles
 from app.schemas.customer import (
     CustomerCreate,
     CustomerListResponse,
@@ -18,7 +18,7 @@ from app.schemas.customer import (
 )
 from app.services.customer_service import CustomerService
 from app.utils.constants import DEFAULT_PAGE, DEFAULT_PAGE_SIZE
-from app.utils.enums import CustomerStatus
+from app.utils.enums import CustomerStatus, UserRole
 
 router = APIRouter(
     prefix="/api/v1/customers",
@@ -36,7 +36,12 @@ router = APIRouter(
 def create_customer(
     customer_data: CustomerCreate,
     db: Session = Depends(get_db),
-    current_user: dict[str, Any] = Depends(require_roles(Roles.ADMINISTRATOR)),
+    current_user: dict[str, Any] = Depends(
+        require_roles(
+            UserRole.ADMINISTRATOR,
+            resource_type="customer",
+        )
+    ),
 ):
     service = CustomerService(db)
 
@@ -62,7 +67,12 @@ def update_customer(
     customer_id: UUID,
     customer_data: CustomerUpdate,
     db: Session = Depends(get_db),
-    current_user: dict[str, Any] = Depends(require_roles(Roles.ADMINISTRATOR)),
+    current_user: dict[str, Any] = Depends(
+        require_roles(
+            UserRole.ADMINISTRATOR,
+            resource_type="customer",
+        )
+    ),
 ):
     service = CustomerService(db)
 
@@ -91,7 +101,8 @@ def update_customer_status(
     db: Session = Depends(get_db),
     current_user: dict[str, Any] = Depends(
         require_roles(
-            Roles.ADMINISTRATOR,
+            UserRole.ADMINISTRATOR,
+            resource_type="customer",
         )
     ),
 ):
@@ -156,7 +167,9 @@ def search_customers(
     db: Session = Depends(get_db),
     _: dict[str, Any] = Depends(
         require_roles(
-            Roles.ADMINISTRATOR,
+            UserRole.ADMINISTRATOR,
+            UserRole.COMPLIANCE_OFFICER,
+            resource_type="customer",
         )
     ),
 ):
@@ -190,7 +203,14 @@ def search_customers(
 def get_customer(
     customer_id: UUID,
     db: Session = Depends(get_db),
-    _: dict[str, Any] = Depends(require_roles(Roles.ADMINISTRATOR)),
+    _: dict[str, Any] = Depends(
+        require_roles(
+            UserRole.ADMINISTRATOR,
+            UserRole.COMPLIANCE_OFFICER,
+            UserRole.REVIEWER,
+            resource_type="customer",
+        )
+    ),
 ):
     service = CustomerService(db)
 

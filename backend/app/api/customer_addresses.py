@@ -6,13 +6,14 @@ from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.core.responses import APIResponse
-from app.core.security import Roles, require_roles
+from app.core.security import require_roles
 from app.schemas.customer_address import (
     CustomerAddressCreate,
     CustomerAddressResponse,
     CustomerAddressUpdate,
 )
 from app.services.customer_address_service import CustomerAddressService
+from app.utils.enums import UserRole
 
 router = APIRouter(
     prefix="/api/v1/customers",
@@ -31,9 +32,10 @@ def create_customer_address(
     customer_id: UUID,
     data: CustomerAddressCreate,
     db: Session = Depends(get_db),
-    _: dict[str, Any] = Depends(
+    current_user: dict[str, Any] = Depends(
         require_roles(
-            Roles.ADMINISTRATOR,
+            UserRole.ADMINISTRATOR,
+            resource_type="customer",
         )
     ),
 ):
@@ -42,6 +44,7 @@ def create_customer_address(
     address = service.create_address(
         customer_id=customer_id,
         data=data,
+        created_by=UUID(current_user["sub"]),
     )
 
     return APIResponse(
@@ -62,7 +65,9 @@ def get_customer_addresses(
     db: Session = Depends(get_db),
     _: dict[str, Any] = Depends(
         require_roles(
-            Roles.ADMINISTRATOR,
+            UserRole.ADMINISTRATOR,
+            UserRole.COMPLIANCE_OFFICER,
+            resource_type="customer",
         )
     ),
 ):
@@ -90,9 +95,10 @@ def update_customer_address(
     address_id: UUID,
     data: CustomerAddressUpdate,
     db: Session = Depends(get_db),
-    _: dict[str, Any] = Depends(
+    current_user: dict[str, Any] = Depends(
         require_roles(
-            Roles.ADMINISTRATOR,
+            UserRole.ADMINISTRATOR,
+            resource_type="customer",
         )
     ),
 ):
@@ -102,6 +108,7 @@ def update_customer_address(
         customer_id=customer_id,
         address_id=address_id,
         data=data,
+        updated_by=UUID(current_user["sub"]),
     )
 
     return APIResponse(
@@ -121,9 +128,10 @@ def set_customer_address_primary(
     customer_id: UUID,
     address_id: UUID,
     db: Session = Depends(get_db),
-    _: dict[str, Any] = Depends(
+    current_user: dict[str, Any] = Depends(
         require_roles(
-            Roles.ADMINISTRATOR,
+            UserRole.ADMINISTRATOR,
+            resource_type="customer",
         )
     ),
 ):
@@ -132,6 +140,7 @@ def set_customer_address_primary(
     address = service.set_primary(
         customer_id=customer_id,
         address_id=address_id,
+        updated_by=UUID(current_user["sub"]),
     )
 
     return APIResponse(

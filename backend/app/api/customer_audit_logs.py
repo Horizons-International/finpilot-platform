@@ -6,13 +6,14 @@ from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.core.responses import APIResponse
-from app.core.security import Roles, require_roles
+from app.core.security import require_roles
 from app.schemas.customer_audit_log import (
     CustomerAuditLogListResponse,
     CustomerAuditLogResponse,
 )
 from app.services.customer_audit_log_service import CustomerAuditLogService
 from app.services.customer_service import CustomerService
+from app.utils.enums import UserRole
 
 router = APIRouter(
     prefix="/api/v1/customers",
@@ -31,7 +32,11 @@ def get_customer_audit_history(
     customer_id: UUID,
     db: Session = Depends(get_db),
     _: dict[str, Any] = Depends(
-        require_roles(Roles.ADMINISTRATOR),
+        require_roles(
+            UserRole.ADMINISTRATOR,
+            UserRole.COMPLIANCE_OFFICER,
+            resource_type="customer",
+        ),
     ),
 ) -> APIResponse[CustomerAuditLogListResponse]:
     customer_service = CustomerService(db)

@@ -28,6 +28,7 @@ class FileService:
         self,
         file: UploadFile,
         uploaded_by: UUID,
+        email: str,
         module: str,
         folder: str,
     ) -> File:
@@ -79,6 +80,7 @@ class FileService:
             self.audit_service.log_event(
                 event_type=AuditEventType.FILE_UPLOAD,
                 user_id=uploaded_by,
+                email=email,
                 resource_type="file",
                 resource_id=file_record.id,
             )
@@ -110,6 +112,7 @@ class FileService:
         self,
         file_id: UUID,
         user_id: UUID,
+        email: str,
     ) -> tuple[bytes, str, str]:
         file_record = self.file_repository.get_by_id(file_id)
 
@@ -128,6 +131,7 @@ class FileService:
             self.audit_service.log_event(
                 event_type=AuditEventType.FILE_DOWNLOAD,
                 user_id=user_id,
+                email=email,
                 resource_type="file",
                 resource_id=file_record.id,
             )
@@ -148,6 +152,7 @@ class FileService:
         self,
         file_id: UUID,
         user_id: UUID,
+        email: str,
     ) -> None:
         file_record = self.file_repository.get_by_id(file_id)
 
@@ -167,6 +172,7 @@ class FileService:
             self.audit_service.log_event(
                 event_type=AuditEventType.FILE_DELETE,
                 user_id=user_id,
+                email=email,
                 resource_type="file",
                 resource_id=file_id,
             )

@@ -34,12 +34,17 @@ class CustomerAuditLog(Base):
         index=True,
     )
 
-    action: Mapped[str] = mapped_column(
+    resource_type: Mapped[str] = mapped_column(
         String(50),
         nullable=False,
     )
 
-    changed_field: Mapped[str] = mapped_column(
+    resource_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        nullable=False,
+    )
+
+    action: Mapped[str] = mapped_column(
         String(100),
         nullable=False,
     )

@@ -31,14 +31,25 @@ class ProfileService:
     ) -> User:
         user = self.get_profile(user_id)
 
-        if profile_data.first_name is not None:
-            user.first_name = profile_data.first_name
+        update_data = profile_data.model_dump(exclude_unset=True)
 
-        if profile_data.last_name is not None:
-            user.last_name = profile_data.last_name
+        # Nothing was supplied in the request.
+        if not update_data:
+            return user
 
-        if profile_data.phone_number is not None:
-            user.phone_number = profile_data.phone_number
+        changed = False
+
+        for field, new_value in update_data.items():
+            old_value = getattr(user, field)
+
+            if old_value == new_value:
+                continue
+
+            setattr(user, field, new_value)
+            changed = True
+
+        if not changed:
+            return user
 
         user = self.repository.update(user)
 
@@ -51,5 +62,6 @@ class ProfileService:
         )
 
         self.db.commit()
+        self.db.refresh(user)
 
         return user

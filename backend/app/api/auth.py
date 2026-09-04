@@ -6,11 +6,7 @@ from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.core.responses import APIResponse
-from app.core.security import (
-    Roles,
-    get_current_user,
-    require_roles,
-)
+from app.core.security import get_current_user, require_roles
 from app.schemas.auth import (
     ChangePasswordRequest,
     LoginRequest,
@@ -19,6 +15,7 @@ from app.schemas.auth import (
     RefreshTokenResponse,
 )
 from app.services.auth_service import AuthService
+from app.utils.enums import UserRole
 
 router = APIRouter(
     prefix="/api/v1/auth",
@@ -77,7 +74,7 @@ def refresh_token(
     ),
 )
 def admin_only(
-    current_user: dict[str, Any] = Depends(require_roles(Roles.ADMINISTRATOR)),
+    current_user: dict[str, Any] = Depends(require_roles(UserRole.ADMINISTRATOR)),
 ):
     return APIResponse(
         success=True,

@@ -9,10 +9,11 @@ from sqlalchemy.orm import Session
 from app.core.config import settings
 from app.core.database import get_db
 from app.core.responses import APIResponse
-from app.core.security import Roles, get_current_user, require_roles
+from app.core.security import get_current_user, require_roles
 from app.schemas.file import FileResponse
 from app.services.file_service import FileService
 from app.storages.local_storage import LocalStorage
+from app.utils.enums import UserRole
 
 router = APIRouter(
     prefix="/api/v1/files",
@@ -50,6 +51,7 @@ async def upload_file(
     file_record = await service.upload_file(
         file=file,
         uploaded_by=UUID(current_user["sub"]),
+        email=current_user["email"],
         module=module,
         folder=folder,
     )
@@ -69,11 +71,17 @@ async def upload_file(
 def download_file(
     file_id: UUID,
     service: FileService = Depends(get_file_service),
-    current_user: dict[str, Any] = Depends(require_roles(Roles.ADMINISTRATOR)),
+    current_user: dict[str, Any] = Depends(
+        require_roles(
+            UserRole.ADMINISTRATOR,
+            resource_type="file",
+        )
+    ),
 ):
     content, filename, content_type = service.download_file(
         file_id=file_id,
         user_id=UUID(current_user["sub"]),
+        email=current_user["email"],
     )
 
     return Response(
@@ -94,9 +102,18 @@ def download_file(
 def delete_file(
     file_id: UUID,
     service: FileService = Depends(get_file_service),
-    current_user: dict[str, Any] = Depends(require_roles(Roles.ADMINISTRATOR)),
+    current_user: dict[str, Any] = Depends(
+        require_roles(
+            UserRole.ADMINISTRATOR,
+            resource_type="file",
+        )
+    ),
 ):
-    service.delete_file(file_id=file_id, user_id=current_user["sub"])
+    service.delete_file(
+        file_id=file_id,
+        user_id=UUID(current_user["sub"]),
+        email=current_user["email"],
+    )
 
     return APIResponse(
         success=True,

@@ -1,15 +1,20 @@
 import re
+from collections.abc import Callable
 from datetime import timedelta
-from typing import Any, Callable, cast
+from typing import Any, cast
 
 import bcrypt
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jose import JWTError, jwt
+from sqlalchemy.orm import Session
 
 from app.core.config import settings
+from app.core.database import get_db
+from app.services.audit_service import AuditService
 from app.utils.date_time import utc_now
-from app.utils.errors import forbidden, unauthorized
+from app.utils.enums import AuditEventType, UserRole
+from app.utils.errors import unauthorized
 
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 30
@@ -190,6 +195,12 @@ def get_current_user(
             headers={"WWW-Authenticate": "Bearer"},
         )
 
+    if not payload.get("email"):
+        raise HTTPException(
+            status_code=401,
+            detail="Invalid access token.",
+        )
+
     return payload
 
 
@@ -198,19 +209,46 @@ def get_current_user(
 # ---------------------------------------------------------------------------
 
 
-def require_roles(*allowed_roles: str) -> Callable:
+def require_roles(
+    *allowed_roles: UserRole,
+    resource_type: str | None = None,
+) -> Callable[..., Any]:
     """
     Create a reusable dependency that restricts an endpoint
     to the specified roles.
     """
 
     def role_checker(
+        request: Request,
         current_user: dict[str, Any] = Depends(get_current_user),
+        db: Session = Depends(get_db),
     ) -> dict[str, Any]:
         user_role = current_user.get("role")
 
         if user_role not in allowed_roles:
-            raise forbidden("Insufficient permissions")
+            resource_id = None
+
+            if resource_type is not None:
+                resource_id = request.path_params.get(f"{resource_type}_id")
+
+            audit_service = AuditService(db)
+
+            audit_service.log_event(
+                event_type=AuditEventType.ACCESS_DENIED,
+                user_id=current_user.get("sub"),
+                email=current_user.get("email"),
+                ip_address=request.client.host if request.client else None,
+                user_agent=request.headers.get("user-agent"),
+                resource_type=resource_type,
+                resource_id=resource_id,
+            )
+
+            db.commit()
+
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="You do not have permission to access this resource.",
+            )
 
         return current_user
 

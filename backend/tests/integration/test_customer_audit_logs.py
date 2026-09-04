@@ -69,16 +69,15 @@ def test_customer_update_creates_audit_history(
 
     audit_logs = body["data"]["audit_logs"]
 
-    assert len(audit_logs) == 2
+    assert len(audit_logs) == 3
 
-    fields = {audit["changed_field"] for audit in audit_logs}
+    fields = {audit["action"] for audit in audit_logs}
 
-    assert fields == {"first_name", "email"}
+    assert fields == {"CREATE CUSTOMER", "UPDATE FIRST NAME", "UPDATE EMAIL"}
 
     for audit in audit_logs:
         assert audit["customer_id"] == customer_id
         assert audit["user_id"] == str(user.id)
-        assert audit["action"] == "UPDATE"
 
 
 def test_customer_audit_history_contains_old_and_new_values(
@@ -125,12 +124,11 @@ def test_customer_audit_history_contains_old_and_new_values(
     audit_logs = history_response.json()["data"]["audit_logs"]
 
     email_audit = next(
-        audit for audit in audit_logs if audit["changed_field"] == "email"
+        audit for audit in audit_logs if audit["action"] == "UPDATE EMAIL"
     )
 
     assert email_audit["old_value"] == "original@example.com"
     assert email_audit["new_value"] == "changed@example.com"
-    assert email_audit["action"] == "UPDATE"
     assert email_audit["user_id"] == str(user.id)
 
 
@@ -179,7 +177,7 @@ def test_customer_audit_history_records_nullable_field_clearing(
     audit_logs = history_response.json()["data"]["audit_logs"]
 
     middle_name_audit = next(
-        audit for audit in audit_logs if audit["changed_field"] == "middle_name"
+        audit for audit in audit_logs if audit["action"] == "UPDATE MIDDLE NAME"
     )
 
     assert middle_name_audit["old_value"] == "Middle"
@@ -230,7 +228,7 @@ def test_customer_audit_history_does_not_record_unchanged_fields(
 
     audit_logs = history_response.json()["data"]["audit_logs"]
 
-    assert audit_logs == []
+    assert len(audit_logs) == 1
 
 
 def test_customer_audit_history_is_newest_first(
@@ -285,7 +283,7 @@ def test_customer_audit_history_is_newest_first(
 
     audit_logs = history_response.json()["data"]["audit_logs"]
 
-    assert len(audit_logs) == 2
+    assert len(audit_logs) == 3
 
     assert audit_logs[0]["old_value"] == "Second"
     assert audit_logs[0]["new_value"] == "Third"

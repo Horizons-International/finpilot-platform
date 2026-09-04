@@ -57,6 +57,16 @@ def client():
 
 
 @pytest.fixture
+def db_session():
+    db = TestSessionLocal()
+
+    try:
+        yield db
+    finally:
+        db.close()
+
+
+@pytest.fixture
 def create_test_user():
     created_user_ids = []
 

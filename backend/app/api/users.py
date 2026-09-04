@@ -5,10 +5,7 @@ from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.core.responses import APIResponse
-from app.core.security import (
-    Roles,
-    require_roles,
-)
+from app.core.security import require_roles
 from app.schemas.user import (
     UserCreate,
     UserListResponse,
@@ -17,6 +14,7 @@ from app.schemas.user import (
     UserUpdate,
 )
 from app.services.user_service import UserService
+from app.utils.enums import UserRole
 
 router = APIRouter(
     prefix="/api/v1/users",
@@ -34,7 +32,12 @@ router = APIRouter(
 def create_user(
     user_data: UserCreate,
     db: Session = Depends(get_db),
-    _: dict = Depends(require_roles(Roles.ADMINISTRATOR)),
+    _: dict = Depends(
+        require_roles(
+            UserRole.ADMINISTRATOR,
+            resource_type="user",
+        )
+    ),
 ):
     service = UserService(db)
 
@@ -56,7 +59,12 @@ def create_user(
 def get_user(
     user_id: UUID,
     db: Session = Depends(get_db),
-    _: dict = Depends(require_roles(Roles.ADMINISTRATOR)),
+    _: dict = Depends(
+        require_roles(
+            UserRole.ADMINISTRATOR,
+            resource_type="user",
+        )
+    ),
 ):
     service = UserService(db)
 
@@ -79,7 +87,12 @@ def get_users(
     page: int = 1,
     page_size: int = 20,
     db: Session = Depends(get_db),
-    _: dict = Depends(require_roles(Roles.ADMINISTRATOR)),
+    _: dict = Depends(
+        require_roles(
+            UserRole.ADMINISTRATOR,
+            resource_type="user",
+        )
+    ),
 ):
     service = UserService(db)
 
@@ -105,7 +118,12 @@ def update_user(
     user_id: UUID,
     user_data: UserUpdate,
     db: Session = Depends(get_db),
-    _: dict = Depends(require_roles(Roles.ADMINISTRATOR)),
+    _: dict = Depends(
+        require_roles(
+            UserRole.ADMINISTRATOR,
+            resource_type="user",
+        )
+    ),
 ):
     service = UserService(db)
 
@@ -131,7 +149,12 @@ def update_user_status(
     user_id: UUID,
     status_data: UserStatusUpdate,
     db: Session = Depends(get_db),
-    _: dict = Depends(require_roles(Roles.ADMINISTRATOR)),
+    _: dict = Depends(
+        require_roles(
+            UserRole.ADMINISTRATOR,
+            resource_type="user",
+        )
+    ),
 ):
     service = UserService(db)
 
@@ -156,7 +179,12 @@ def update_user_status(
 def delete_user(
     user_id: UUID,
     db: Session = Depends(get_db),
-    _: dict = Depends(require_roles(Roles.ADMINISTRATOR)),
+    _: dict = Depends(
+        require_roles(
+            UserRole.ADMINISTRATOR,
+            resource_type="user",
+        )
+    ),
 ):
     service = UserService(db)
 
