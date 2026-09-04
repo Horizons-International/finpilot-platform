@@ -41,6 +41,8 @@ class AuditEventType(str, enum.Enum):
     CUSTOMER_UPDATED = "CUSTOMER_UPDATED"
     CUSTOMER_STATUS_CHANGED = "CUSTOMER_STATUS_CHANGED"
 
+    ACCESS_DENIED = "ACCESS_DENIED"
+
 
 class UserStatus(str, enum.Enum):
     ACTIVE = "active"

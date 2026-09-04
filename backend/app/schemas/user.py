@@ -125,12 +125,14 @@ class UserListResponse(BaseModel):
 
 
 class ProfileUpdateRequest(BaseModel):
-    first_name: str = Field(
+    first_name: str | None = Field(
+        default=None,
         min_length=1,
         max_length=100,
     )
 
-    last_name: str = Field(
+    last_name: str | None = Field(
+        default=None,
         min_length=1,
         max_length=100,
     )

@@ -18,16 +18,18 @@ class CustomerAuditLogService:
         *,
         customer_id: UUID,
         user_id: UUID,
+        resource_type: str,
+        resource_id: UUID,
         action: str,
-        changed_field: str,
         old_value: object | None,
         new_value: object | None,
     ) -> CustomerAuditLog:
         audit_log = CustomerAuditLog(
             customer_id=customer_id,
             user_id=user_id,
+            resource_type=resource_type,
+            resource_id=resource_id,
             action=action,
-            changed_field=changed_field,
             old_value=old_value,
             new_value=new_value,
         )

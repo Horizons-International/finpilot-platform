@@ -75,23 +75,42 @@ class UserService:
     ) -> User:
         user = self.get_user(user_id)
 
-        if user_data.email is not None:
+        update_data = user_data.model_dump(exclude_unset=True)
+
+        if not update_data:
+            return user
+
+        changed_fields: list[tuple[str, object | None, object | None]] = []
+
+        for field, new_value in update_data.items():
+            old_value = getattr(user, field)
+
+            if old_value == new_value:
+                continue
+
+            changed_fields.append(
+                (
+                    field,
+                    old_value,
+                    new_value,
+                )
+            )
+
+        if not changed_fields:
+            return user
+
+        changed_field_names = {field for field, _, _ in changed_fields}
+
+        if "email" in changed_field_names:
             existing_user = self.repository.get_by_email(
-                user_data.email,
+                update_data["email"],
             )
 
             if existing_user and existing_user.id != user_id:
                 raise bad_request("Email is already registered")
-            user.email = user_data.email
 
-        if user_data.first_name is not None:
-            user.first_name = user_data.first_name
-
-        if user_data.last_name is not None:
-            user.last_name = user_data.last_name
-
-        if user_data.role is not None:
-            user.role = user_data.role
+        for field, _, new_value in changed_fields:
+            setattr(user, field, new_value)
 
         user = self.repository.update(user)
 
@@ -115,7 +134,14 @@ class UserService:
     ) -> User:
         user = self.get_user(user_id)
 
-        user.status = status_data.status
+        old_status = user.status
+        new_status = status_data.status
+
+        # Requested status is already the current status.
+        if old_status == new_status:
+            raise bad_request("User already has this status.")
+
+        user.status = new_status
 
         user = self.repository.update(user)
 
