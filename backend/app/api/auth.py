@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.core.responses import APIResponse
-from app.core.security import get_current_user, require_roles
+from app.core.security import get_current_user_payload, require_roles
 from app.schemas.auth import (
     ChangePasswordRequest,
     LoginRequest,
@@ -93,7 +93,7 @@ def change_password(
     password_data: ChangePasswordRequest,
     request: Request,
     db: Session = Depends(get_db),
-    current_user: dict[str, Any] = Depends(get_current_user),
+    current_user: dict[str, Any] = Depends(get_current_user_payload),
 ):
     service = AuthService(db)
 

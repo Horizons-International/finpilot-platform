@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.core.responses import APIResponse
-from app.core.security import get_current_user
+from app.core.security import get_current_user_payload
 from app.schemas.user import ProfileResponse, ProfileUpdateRequest
 from app.services.profile_service import ProfileService
 
@@ -23,7 +23,7 @@ router = APIRouter(
     description="Retreive information the current user account.",
 )
 def get_profile(
-    current_user: dict[str, Any] = Depends(get_current_user),
+    current_user: dict[str, Any] = Depends(get_current_user_payload),
     db: Session = Depends(get_db),
 ):
     service = ProfileService(db)
@@ -47,7 +47,7 @@ def get_profile(
 )
 def update_profile(
     profile_data: ProfileUpdateRequest,
-    current_user: dict[str, Any] = Depends(get_current_user),
+    current_user: dict[str, Any] = Depends(get_current_user_payload),
     db: Session = Depends(get_db),
 ):
     service = ProfileService(db)

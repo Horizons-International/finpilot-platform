@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 from app.core.config import settings
 from app.core.database import get_db
 from app.core.responses import APIResponse
-from app.core.security import get_current_user, require_roles
+from app.core.security import get_current_user_payload, require_roles
 from app.schemas.file import FileResponse
 from app.services.file_service import FileService
 from app.storages.local_storage import LocalStorage
@@ -45,7 +45,7 @@ async def upload_file(
     file: UploadFile = FastAPIFile(...),
     module: str = "customers",
     folder: str = "uploads",
-    current_user: dict[str, Any] = Depends(get_current_user),
+    current_user: dict[str, Any] = Depends(get_current_user_payload),
     service: FileService = Depends(get_file_service),
 ):
     file_record = await service.upload_file(

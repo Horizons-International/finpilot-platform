@@ -14,6 +14,7 @@ from app.api.files import router as files_router
 from app.api.health import router as health_router
 from app.api.profile import router as profile_router
 from app.api.users import router as users_router
+from app.api.verification_cases import router as verification_cases_router
 from app.core.dependencies import get_current_user
 from app.core.exceptions import (
     database_exception_handler,
@@ -65,6 +66,7 @@ app.include_router(customer_router)
 app.include_router(customer_contacts_router)
 app.include_router(customer_addresses_router)
 app.include_router(customer_audit_logs_router)
+app.include_router(verification_cases_router)
 
 app.add_exception_handler(
     HTTPException,

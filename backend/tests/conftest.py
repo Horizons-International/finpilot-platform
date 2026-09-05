@@ -17,6 +17,7 @@ from app.models.customer_contact import CustomerContact
 from app.models.customer_status_history import CustomerStatusHistory
 from app.models.file import File
 from app.models.user import User
+from app.models.verification_case import IdentityVerificationCase
 from app.repositories.customer_repository import CustomerRepository
 from app.storages.local_storage import LocalStorage
 from app.utils.enums import CustomerStatus, UserStatus
@@ -211,6 +212,10 @@ def cleanup_test_customers():
 
     for customer in current_customers:
         if customer.id not in existing_customers:
+            db.query(IdentityVerificationCase).filter(
+                IdentityVerificationCase.customer_id == customer.id
+            ).delete(synchronize_session=False)
+
             db.query(CustomerStatusHistory).filter(
                 CustomerStatusHistory.customer_id == customer.id
             ).delete(synchronize_session=False)
