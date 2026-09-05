@@ -21,3 +21,7 @@ class VerificationCaseResponse(BaseModel):
     completed_at: datetime | None
     created_at: datetime
     updated_at: datetime
+
+
+class VerificationCaseStatusUpdate(BaseModel):
+    status: VerificationStatus
