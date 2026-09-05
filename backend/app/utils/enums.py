@@ -43,6 +43,8 @@ class AuditEventType(str, enum.Enum):
 
     ACCESS_DENIED = "ACCESS_DENIED"
 
+    VERIFICATION_CASE_CREATED = "VERIFICATION_CASE_CREATED"
+
 
 class UserStatus(str, enum.Enum):
     ACTIVE = "active"
@@ -65,3 +67,18 @@ class AddressType(str, enum.Enum):
 class PreferredContactMethod(str, enum.Enum):
     PHONE = "phone"
     EMAIL = "email"
+
+
+class VerificationType(str, enum.Enum):
+    IDENTITY = "IDENTITY"
+    ADDRESS = "ADDRESS"
+    BUSINESS = "BUSINESS"
+
+
+class VerificationStatus(str, enum.Enum):
+    NOT_STARTED = "NOT_STARTED"
+    PENDING = "PENDING"
+    UNDER_REVIEW = "UNDER_REVIEW"
+    APPROVED = "APPROVED"
+    REJECTED = "REJECTED"
+    EXPIRED = "EXPIRED"

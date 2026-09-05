@@ -95,3 +95,9 @@ class Customer(Base):
         back_populates="customer",
         cascade="all, delete-orphan",
     )
+
+    verification_cases = relationship(
+        "IdentityVerificationCase",
+        back_populates="customer",
+        cascade="all, delete-orphan",
+    )

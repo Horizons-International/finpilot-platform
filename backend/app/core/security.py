@@ -163,7 +163,7 @@ def decode_refresh_token(token: str) -> dict[str, Any]:
 security = HTTPBearer()
 
 
-def get_current_user(
+def get_current_user_payload(
     credentials: HTTPAuthorizationCredentials = Depends(security),
 ) -> dict[str, Any]:
     """
@@ -220,7 +220,7 @@ def require_roles(
 
     def role_checker(
         request: Request,
-        current_user: dict[str, Any] = Depends(get_current_user),
+        current_user: dict[str, Any] = Depends(get_current_user_payload),
         db: Session = Depends(get_db),
     ) -> dict[str, Any]:
         user_role = current_user.get("role")

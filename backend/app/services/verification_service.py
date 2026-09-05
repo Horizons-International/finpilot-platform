@@ -1,0 +1,82 @@
+from uuid import UUID
+
+from sqlalchemy.orm import Session
+
+from app.models.customer import Customer
+from app.models.customer_audit_log import CustomerAuditLog
+from app.models.verification_case import IdentityVerificationCase
+from app.repositories.verification_case_repository import (
+    VerificationCaseRepository,
+)
+from app.schemas.verification_case import VerificationCaseCreate
+from app.services.audit_service import AuditService
+from app.utils.enums import AuditEventType, VerificationStatus
+from app.utils.errors import not_found
+
+
+class VerificationService:
+    def __init__(self, db: Session) -> None:
+        self.db = db
+        self.audit_service = AuditService(db)
+        self.repository = VerificationCaseRepository(db)
+
+    def create_case(
+        self,
+        customer_id: UUID,
+        case_data: VerificationCaseCreate,
+        user_id: UUID,
+        email: str,
+    ) -> IdentityVerificationCase:
+        customer = self.db.query(Customer).filter(Customer.id == customer_id).first()
+
+        if customer is None:
+            raise not_found("Customer")
+
+        case = IdentityVerificationCase(
+            customer_id=customer_id,
+            verification_type=case_data.verification_type,
+            status=VerificationStatus.NOT_STARTED,
+        )
+
+        case = self.repository.create(case)
+
+        self.audit_service.log_event(
+            event_type=AuditEventType.VERIFICATION_CASE_CREATED,
+            user_id=user_id,
+            email=email,
+            resource_type="verification_case",
+            resource_id=case.id,
+        )
+
+        customer_audit_log = CustomerAuditLog(
+            customer_id=customer_id,
+            user_id=user_id,
+            resource_type="verification_case",
+            resource_id=case.id,
+            action="CREATE VERIFICATION CASE",
+            old_value=None,
+            new_value={
+                "customer_id": str(customer_id),
+                "verification_type": case.verification_type.value,
+                "status": case.status.value,
+            },
+        )
+
+        self.db.add(customer_audit_log)
+        self.db.flush()
+
+        self.db.commit()
+        self.db.refresh(case)
+
+        return case
+
+    def get_cases_by_customer(
+        self,
+        customer_id: UUID,
+    ) -> list[IdentityVerificationCase]:
+        customer = self.db.query(Customer).filter(Customer.id == customer_id).first()
+
+        if customer is None:
+            raise not_found("Customer")
+
+        return self.repository.get_by_customer_id(customer_id)
