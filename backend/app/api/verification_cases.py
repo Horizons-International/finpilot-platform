@@ -8,6 +8,7 @@ from app.core.responses import APIResponse
 from app.core.security import require_roles
 from app.schemas.verification_case import (
     VerificationCaseCreate,
+    VerificationCaseInitiation,
     VerificationCaseResponse,
     VerificationCaseStatusUpdate,
 )
@@ -17,6 +18,11 @@ from app.utils.enums import UserRole
 router = APIRouter(
     prefix="/api/v1/customers/{customer_id}/verification-cases",
     tags=["Verification Cases"],
+)
+
+verification_router = APIRouter(
+    prefix="/api/v1/customers/{customer_id}",
+    tags=["Verification"],
 )
 
 
@@ -109,5 +115,35 @@ def update_verification_case_status(
     return APIResponse(
         success=True,
         message="Verification case status updated successfully.",
+        data=VerificationCaseResponse.model_validate(case),
+    )
+
+
+@verification_router.post(
+    "/verification",
+    response_model=APIResponse[VerificationCaseResponse],
+    status_code=status.HTTP_201_CREATED,
+)
+def initiate_verification(
+    customer_id: UUID,
+    verification_data: VerificationCaseInitiation,
+    current_user: dict[str, Any] = Depends(
+        require_roles(
+            UserRole.ADMINISTRATOR,
+            UserRole.COMPLIANCE_OFFICER,
+        )
+    ),
+    service: VerificationService = Depends(get_verification_service),
+) -> APIResponse[VerificationCaseResponse]:
+    case = service.initiate_verification(
+        customer_id=customer_id,
+        verification_data=verification_data,
+        user_id=UUID(current_user["sub"]),
+        email=current_user["email"],
+    )
+
+    return APIResponse(
+        success=True,
+        message="Verification initiated successfully.",
         data=VerificationCaseResponse.model_validate(case),
     )
