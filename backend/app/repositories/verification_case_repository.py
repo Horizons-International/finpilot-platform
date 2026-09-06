@@ -4,6 +4,7 @@ from sqlalchemy.orm import Session
 
 from app.models.verification_case import IdentityVerificationCase
 from app.repositories.base_repository import BaseRepository
+from app.utils.enums import VerificationStatus
 
 
 class VerificationCaseRepository(BaseRepository[IdentityVerificationCase]):
@@ -21,4 +22,25 @@ class VerificationCaseRepository(BaseRepository[IdentityVerificationCase]):
             )
             .order_by(IdentityVerificationCase.created_at.desc())
             .all()
+        )
+
+    def get_active_by_customer_and_type(
+        self,
+        customer_id: UUID,
+        verification_type: str,
+    ) -> IdentityVerificationCase | None:
+        return (
+            self.db.query(IdentityVerificationCase)
+            .filter(
+                IdentityVerificationCase.customer_id == customer_id,
+                IdentityVerificationCase.verification_type == verification_type,
+                IdentityVerificationCase.status.in_(
+                    {
+                        VerificationStatus.NOT_STARTED,
+                        VerificationStatus.PENDING,
+                        VerificationStatus.UNDER_REVIEW,
+                    }
+                ),
+            )
+            .first()
         )

@@ -1,5 +1,6 @@
 from uuid import UUID
 
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.models.customer import Customer
@@ -10,13 +11,14 @@ from app.repositories.verification_case_repository import (
 )
 from app.schemas.verification_case import (
     VerificationCaseCreate,
+    VerificationCaseInitiation,
     VerificationCaseStatusUpdate,
 )
 from app.services.audit_service import AuditService
 from app.services.workflow_service import WorkflowValidationService
 from app.utils.date_time import utc_now
 from app.utils.enums import AuditEventType, VerificationStatus
-from app.utils.errors import not_found
+from app.utils.errors import bad_request, not_found
 
 VERIFICATION_STATUS_TRANSITIONS: dict[
     VerificationStatus,
@@ -178,5 +180,80 @@ class VerificationService:
 
         self.db.commit()
         self.db.refresh(case)
+
+        return case
+
+    def initiate_verification(
+        self,
+        customer_id: UUID,
+        verification_data: VerificationCaseInitiation,
+        user_id: UUID,
+        email: str,
+    ) -> IdentityVerificationCase:
+        customer = self.db.query(Customer).filter(Customer.id == customer_id).first()
+
+        if customer is None:
+            raise not_found("Customer")
+
+        existing_case = self.repository.get_active_by_customer_and_type(
+            customer_id=customer_id,
+            verification_type=verification_data.verification_type,
+        )
+
+        if existing_case is not None:
+            raise bad_request(
+                "An active verification case already exists for this customer."
+            )
+
+        case = IdentityVerificationCase(
+            customer_id=customer_id,
+            verification_type=verification_data.verification_type,
+            status=VerificationStatus.PENDING,
+        )
+
+        try:
+            case = self.repository.create(case)
+
+            self.audit_service.log_event(
+                event_type=AuditEventType.VERIFICATION_CASE_CREATED,
+                user_id=user_id,
+                email=email,
+                resource_type="verification_case",
+                resource_id=case.id,
+            )
+
+            customer_audit_log = CustomerAuditLog(
+                customer_id=customer_id,
+                user_id=user_id,
+                resource_type="verification_case",
+                resource_id=case.id,
+                action="INITIATE VERIFICATION",
+                old_value=None,
+                new_value={
+                    "customer_id": str(customer_id),
+                    "verification_type": case.verification_type.value,
+                    "status": case.status.value,
+                },
+            )
+
+            self.db.add(customer_audit_log)
+            self.db.flush()
+
+            self.db.commit()
+            self.db.refresh(case)
+
+        except IntegrityError as exc:
+            self.db.rollback()
+
+            if (
+                exc.orig
+                and "uq_identity_verification_cases_active_customer_type"
+                in str(exc.orig)
+            ):
+                raise bad_request(
+                    "An active verification case already exists for this customer."
+                )
+
+            raise
 
         return case

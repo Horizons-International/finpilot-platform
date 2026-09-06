@@ -25,3 +25,7 @@ class VerificationCaseResponse(BaseModel):
 
 class VerificationCaseStatusUpdate(BaseModel):
     status: VerificationStatus
+
+
+class VerificationCaseInitiation(BaseModel):
+    verification_type: VerificationType
