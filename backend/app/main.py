@@ -20,6 +20,9 @@ from app.api.verification_cases import (
 from app.api.verification_cases import (
     verification_router,
 )
+from app.api.verification_document_types import (
+    router as verification_document_type_router,
+)
 from app.core.dependencies import get_current_user
 from app.core.exceptions import (
     database_exception_handler,
@@ -63,16 +66,17 @@ app = FastAPI(
 app.add_middleware(RequestIDMiddleware)
 
 app.include_router(auth_router)
-app.include_router(users_router)
-app.include_router(files_router)
 app.include_router(health_router)
 app.include_router(profile_router)
+app.include_router(users_router)
+app.include_router(files_router)
 app.include_router(customer_router)
-app.include_router(verification_router)
 app.include_router(customer_contacts_router)
 app.include_router(customer_addresses_router)
 app.include_router(customer_audit_logs_router)
+app.include_router(verification_router)
 app.include_router(verification_cases_router)
+app.include_router(verification_document_type_router)
 
 app.add_exception_handler(
     HTTPException,

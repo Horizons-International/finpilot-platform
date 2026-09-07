@@ -18,6 +18,7 @@ from app.models.customer_status_history import CustomerStatusHistory
 from app.models.file import File
 from app.models.user import User
 from app.models.verification_case import IdentityVerificationCase
+from app.models.verification_document_type import VerificationDocumentType
 from app.repositories.customer_repository import CustomerRepository
 from app.storages.local_storage import LocalStorage
 from app.utils.enums import CustomerStatus, UserStatus
@@ -232,3 +233,35 @@ def cleanup_test_customers():
 
     db.commit()
     db.close()
+
+
+@pytest.fixture
+def reset_verification_document_types(db_session):
+    """
+    Restore verification document types to their initial state
+    after each test that requests this fixture.
+
+    - Deletes document types that were created by tests.
+    - Restores the four initial document types.
+    - Clears supported countries.
+    - Ensures all initial document types are active.
+    """
+    yield
+
+    INITIAL_DOCUMENT_TYPE_IDS = {
+        "00000000-0000-0000-0000-000000000001",
+        "00000000-0000-0000-0000-000000000002",
+        "00000000-0000-0000-0000-000000000003",
+        "00000000-0000-0000-0000-000000000004",
+    }
+
+    document_types = db_session.query(VerificationDocumentType).all()
+
+    for document_type in document_types:
+        if str(document_type.id) not in INITIAL_DOCUMENT_TYPE_IDS:
+            db_session.delete(document_type)
+        else:
+            document_type.supported_countries = []
+            document_type.is_active = True
+
+    db_session.commit()
