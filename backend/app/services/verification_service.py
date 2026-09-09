@@ -245,14 +245,16 @@ class VerificationService:
         except IntegrityError as exc:
             self.db.rollback()
 
-            if (
-                exc.orig
-                and "uq_identity_verification_cases_active_customer_type"
-                in str(exc.orig)
-            ):
+            constraint_name = getattr(
+                getattr(exc.orig, "diag", None),
+                "constraint_name",
+                None,
+            )
+
+            if constraint_name == "uq_identity_verification_cases_active_customer_type":
                 raise bad_request(
                     "An active verification case already exists for this customer."
-                )
+                ) from exc
 
             raise
 

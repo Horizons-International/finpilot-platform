@@ -1,5 +1,6 @@
 import os
 from datetime import date
+from uuid import UUID
 
 import pytest
 from fastapi.testclient import TestClient
@@ -15,6 +16,7 @@ from app.models.customer import Customer
 from app.models.customer_audit_log import CustomerAuditLog
 from app.models.customer_contact import CustomerContact
 from app.models.customer_status_history import CustomerStatusHistory
+from app.models.document import CustomerDocument
 from app.models.file import File
 from app.models.user import User
 from app.models.verification_case import IdentityVerificationCase
@@ -265,3 +267,52 @@ def reset_verification_document_types(db_session):
             document_type.is_active = True
 
     db_session.commit()
+
+
+@pytest.fixture
+def cleanup_test_documents():
+    created_document_ids: list[UUID] = []
+
+    def _track_document(document_id: UUID) -> None:
+        created_document_ids.append(document_id)
+
+    yield _track_document
+
+    db = TestSessionLocal()
+    storage = LocalStorage(settings.STORAGE_PATH)
+
+    try:
+        for document_id in created_document_ids:
+            document = (
+                db.query(CustomerDocument)
+                .filter(CustomerDocument.id == document_id)
+                .first()
+            )
+
+            if not document:
+                continue
+
+            # The document stores the File UUID in file_reference.
+            try:
+                file_id = UUID(document.file_reference)
+            except ValueError:
+                file_id = None
+
+            if file_id:
+                file_record = db.query(File).filter(File.id == file_id).first()
+
+                if file_record:
+                    # Delete physical file first.
+                    if storage.exists(file_record.storage_path):
+                        storage.delete(file_record.storage_path)
+
+                    # Delete Phase 1 file metadata.
+                    db.delete(file_record)
+
+            # Delete document metadata.
+            db.delete(document)
+
+        db.commit()
+
+    finally:
+        db.close()

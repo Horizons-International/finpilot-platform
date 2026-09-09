@@ -31,6 +31,8 @@ class FileService:
         email: str,
         module: str,
         folder: str,
+        commit: bool = True,
+        allowed_file_types: set[str] | None = None,
     ) -> File:
         # Validate filename
         if not file.filename:
@@ -40,7 +42,13 @@ class FileService:
         if file.content_type is None:
             raise bad_request("File content type is required.")
 
-        if file.content_type not in settings.ALLOWED_FILE_TYPES:
+        allowed_types = (
+            allowed_file_types
+            if allowed_file_types is not None
+            else set(settings.ALLOWED_FILE_TYPES)
+        )
+
+        if file.content_type not in allowed_types:
             raise bad_request("File type is not supported.")
 
         # Read file
@@ -85,11 +93,9 @@ class FileService:
                 resource_id=file_record.id,
             )
 
-            # Commit file metadata + audit record together
-            self.db.commit()
-
-            # Refresh so the returned object contains committed DB values
-            self.db.refresh(file_record)
+            if commit:
+                self.db.commit()
+                self.db.refresh(file_record)
 
             return file_record
 

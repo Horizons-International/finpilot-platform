@@ -10,6 +10,7 @@ from app.api.customer_addresses import router as customer_addresses_router
 from app.api.customer_audit_logs import router as customer_audit_logs_router
 from app.api.customer_contacts import router as customer_contacts_router
 from app.api.customers import router as customer_router
+from app.api.documents import router as documents_router
 from app.api.files import router as files_router
 from app.api.health import router as health_router
 from app.api.profile import router as profile_router
@@ -77,6 +78,7 @@ app.include_router(customer_audit_logs_router)
 app.include_router(verification_router)
 app.include_router(verification_cases_router)
 app.include_router(verification_document_type_router)
+app.include_router(documents_router)
 
 app.add_exception_handler(
     HTTPException,

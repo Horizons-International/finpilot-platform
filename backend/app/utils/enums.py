@@ -31,6 +31,7 @@ class AuditEventType(str, enum.Enum):
     FILE_UPLOAD = "FILE_UPLOAD"
     FILE_DOWNLOAD = "FILE_DOWNLOAD"
     FILE_DELETE = "FILE_DELETE"
+    CUSTOMER_DOCUMENT_CREATED = "CUSTOMER_DOCUMENT_CREATED"
 
     USER_CREATED = "USER_CREATED"
     USER_UPDATED = "USER_UPDATED"
@@ -94,3 +95,11 @@ class VerificationStatus(str, enum.Enum):
 class DocumentCategory(str, enum.Enum):
     IDENTITY = "IDENTITY"
     ADDRESS = "ADDRESS"
+
+
+class DocumentStatus(str, enum.Enum):
+    UPLOADED = "UPLOADED"
+    PROCESSING = "PROCESSING"
+    VERIFIED = "VERIFIED"
+    REJECTED = "REJECTED"
+    EXPIRED = "EXPIRED"
