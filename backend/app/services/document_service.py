@@ -10,6 +10,7 @@ from app.models.verification_case import IdentityVerificationCase
 from app.models.verification_document_type import VerificationDocumentType
 from app.repositories.document_repository import CustomerDocumentRepository
 from app.services.audit_service import AuditService
+from app.services.document_validation import DocumentValidationService
 from app.services.file_service import FileService
 from app.storages.base_storage import BaseStorage
 from app.utils.constants import DOCUMENT_ALLOWED_FILE_TYPES
@@ -80,6 +81,8 @@ class DocumentService:
 
         if not document_type.is_active:
             raise bad_request("Verification document type is inactive.")
+
+        DocumentValidationService.validate_document_type(document_type_id)
 
         # ---------------------------------------------------------
         # 4. Upload physical file + File metadata

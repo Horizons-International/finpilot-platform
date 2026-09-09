@@ -271,7 +271,7 @@ def reset_verification_document_types(db_session):
 
 @pytest.fixture
 def cleanup_test_documents():
-    created_document_ids: list[UUID] = []
+    created_document_ids = []
 
     def _track_document(document_id: UUID) -> None:
         created_document_ids.append(document_id)
