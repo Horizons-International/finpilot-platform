@@ -101,3 +101,9 @@ class Customer(Base):
         back_populates="customer",
         cascade="all, delete-orphan",
     )
+
+    documents = relationship(
+        "CustomerDocument",
+        back_populates="customer",
+        cascade="all, delete-orphan",
+    )

@@ -3,7 +3,6 @@ from uuid import UUID
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from app.models.audit_log import AuditEventType
 from app.models.verification_document_type import VerificationDocumentType
 from app.repositories.verification_document_type_repository import (
     VerificationDocumentTypeRepository,
@@ -13,6 +12,7 @@ from app.schemas.verification_document_type import (
     VerificationDocumentTypeUpdate,
 )
 from app.services.audit_service import AuditService
+from app.utils.enums import AuditEventType
 from app.utils.errors import bad_request, not_found
 
 
@@ -78,14 +78,16 @@ class VerificationDocumentTypeService:
         except IntegrityError as exc:
             self.db.rollback()
 
-            if (
-                exc.orig
-                and "uq_identity_verification_cases_active_customer_type"
-                in str(exc.orig)
-            ):
+            constraint_name = getattr(
+                getattr(exc.orig, "diag", None),
+                "constraint_name",
+                None,
+            )
+
+            if constraint_name == "uq_verification_document_types_name":
                 raise bad_request(
                     "A verification document type with this name already exists."
-                )
+                ) from exc
 
             raise
 
@@ -141,13 +143,15 @@ class VerificationDocumentTypeService:
         except IntegrityError as exc:
             self.db.rollback()
 
-            if (
-                exc.orig
-                and "uq_identity_verification_cases_active_customer_type"
-                in str(exc.orig)
-            ):
+            constraint_name = getattr(
+                getattr(exc.orig, "diag", None),
+                "constraint_name",
+                None,
+            )
+
+            if constraint_name == "uq_verification_document_types_name":
                 raise bad_request(
                     "A verification document type with this name already exists."
-                )
+                ) from exc
 
             raise

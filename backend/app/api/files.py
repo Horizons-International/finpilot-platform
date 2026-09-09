@@ -4,34 +4,18 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, UploadFile, status
 from fastapi import File as FastAPIFile
 from fastapi.responses import Response
-from sqlalchemy.orm import Session
 
-from app.core.config import settings
-from app.core.database import get_db
+from app.core.dependencies import get_file_service
 from app.core.responses import APIResponse
 from app.core.security import get_current_user_payload, require_roles
 from app.schemas.file import FileResponse
 from app.services.file_service import FileService
-from app.storages.local_storage import LocalStorage
 from app.utils.enums import UserRole
 
 router = APIRouter(
     prefix="/api/v1/files",
     tags=["Files"],
 )
-
-
-def get_file_service(
-    db: Session = Depends(get_db),
-) -> FileService:
-    storage = LocalStorage(
-        settings.STORAGE_PATH,
-    )
-
-    return FileService(
-        db=db,
-        storage=storage,
-    )
 
 
 @router.post(

@@ -7,3 +7,9 @@ DEFAULT_FILE_FOLDER = "uploads"
 HEALTH_STATUS = "healthy"
 READY_STATUS = "ready"
 NOT_READY_STATUS = "not_ready"
+
+DOCUMENT_ALLOWED_FILE_TYPES = {
+    "application/pdf",
+    "image/jpeg",
+    "image/png",
+}

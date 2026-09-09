@@ -2,7 +2,7 @@ import uuid
 from datetime import datetime
 from uuid import UUID
 
-from sqlalchemy import DateTime, Enum, ForeignKey, func
+from sqlalchemy import DateTime, Enum, ForeignKey, Index, func, text
 from sqlalchemy.dialects.postgresql import UUID as PostgreSQLUUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -70,4 +70,22 @@ class IdentityVerificationCase(Base):
     assigned_reviewer = relationship(
         "User",
         foreign_keys=[assigned_to],
+    )
+
+    documents = relationship(
+        "CustomerDocument",
+        back_populates="verification_case",
+        cascade="all, delete-orphan",
+    )
+
+    __table_args__ = (
+        Index(
+            "uq_identity_verification_cases_active_customer_type",
+            "customer_id",
+            "verification_type",
+            unique=True,
+            postgresql_where=text(
+                "status IN ('NOT_STARTED', 'PENDING', 'UNDER_REVIEW')"
+            ),
+        ),
     )

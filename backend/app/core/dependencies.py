@@ -3,10 +3,15 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jose import JWTError
 from sqlalchemy.orm import Session
 
+from app.core.config import settings
 from app.core.database import get_db
 from app.core.security import decode_access_token
 from app.models.user import User
+from app.services.document_service import DocumentService
+from app.services.file_service import FileService
 from app.services.verification_service import VerificationService
+from app.storages.base_storage import BaseStorage
+from app.storages.local_storage import LocalStorage
 from app.utils.enums import UserStatus
 from app.utils.errors import unauthorized
 
@@ -41,6 +46,30 @@ def get_current_user(
         raise unauthorized("User account is not active")
 
     return user
+
+
+def get_storage() -> BaseStorage:
+    return LocalStorage(settings.STORAGE_PATH)
+
+
+def get_file_service(
+    db: Session = Depends(get_db),
+    storage: BaseStorage = Depends(get_storage),
+) -> FileService:
+    return FileService(
+        db=db,
+        storage=storage,
+    )
+
+
+def get_document_service(
+    db: Session = Depends(get_db),
+    storage: BaseStorage = Depends(get_storage),
+) -> DocumentService:
+    return DocumentService(
+        db=db,
+        storage=storage,
+    )
 
 
 def get_verification_service(
