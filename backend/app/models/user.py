@@ -3,7 +3,7 @@ from datetime import datetime
 
 from sqlalchemy import Boolean, DateTime, Enum, String, func
 from sqlalchemy.dialects.postgresql import UUID
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
 from app.utils.enums import UserRole, UserStatus
@@ -74,4 +74,15 @@ class User(Base):
         server_default=func.now(),
         onupdate=func.now(),
         nullable=False,
+    )
+
+    verification_reviews = relationship(
+        "VerificationReview",
+        back_populates="reviewer",
+    )
+
+    assigned_verification_cases = relationship(
+        "IdentityVerificationCase",
+        foreign_keys="IdentityVerificationCase.assigned_to",
+        back_populates="assigned_reviewer",
     )

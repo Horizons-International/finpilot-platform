@@ -24,6 +24,7 @@ from app.api.verification_cases import (
 from app.api.verification_document_types import (
     router as verification_document_type_router,
 )
+from app.api.verification_reviews import router as verification_reviews_router
 from app.core.dependencies import get_current_user
 from app.core.exceptions import (
     database_exception_handler,
@@ -77,6 +78,7 @@ app.include_router(customer_addresses_router)
 app.include_router(customer_audit_logs_router)
 app.include_router(verification_router)
 app.include_router(verification_cases_router)
+app.include_router(verification_reviews_router)
 app.include_router(verification_document_type_router)
 app.include_router(documents_router)
 
