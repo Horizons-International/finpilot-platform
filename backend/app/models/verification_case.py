@@ -70,10 +70,17 @@ class IdentityVerificationCase(Base):
     assigned_reviewer = relationship(
         "User",
         foreign_keys=[assigned_to],
+        back_populates="assigned_verification_cases",
     )
 
     documents = relationship(
         "CustomerDocument",
+        back_populates="verification_case",
+        cascade="all, delete-orphan",
+    )
+
+    reviews = relationship(
+        "VerificationReview",
         back_populates="verification_case",
         cascade="all, delete-orphan",
     )

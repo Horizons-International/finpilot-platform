@@ -44,3 +44,19 @@ class VerificationCaseRepository(BaseRepository[IdentityVerificationCase]):
             )
             .first()
         )
+
+    def get_by_id_and_customer_and_reviewer(
+        self,
+        verification_case_id: UUID,
+        customer_id: UUID,
+        reviewer_id: UUID,
+    ) -> IdentityVerificationCase | None:
+        return (
+            self.db.query(IdentityVerificationCase)
+            .filter(
+                IdentityVerificationCase.id == verification_case_id,
+                IdentityVerificationCase.customer_id == customer_id,
+                IdentityVerificationCase.assigned_to == reviewer_id,
+            )
+            .first()
+        )

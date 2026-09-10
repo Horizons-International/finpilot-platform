@@ -1,5 +1,4 @@
-import enum
-from enum import StrEnum
+from enum import Enum, StrEnum
 
 
 class Environment(StrEnum):
@@ -22,7 +21,7 @@ class CustomerStatus(StrEnum):
     REJECTED = "rejected"
 
 
-class AuditEventType(str, enum.Enum):
+class AuditEventType(str, Enum):
     LOGIN_SUCCESS = "LOGIN_SUCCESS"
     LOGIN_FAILURE = "LOGIN_FAILURE"
     LOGOUT = "LOGOUT"
@@ -54,36 +53,36 @@ class AuditEventType(str, enum.Enum):
     )
 
 
-class UserStatus(str, enum.Enum):
+class UserStatus(str, Enum):
     ACTIVE = "active"
     INACTIVE = "inactive"
     LOCKED = "locked"
 
 
-class UserRole(str, enum.Enum):
+class UserRole(str, Enum):
     ADMINISTRATOR = "Administrator"
     REVIEWER = "Reviewer"
     COMPLIANCE_OFFICER = "Compliance Officer"
     AUDITOR = "Auditor"
 
 
-class AddressType(str, enum.Enum):
+class AddressType(str, Enum):
     RESIDENTIAL = "residential"
     MAILING = "mailing"
 
 
-class PreferredContactMethod(str, enum.Enum):
+class PreferredContactMethod(str, Enum):
     PHONE = "phone"
     EMAIL = "email"
 
 
-class VerificationType(str, enum.Enum):
+class VerificationType(str, Enum):
     IDENTITY = "IDENTITY"
     ADDRESS = "ADDRESS"
     BUSINESS = "BUSINESS"
 
 
-class VerificationStatus(str, enum.Enum):
+class VerificationStatus(str, Enum):
     NOT_STARTED = "NOT_STARTED"
     PENDING = "PENDING"
     UNDER_REVIEW = "UNDER_REVIEW"
@@ -92,14 +91,20 @@ class VerificationStatus(str, enum.Enum):
     EXPIRED = "EXPIRED"
 
 
-class DocumentCategory(str, enum.Enum):
+class DocumentCategory(str, Enum):
     IDENTITY = "IDENTITY"
     ADDRESS = "ADDRESS"
 
 
-class DocumentStatus(str, enum.Enum):
+class DocumentStatus(str, Enum):
     UPLOADED = "UPLOADED"
     PROCESSING = "PROCESSING"
     VERIFIED = "VERIFIED"
     REJECTED = "REJECTED"
     EXPIRED = "EXPIRED"
+
+
+class ReviewDecision(str, Enum):
+    APPROVE = "APPROVE"
+    REJECT = "REJECT"
+    REQUEST_MORE_INFORMATION = "REQUEST_MORE_INFORMATION"

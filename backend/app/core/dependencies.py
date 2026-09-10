@@ -9,6 +9,7 @@ from app.core.security import decode_access_token
 from app.models.user import User
 from app.services.document_service import DocumentService
 from app.services.file_service import FileService
+from app.services.verification_review_service import VerificationReviewService
 from app.services.verification_service import VerificationService
 from app.storages.base_storage import BaseStorage
 from app.storages.local_storage import LocalStorage
@@ -76,3 +77,9 @@ def get_verification_service(
     db: Session = Depends(get_db),
 ) -> VerificationService:
     return VerificationService(db)
+
+
+def get_verification_review_service(
+    db: Session = Depends(get_db),
+) -> VerificationReviewService:
+    return VerificationReviewService(db)
