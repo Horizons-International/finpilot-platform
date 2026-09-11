@@ -45,5 +45,7 @@ class Settings(BaseSettings):
     # Verification Provider
     VERIFICATION_PROVIDER: str = "mock"
 
+    AI_PROVIDER: str = "mock"
+
 
 settings = Settings()  # type: ignore[call-arg]
