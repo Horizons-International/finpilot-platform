@@ -1,7 +1,9 @@
 import uuid
 
 import pytest
+from pydantic import ValidationError
 
+from app.ai.config import get_ai_config
 from app.ai.exceptions import (
     AIConfigurationError,
     AIProviderError,
@@ -10,13 +12,17 @@ from app.ai.exceptions import (
 from app.ai.providers.base import AIProvider
 from app.ai.providers.factory import get_ai_provider
 from app.ai.providers.mock import MockAIProvider
+from app.ai.schemas.config import AIConfig
 from app.ai.schemas.requests import AIRequest, AIRequestType
 from app.ai.schemas.responses import AIResponse
 from app.ai.services.ai_service import AIService
+from app.core.config import settings
 
 
 def test_mock_provider_handles_text_request():
-    provider = MockAIProvider()
+    config = AIConfig(provider="mock")
+
+    provider = MockAIProvider(config=config)
 
     request = AIRequest(
         request_type=AIRequestType.TEXT,
@@ -33,7 +39,9 @@ def test_mock_provider_handles_text_request():
 
 
 def test_mock_provider_handles_document_analysis():
-    provider = MockAIProvider()
+    config = AIConfig(provider="mock")
+
+    provider = MockAIProvider(config=config)
 
     document_id = uuid.uuid4()
 
@@ -57,7 +65,9 @@ def test_mock_provider_handles_document_analysis():
 
 
 def test_mock_provider_rejects_empty_prompt():
-    provider = MockAIProvider()
+    config = AIConfig(provider="mock")
+
+    provider = MockAIProvider(config=config)
 
     request = AIRequest(
         request_type=AIRequestType.TEXT,
@@ -71,7 +81,9 @@ def test_mock_provider_rejects_empty_prompt():
 
 
 def test_mock_provider_requires_document_id():
-    provider = MockAIProvider()
+    config = AIConfig(provider="mock")
+
+    provider = MockAIProvider(config=config)
 
     request = AIRequest(
         request_type=AIRequestType.DOCUMENT_ANALYSIS,
@@ -86,7 +98,9 @@ def test_mock_provider_requires_document_id():
 
 
 def test_ai_service_returns_provider_response():
-    provider = MockAIProvider()
+    config = AIConfig(provider="mock")
+
+    provider = MockAIProvider(config=config)
     service = AIService(provider=provider)
 
     request = AIRequest(
@@ -256,9 +270,6 @@ def test_ai_provider_factory_returns_mock_provider():
 def test_ai_provider_factory_rejects_unsupported_provider(
     monkeypatch,
 ):
-    from app.ai.providers.factory import get_ai_provider
-    from app.core.config import settings
-
     monkeypatch.setattr(
         settings,
         "AI_PROVIDER",
@@ -269,3 +280,50 @@ def test_ai_provider_factory_rejects_unsupported_provider(
         get_ai_provider()
 
     assert str(exc_info.value) == ("Unsupported AI provider: unsupported-provider")
+
+
+def test_ai_configuration_loads():
+    config = get_ai_config()
+
+    assert config.provider == settings.AI_PROVIDER
+    assert config.api_key == settings.AI_API_KEY
+    assert config.model == settings.AI_MODEL
+    assert config.max_tokens == settings.AI_MAX_TOKENS
+    assert config.temperature == settings.AI_TEMPERATURE
+    assert config.timeout == settings.AI_TIMEOUT
+
+
+def test_ai_configuration_rejects_invalid_max_tokens():
+    with pytest.raises(ValidationError):
+        AIConfig(
+            provider="mock",
+            max_tokens=0,
+        )
+
+
+def test_ai_configuration_rejects_invalid_temperature():
+    with pytest.raises(ValidationError):
+        AIConfig(
+            provider="mock",
+            temperature=3.0,
+        )
+
+
+def test_ai_configuration_rejects_invalid_timeout():
+    with pytest.raises(ValidationError):
+        AIConfig(
+            provider="mock",
+            timeout=0,
+        )
+
+
+def test_ai_provider_uses_config():
+    config = get_ai_config()
+    provider = get_ai_provider()
+
+    assert isinstance(provider, MockAIProvider)
+    assert provider.config.provider == config.provider
+    assert provider.config.model == config.model
+    assert provider.config.max_tokens == config.max_tokens
+    assert provider.config.temperature == config.temperature
+    assert provider.config.timeout == config.timeout
