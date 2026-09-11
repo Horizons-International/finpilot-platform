@@ -14,6 +14,7 @@ from app.api.documents import router as documents_router
 from app.api.files import router as files_router
 from app.api.health import router as health_router
 from app.api.profile import router as profile_router
+from app.api.reports import router as reports_router
 from app.api.users import router as users_router
 from app.api.verification_cases import (
     router as verification_cases_router,
@@ -81,6 +82,7 @@ app.include_router(verification_cases_router)
 app.include_router(verification_reviews_router)
 app.include_router(verification_document_type_router)
 app.include_router(documents_router)
+app.include_router(reports_router)
 
 app.add_exception_handler(
     HTTPException,
