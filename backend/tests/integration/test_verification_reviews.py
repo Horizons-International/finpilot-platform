@@ -42,7 +42,7 @@ def create_customer(client):
 
 def create_verification_case(client, customer_id):
     response = client.post(
-        f"/api/v1/customers/{customer_id}/verification-cases",
+        f"/api/v1/customers/{customer_id}/verification",
         json={
             "verification_type": "IDENTITY",
         },
@@ -51,6 +51,22 @@ def create_verification_case(client, customer_id):
     assert response.status_code in {200, 201}
 
     return response.json()["data"]["id"]
+
+
+def start_verification_review(
+    client,
+    customer_id,
+    verification_case_id,
+):
+    response = client.post(
+        f"/api/v1/customers/{customer_id}"
+        f"/verification-cases/{verification_case_id}/reviews/start"
+    )
+
+    assert response.status_code == 200
+    assert response.json()["success"] is True
+
+    return response
 
 
 def assign_reviewer(db_session, case_id, reviewer):
@@ -63,7 +79,6 @@ def assign_reviewer(db_session, case_id, reviewer):
     assert case is not None
 
     case.assigned_to = reviewer.id
-    case.status = VerificationStatus.UNDER_REVIEW
 
     db_session.commit()
     db_session.refresh(case)
@@ -101,11 +116,14 @@ def create_assigned_review_case(
     )
 
     # Assign the case to the reviewer.
-    assign_reviewer(
+    case = assign_reviewer(
         db_session,
         case_id,
         reviewer,
     )
+
+    assert case.status == VerificationStatus.PENDING
+    assert case.assigned_to == reviewer.id
 
     # Authenticate as reviewer for the actual review action.
     authenticate_client(client, reviewer)
@@ -125,11 +143,17 @@ def test_assigned_reviewer_can_approve_verification_case(
         create_test_user,
     )
 
+    start_verification_review(
+        client,
+        customer_id=customer_id,
+        verification_case_id=case_id,
+    )
+
     response = client.post(
         f"/api/v1/customers/{customer_id}/verification-cases/{case_id}/reviews",
         json={
             "decision": ReviewDecision.APPROVE.value,
-            "notes": "Identity documents verified successfully.",
+            "notes": "Documents verified.",
         },
     )
 
@@ -140,7 +164,7 @@ def test_assigned_reviewer_can_approve_verification_case(
     assert data["verification_case_id"] == case_id
     assert data["reviewer_id"] == str(reviewer.id)
     assert data["decision"] == ReviewDecision.APPROVE.value
-    assert data["notes"] == "Identity documents verified successfully."
+    assert data["notes"] == "Documents verified."
 
     case = (
         db_session.query(IdentityVerificationCase)
@@ -163,6 +187,12 @@ def test_assigned_reviewer_can_reject_verification_case(
         client,
         db_session,
         create_test_user,
+    )
+
+    start_verification_review(
+        client,
+        customer_id=customer_id,
+        verification_case_id=case_id,
     )
 
     response = client.post(
@@ -205,11 +235,17 @@ def test_assigned_reviewer_can_request_more_information(
         create_test_user,
     )
 
+    start_verification_review(
+        client,
+        customer_id=customer_id,
+        verification_case_id=case_id,
+    )
+
     response = client.post(
         f"/api/v1/customers/{customer_id}/verification-cases/{case_id}/reviews",
         json={
             "decision": ReviewDecision.REQUEST_MORE_INFORMATION.value,
-            "notes": "Please provide a clearer proof of address.",
+            "notes": "Please provide a clearer identity document.",
         },
     )
 
@@ -220,7 +256,7 @@ def test_assigned_reviewer_can_request_more_information(
     assert data["verification_case_id"] == case_id
     assert data["reviewer_id"] == str(reviewer.id)
     assert data["decision"] == (ReviewDecision.REQUEST_MORE_INFORMATION.value)
-    assert data["notes"] == "Please provide a clearer proof of address."
+    assert data["notes"] == "Please provide a clearer identity document."
 
     case = (
         db_session.query(IdentityVerificationCase)
@@ -271,6 +307,12 @@ def test_reviewer_cannot_review_case_assigned_to_another_reviewer(
     # Authenticate as reviewer A.
     authenticate_client(client, reviewer)
 
+    start_response = client.post(
+        f"/api/v1/customers/{customer_id}/verification-cases/{case_id}/reviews/start"
+    )
+
+    assert start_response.status_code == 404
+
     response = client.post(
         f"/api/v1/customers/{customer_id}/verification-cases/{case_id}/reviews",
         json={
@@ -307,6 +349,12 @@ def test_unassigned_reviewer_cannot_review_case(
 
     authenticate_client(client, reviewer)
 
+    start_response = client.post(
+        f"/api/v1/customers/{customer_id}/verification-cases/{case_id}/reviews/start"
+    )
+
+    assert start_response.status_code == 404
+
     response = client.post(
         f"/api/v1/customers/{customer_id}/verification-cases/{case_id}/reviews",
         json={
@@ -330,16 +378,11 @@ def test_review_notes_are_stored(
         create_test_user,
     )
 
-    case = (
-        db_session.query(IdentityVerificationCase)
-        .filter(IdentityVerificationCase.id == case_id)
-        .first()
+    start_verification_review(
+        client,
+        customer_id=customer_id,
+        verification_case_id=case_id,
     )
-    assert case is not None
-
-    case.assigned_to = reviewer.id
-    case.status = VerificationStatus.UNDER_REVIEW
-    db_session.commit()
 
     notes = "Passport name and date of birth match customer information."
 
@@ -377,6 +420,12 @@ def test_cannot_review_completed_case(
         create_test_user,
     )
 
+    start_verification_review(
+        client,
+        customer_id=customer_id,
+        verification_case_id=case_id,
+    )
+
     case = (
         db_session.query(IdentityVerificationCase)
         .filter(IdentityVerificationCase.id == case_id)
@@ -384,7 +433,6 @@ def test_cannot_review_completed_case(
     )
     assert case is not None
 
-    case.assigned_to = reviewer.id
     case.status = VerificationStatus.APPROVED
     db_session.commit()
 
@@ -399,7 +447,7 @@ def test_cannot_review_completed_case(
     assert response.status_code == 400
 
 
-def test_standard_user_cannot_create_verification_review(
+def test_auditor_cannot_create_verification_review(
     client,
     db_session,
     create_test_user,
@@ -431,3 +479,64 @@ def test_standard_user_cannot_create_verification_review(
     )
 
     assert response.status_code == 403
+
+
+def test_reviewer_can_start_verification_review(
+    client,
+    db_session,
+    create_test_user,
+    cleanup_test_customers,
+):
+    customer_id, case_id, reviewer = create_assigned_review_case(
+        client,
+        db_session,
+        create_test_user,
+    )
+
+    response = client.post(
+        f"/api/v1/customers/{customer_id}/verification-cases/{case_id}/reviews/start"
+    )
+
+    assert response.status_code == 200
+
+    data = response.json()
+
+    assert data["success"] is True
+    assert data["data"] is None
+
+    case = (
+        db_session.query(IdentityVerificationCase)
+        .filter(IdentityVerificationCase.id == case_id)
+        .first()
+    )
+
+    assert case is not None
+    assert case.status == VerificationStatus.UNDER_REVIEW
+
+
+def test_reviewer_cannot_start_review_when_already_under_review(
+    client,
+    db_session,
+    create_test_user,
+    cleanup_test_customers,
+):
+    customer_id, case_id, reviewer = create_assigned_review_case(
+        client,
+        db_session,
+        create_test_user,
+    )
+
+    start_verification_review(
+        client,
+        customer_id=customer_id,
+        verification_case_id=case_id,
+    )
+
+    response = client.post(
+        f"/api/v1/customers/{customer_id}/verification-cases/{case_id}/reviews/start"
+    )
+
+    assert response.status_code == 400
+    assert response.json()["message"] == (
+        "Verification case cannot be started for review in its current status."
+    )

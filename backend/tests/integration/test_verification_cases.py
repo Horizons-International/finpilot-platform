@@ -1,5 +1,18 @@
+import uuid
+
 from app.models.audit_log import AuditLog
-from app.utils.enums import AuditEventType, UserRole
+from app.providers.schemas import (
+    VerificationRequest,
+    VerificationResponse,
+)
+from app.providers.verification_provider import VerificationProvider
+from app.services.verification_service import VerificationService
+from app.utils.enums import (
+    AuditEventType,
+    UserRole,
+    VerificationStatus,
+    VerificationType,
+)
 
 
 def authenticate_client(client, user):
@@ -41,6 +54,38 @@ def create_customer_with_data(client, **overrides):
         "/api/v1/customers",
         json=data,
     )
+
+
+def create_verification_case(client, customer_id):
+    response = client.post(
+        f"/api/v1/customers/{customer_id}/verification-cases",
+        json={
+            "verification_type": "IDENTITY",
+        },
+    )
+
+    assert response.status_code == 201
+
+    return response.json()["data"]
+
+
+class FakeVerificationProvider(VerificationProvider):
+    def __init__(self):
+        self.request = None
+
+    def verify(
+        self,
+        request: VerificationRequest,
+    ) -> VerificationResponse:
+        self.request = request
+
+        return VerificationResponse(
+            provider_name="fake",
+            verification_case_id=request.verification_case_id,
+            status=VerificationStatus.APPROVED,
+            reference_id="fake-reference-123",
+            message="Verification approved.",
+        )
 
 
 def test_create_identity_verification_case(
@@ -427,19 +472,6 @@ def test_verification_case_creation_is_audited(
     assert audit_log is not None
     assert audit_log.resource_id is not None
     assert str(audit_log.resource_id) == case_id
-
-
-def create_verification_case(client, customer_id):
-    response = client.post(
-        f"/api/v1/customers/{customer_id}/verification-cases",
-        json={
-            "verification_type": "IDENTITY",
-        },
-    )
-
-    assert response.status_code == 201
-
-    return response.json()["data"]
 
 
 def test_not_started_can_transition_to_pending(
@@ -892,3 +924,94 @@ def test_update_nonexistent_verification_case_returns_404(
     )
 
     assert response.status_code == 404
+
+
+def test_submit_verification_to_mock_provider(
+    client,
+    create_test_user,
+    cleanup_test_customers,
+):
+    _, admin = create_test_user(
+        role=UserRole.ADMINISTRATOR,
+        email=f"admin-{uuid.uuid4()}@example.com",
+    )
+
+    authenticate_client(client, admin)
+
+    customer_response = create_customer_with_data(
+        client,
+        email="workflow-rbac-customer@example.com",
+    )
+
+    assert customer_response.status_code == 201
+
+    customer_id = customer_response.json()["data"]["id"]
+
+    case = create_verification_case(client, customer_id)
+    case_id = case["id"]
+
+    response = client.post(
+        f"/api/v1/customers/{customer_id}/"
+        f"verification-cases/{case_id}/provider-verification"
+    )
+
+    assert response.status_code == 200
+
+    data = response.json()["data"]
+
+    assert data["provider_name"] == "mock"
+    assert data["verification_case_id"] == case_id
+    assert data["status"] == VerificationStatus.UNDER_REVIEW.value
+    assert data["reference_id"]
+    assert data["message"] == ("Verification request accepted by the mock provider.")
+
+
+def test_providers_does_not_change_core_logic(
+    client,
+    db_session,
+    create_test_user,
+    cleanup_test_customers,
+):
+    _, admin = create_test_user(
+        role=UserRole.ADMINISTRATOR,
+        email=f"admin-{uuid.uuid4()}@example.com",
+    )
+
+    authenticate_client(client, admin)
+
+    customer_response = create_customer_with_data(
+        client,
+        email="workflow-rbac-customer@example.com",
+    )
+
+    assert customer_response.status_code == 201
+
+    customer_id = customer_response.json()["data"]["id"]
+
+    case = create_verification_case(client, customer_id)
+    case_id = case["id"]
+
+    provider = FakeVerificationProvider()
+
+    service = VerificationService(
+        db=db_session,
+        provider=provider,
+    )
+
+    response = service.submit_to_provider(
+        user_id=None,
+        email=None,
+        customer_id=customer_id,
+        verification_case_id=case_id,
+    )
+
+    assert provider.request is not None
+    assert provider.request.customer_id == customer_id
+    assert provider.request.verification_case_id == uuid.UUID(case_id)
+    assert provider.request.verification_type == VerificationType.IDENTITY
+
+    assert response.provider_name == "fake"
+    assert response.verification_case_id == uuid.UUID(case_id)
+    assert response.status == VerificationStatus.APPROVED
+    assert response.reference_id == "fake-reference-123"
+    assert response.message == "Verification approved."

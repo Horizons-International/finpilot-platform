@@ -4,8 +4,13 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.models.customer import Customer
-from app.models.customer_audit_log import CustomerAuditLog
 from app.models.verification_case import IdentityVerificationCase
+from app.providers.factory import get_verification_provider
+from app.providers.schemas import (
+    VerificationRequest,
+    VerificationResponse,
+)
+from app.providers.verification_provider import VerificationProvider
 from app.repositories.verification_case_repository import (
     VerificationCaseRepository,
 )
@@ -15,6 +20,7 @@ from app.schemas.verification_case import (
     VerificationCaseStatusUpdate,
 )
 from app.services.audit_service import AuditService
+from app.services.customer_audit_log_service import CustomerAuditLogService
 from app.services.workflow_service import WorkflowValidationService
 from app.utils.date_time import utc_now
 from app.utils.enums import AuditEventType, VerificationStatus
@@ -41,10 +47,16 @@ VERIFICATION_STATUS_TRANSITIONS: dict[
 
 
 class VerificationService:
-    def __init__(self, db: Session) -> None:
+    def __init__(
+        self,
+        db: Session,
+        provider: VerificationProvider | None = None,
+    ) -> None:
         self.db = db
         self.audit_service = AuditService(db)
         self.repository = VerificationCaseRepository(db)
+        self.customer_audit_log_service = CustomerAuditLogService(db)
+        self.provider = provider or get_verification_provider()
         self.workflow_service = WorkflowValidationService(
             VERIFICATION_STATUS_TRANSITIONS
         )
@@ -77,7 +89,7 @@ class VerificationService:
             resource_id=case.id,
         )
 
-        customer_audit_log = CustomerAuditLog(
+        self.customer_audit_log_service.create_audit_log(
             customer_id=customer_id,
             user_id=user_id,
             resource_type="verification_case",
@@ -90,9 +102,6 @@ class VerificationService:
                 "status": case.status.value,
             },
         )
-
-        self.db.add(customer_audit_log)
-        self.db.flush()
 
         self.db.commit()
         self.db.refresh(case)
@@ -161,7 +170,7 @@ class VerificationService:
             resource_id=case.id,
         )
 
-        customer_audit_log = CustomerAuditLog(
+        self.customer_audit_log_service.create_audit_log(
             customer_id=customer_id,
             user_id=user_id,
             resource_type="verification_case",
@@ -174,9 +183,6 @@ class VerificationService:
                 "status": new_status.value,
             },
         )
-
-        self.db.add(customer_audit_log)
-        self.db.flush()
 
         self.db.commit()
         self.db.refresh(case)
@@ -222,7 +228,7 @@ class VerificationService:
                 resource_id=case.id,
             )
 
-            customer_audit_log = CustomerAuditLog(
+            self.customer_audit_log_service.create_audit_log(
                 customer_id=customer_id,
                 user_id=user_id,
                 resource_type="verification_case",
@@ -235,9 +241,6 @@ class VerificationService:
                     "status": case.status.value,
                 },
             )
-
-            self.db.add(customer_audit_log)
-            self.db.flush()
 
             self.db.commit()
             self.db.refresh(case)
@@ -259,3 +262,37 @@ class VerificationService:
             raise
 
         return case
+
+    def submit_to_provider(
+        self,
+        *,
+        user_id: UUID,
+        email: str,
+        customer_id: UUID,
+        verification_case_id: UUID,
+    ) -> VerificationResponse:
+        case = self.repository.get_by_id_and_customer(
+            verification_case_id=verification_case_id,
+            customer_id=customer_id,
+        )
+
+        if case is None:
+            raise not_found("Verification case")
+
+        request = VerificationRequest(
+            customer_id=customer_id,
+            verification_case_id=case.id,
+            verification_type=case.verification_type,
+        )
+
+        provider_response = self.provider.verify(request)
+
+        self.audit_service.log_event(
+            event_type=AuditEventType.VERIFICATION_PROVIDER_REQUEST,
+            user_id=user_id,
+            email=email,
+            resource_type="verification_case",
+            resource_id=case.id,
+        )
+
+        return provider_response
