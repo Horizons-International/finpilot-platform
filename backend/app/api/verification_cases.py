@@ -6,6 +6,7 @@ from fastapi import APIRouter, Depends, status
 from app.core.dependencies import get_verification_service
 from app.core.responses import APIResponse
 from app.core.security import require_roles
+from app.providers.schemas import VerificationResponse
 from app.schemas.verification_case import (
     VerificationCaseCreate,
     VerificationCaseInitiation,
@@ -146,4 +147,33 @@ def initiate_verification(
         success=True,
         message="Verification initiated successfully.",
         data=VerificationCaseResponse.model_validate(case),
+    )
+
+
+@router.post(
+    "/{verification_case_id}/provider-verification",
+    response_model=APIResponse[VerificationResponse],
+)
+def submit_provider_verification(
+    customer_id: UUID,
+    verification_case_id: UUID,
+    current_user: dict[str, Any] = Depends(
+        require_roles(
+            UserRole.ADMINISTRATOR,
+            UserRole.COMPLIANCE_OFFICER,
+        )
+    ),
+    service: VerificationService = Depends(get_verification_service),
+) -> APIResponse[VerificationResponse]:
+    result = service.submit_to_provider(
+        user_id=UUID(current_user["sub"]),
+        email=current_user["email"],
+        customer_id=customer_id,
+        verification_case_id=verification_case_id,
+    )
+
+    return APIResponse(
+        success=True,
+        message="Verification submitted to provider.",
+        data=result,
     )

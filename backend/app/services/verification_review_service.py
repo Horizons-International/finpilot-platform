@@ -25,6 +25,63 @@ class VerificationReviewService:
         self.review_repository = VerificationReviewRepository(db)
         self.audit_service = AuditService(db)
 
+    def start_review(
+        self,
+        *,
+        customer_id: UUID,
+        verification_case_id: UUID,
+        reviewer_id: UUID,
+        email: str,
+    ) -> None:
+        case = self.verification_case_repository.get_by_id_and_customer_and_reviewer(
+            verification_case_id=verification_case_id,
+            customer_id=customer_id,
+            reviewer_id=reviewer_id,
+        )
+
+        if case is None:
+            raise not_found("Verification case")
+
+        if case.status != VerificationStatus.PENDING:
+            raise bad_request(
+                "Verification case cannot be started for review in its current status."
+            )
+
+        old_status = case.status
+        new_status = VerificationStatus.UNDER_REVIEW
+
+        try:
+            case.status = new_status
+            self.verification_case_repository.update(case)
+
+            self.audit_service.log_event(
+                event_type=AuditEventType.VERIFICATION_CASE_STATUS_CHANGED,
+                user_id=reviewer_id,
+                email=email,
+                resource_type="verification_case",
+                resource_id=verification_case_id,
+            )
+
+            self.customer_audit_log_service.create_audit_log(
+                customer_id=case.customer_id,
+                user_id=reviewer_id,
+                resource_type="verification_case",
+                resource_id=verification_case_id,
+                action="START VERIFICATION REVIEW",
+                old_value={
+                    "status": old_status.value,
+                },
+                new_value={
+                    "status": new_status.value,
+                },
+            )
+
+            self.db.commit()
+
+        except Exception:
+            self.db.rollback()
+            raise
+
     def create_review(
         self,
         *,
@@ -44,12 +101,9 @@ class VerificationReviewService:
         if case is None:
             raise not_found("Verification case")
 
-        if case.status not in {
-            VerificationStatus.PENDING,
-            VerificationStatus.UNDER_REVIEW,
-        }:
+        if case.status != VerificationStatus.UNDER_REVIEW:
             raise bad_request(
-                "Verification case cannot be reviewed in its current status."
+                "Verification case must be under review before a decision can be made."
             )
 
         if decision == ReviewDecision.APPROVE:

@@ -52,6 +52,8 @@ class AuditEventType(str, Enum):
         "VERIFICATION_DOCUMENT_TYPE_STATUS_CHANGED"
     )
 
+    VERIFICATION_PROVIDER_REQUEST = "VERIFICATION_PROVIDER_REQUEST"
+
 
 class UserStatus(str, Enum):
     ACTIVE = "active"

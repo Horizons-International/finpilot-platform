@@ -42,5 +42,8 @@ class Settings(BaseSettings):
         "text/plain",
     ]
 
+    # Verification Provider
+    VERIFICATION_PROVIDER: str = "mock"
+
 
 settings = Settings()  # type: ignore[call-arg]
