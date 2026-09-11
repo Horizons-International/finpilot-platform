@@ -99,6 +99,43 @@ The backend provides the platform foundation, including:
 * PostgreSQL
 * pgAdmin
 
+## AI Framework
+
+FinPilot includes a centralized AI integration framework for future
+AI-powered capabilities.
+
+The framework provides:
+
+- Centralized AI service
+- Provider abstraction
+- Standardized AI requests
+- Standardized AI responses
+- Text requests
+- Document analysis requests
+- Structured responses
+- AI-specific error handling
+- Centralized AI logging
+- Provider configuration
+- Mock provider for testing
+
+Architecture:
+
+```text
+Application
+    ↓
+AIService
+    ↓
+AIProvider
+    ↓
+LLM Provider
+````
+
+The initial implementation uses a mock provider. Additional AI
+providers can be introduced through the provider adapter layer without
+changing application business logic.
+
+See `docs/ai.md` for the AI framework documentation.
+
 ## Prerequisites
 
 The following tools are required for local development:
