@@ -2,12 +2,14 @@ import uuid
 
 from app.ai.exceptions import AIProviderError
 from app.ai.providers.base import AIProvider
+from app.ai.schemas.config import AIConfig
 from app.ai.schemas.requests import AIRequest, AIRequestType
 from app.ai.schemas.responses import AIResponse
 
 
 class MockAIProvider(AIProvider):
-    """Mock AI provider used for development and testing."""
+    def __init__(self, config: AIConfig) -> None:
+        self.config = config
 
     def generate(self, request: AIRequest) -> AIResponse:
         if not request.prompt.strip():
@@ -15,7 +17,7 @@ class MockAIProvider(AIProvider):
 
         if request.request_type == AIRequestType.TEXT:
             return AIResponse(
-                provider_name="mock",
+                provider_name=self.config.provider,
                 request_type=request.request_type.value,
                 content=f"Mock AI response for: {request.prompt}",
                 request_id=uuid.uuid4(),
@@ -26,7 +28,7 @@ class MockAIProvider(AIProvider):
                 raise AIProviderError("Document ID is required for document analysis.")
 
             return AIResponse(
-                provider_name="mock",
+                provider_name=self.config.provider,
                 request_type=request.request_type.value,
                 content="Mock document analysis completed.",
                 structured_data={

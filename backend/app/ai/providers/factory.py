@@ -1,15 +1,17 @@
+from app.ai.config import get_ai_config
 from app.ai.exceptions import AIConfigurationError
 from app.ai.providers.base import AIProvider
 from app.ai.providers.mock import MockAIProvider
-from app.core.config import settings
 
 
 def get_ai_provider() -> AIProvider:
     """Return the configured AI provider."""
 
-    provider_name = settings.AI_PROVIDER.lower()
+    config = get_ai_config()
+
+    provider_name = config.provider.lower()
 
     if provider_name == "mock":
-        return MockAIProvider()
+        return MockAIProvider(config=config)
 
-    raise AIConfigurationError(f"Unsupported AI provider: {settings.AI_PROVIDER}")
+    raise AIConfigurationError(f"Unsupported AI provider: {config.provider}")

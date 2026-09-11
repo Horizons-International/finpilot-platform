@@ -179,3 +179,16 @@ The AI framework follows these principles:
 6. AI calls are logged centrally.
 7. New providers should not require changes to business services.
 
+## AI Configuration
+
+AI provider configuration is loaded from environment variables.
+
+Example:
+
+```env
+AI_PROVIDER=mock
+AI_API_KEY=
+AI_MODEL=
+AI_MAX_TOKENS=1000
+AI_TEMPERATURE=0.0
+AI_TIMEOUT=30
