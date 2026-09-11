@@ -46,6 +46,11 @@ class Settings(BaseSettings):
     VERIFICATION_PROVIDER: str = "mock"
 
     AI_PROVIDER: str = "mock"
+    AI_API_KEY: str = ""
+    AI_MODEL: str = ""
+    AI_MAX_TOKENS: int = 1000
+    AI_TEMPERATURE: float = 0.0
+    AI_TIMEOUT: int = 30
 
 
 settings = Settings()  # type: ignore[call-arg]
