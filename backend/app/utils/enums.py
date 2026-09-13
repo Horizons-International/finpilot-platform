@@ -54,6 +54,10 @@ class AuditEventType(str, Enum):
 
     VERIFICATION_PROVIDER_REQUEST = "VERIFICATION_PROVIDER_REQUEST"
 
+    OCR_REQUESTED = "OCR_REQUESTED"
+    OCR_COMPLETED = "OCR_COMPLETED"
+    OCR_FAILED = "OCR_FAILED"
+
 
 class UserStatus(str, Enum):
     ACTIVE = "active"
@@ -110,3 +114,10 @@ class ReviewDecision(str, Enum):
     APPROVE = "APPROVE"
     REJECT = "REJECT"
     REQUEST_MORE_INFORMATION = "REQUEST_MORE_INFORMATION"
+
+
+class OCRProcessingStatus(str, Enum):
+    SUBMITTED = "submitted"
+    PROCESSING = "processing"
+    COMPLETED = "completed"
+    FAILED = "failed"

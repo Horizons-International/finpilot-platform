@@ -21,6 +21,9 @@ from app.models.file import File
 from app.models.user import User
 from app.models.verification_case import IdentityVerificationCase
 from app.models.verification_document_type import VerificationDocumentType
+from app.ocr.providers.base import OCRProvider
+from app.ocr.services.dependencies import get_ocr_service
+from app.ocr.services.ocr_service import OCRService
 from app.repositories.customer_repository import CustomerRepository
 from app.storages.local_storage import LocalStorage
 from app.utils.enums import CustomerStatus, UserStatus
@@ -316,3 +319,19 @@ def cleanup_test_documents():
 
     finally:
         db.close()
+
+
+@pytest.fixture
+def ocr_service_override(db_session):
+    def apply(provider: OCRProvider) -> OCRService:
+        service = OCRService(
+            db=db_session,
+            provider=provider,
+        )
+
+        app.dependency_overrides[get_ocr_service] = lambda: service
+        return service
+
+    yield apply
+
+    app.dependency_overrides.pop(get_ocr_service, None)
