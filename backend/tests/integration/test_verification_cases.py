@@ -428,9 +428,6 @@ def test_verification_case_creation_is_audited(
     cleanup_test_customers,
     db_session,
 ):
-    from app.models.audit_log import AuditLog
-    from app.utils.enums import AuditEventType
-
     _, admin = create_test_user(
         email="verification-audit@example.com",
         role=UserRole.ADMINISTRATOR,

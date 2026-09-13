@@ -44,6 +44,7 @@ class Settings(BaseSettings):
 
     # Verification Provider
     VERIFICATION_PROVIDER: str = "mock"
+    OCR_PROVIDER: str = "mock"
 
     AI_PROVIDER: str = "mock"
     AI_API_KEY: str = ""

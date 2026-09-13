@@ -112,3 +112,9 @@ class CustomerDocument(Base):
     uploader = relationship(
         "User",
     )
+
+    ocr_results = relationship(
+        "OCRResult",
+        back_populates="document",
+        cascade="all, delete-orphan",
+    )
