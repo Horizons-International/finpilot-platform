@@ -7,7 +7,7 @@ def test_customer_update_creates_audit_history(
     create_test_user,
     cleanup_test_customers,
 ):
-    _, user = create_test_user(
+    user = create_test_user(
         email="audit-test@example.com",
         role=UserRole.ADMINISTRATOR,
     )
@@ -68,7 +68,7 @@ def test_customer_audit_history_contains_old_and_new_values(
     create_test_user,
     cleanup_test_customers,
 ):
-    _, user = create_test_user(
+    user = create_test_user(
         email="audit-values@example.com",
         role=UserRole.ADMINISTRATOR,
     )
@@ -120,7 +120,7 @@ def test_customer_audit_history_records_nullable_field_clearing(
     create_test_user,
     cleanup_test_customers,
 ):
-    _, user = create_test_user(
+    user = create_test_user(
         email="audit-null@example.com",
         role=UserRole.ADMINISTRATOR,
     )
@@ -172,7 +172,7 @@ def test_customer_audit_history_does_not_record_unchanged_fields(
     create_test_user,
     cleanup_test_customers,
 ):
-    _, user = create_test_user(
+    user = create_test_user(
         email="audit-unchanged@example.com",
         role=UserRole.ADMINISTRATOR,
     )
@@ -219,7 +219,7 @@ def test_customer_audit_history_is_newest_first(
     create_test_user,
     cleanup_test_customers,
 ):
-    _, user = create_test_user(
+    user = create_test_user(
         email="audit-order@example.com",
         role=UserRole.ADMINISTRATOR,
     )
@@ -280,7 +280,7 @@ def test_customer_audit_history_customer_not_found(
     create_test_user,
     cleanup_test_customers,
 ):
-    _, user = create_test_user(
+    user = create_test_user(
         email="audit-not-found@example.com",
         role=UserRole.ADMINISTRATOR,
     )
@@ -301,7 +301,7 @@ def test_customer_audit_history_requires_authorization(
     create_test_user,
     cleanup_test_customers,
 ):
-    _, admin = create_test_user(
+    admin = create_test_user(
         email="audit-owner@example.com",
         role=UserRole.ADMINISTRATOR,
     )
@@ -324,7 +324,7 @@ def test_customer_audit_history_requires_authorization(
 
     client.headers.clear()
 
-    _, auditor = create_test_user(
+    auditor = create_test_user(
         email="audit-reader@example.com",
         role=UserRole.AUDITOR,
     )

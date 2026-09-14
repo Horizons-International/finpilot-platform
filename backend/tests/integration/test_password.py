@@ -7,7 +7,7 @@ client = TestClient(app)
 
 
 def test_change_password_success(client, create_test_user):
-    _, user = create_test_user(
+    user = create_test_user(
         role="Reviewer",
         email="password-change@example.com",
     )
@@ -35,7 +35,7 @@ def test_change_password_success(client, create_test_user):
 
 
 def test_change_password_invalid_current_password(client, create_test_user):
-    _, user = create_test_user(
+    user = create_test_user(
         role="Reviewer",
         email="password-invalid-current@example.com",
     )
@@ -63,7 +63,7 @@ def test_change_password_invalid_current_password(client, create_test_user):
 
 
 def test_change_password_rejects_weak_password(client, create_test_user):
-    _, user = create_test_user(
+    user = create_test_user(
         role="Reviewer",
         email="password-weak@example.com",
     )
@@ -91,7 +91,7 @@ def test_change_password_rejects_weak_password(client, create_test_user):
 
 
 def test_change_password_rejects_same_password(client, create_test_user):
-    _, user = create_test_user(
+    user = create_test_user(
         role="Reviewer",
         email="password-same@example.com",
     )

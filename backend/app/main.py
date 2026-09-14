@@ -10,6 +10,7 @@ from app.api.customer_addresses import router as customer_addresses_router
 from app.api.customer_audit_logs import router as customer_audit_logs_router
 from app.api.customer_contacts import router as customer_contacts_router
 from app.api.customers import router as customer_router
+from app.api.document_review import router as document_review_router
 from app.api.documents import router as documents_router
 from app.api.extraction import router as extraction_router
 from app.api.files import router as files_router
@@ -87,6 +88,7 @@ app.include_router(documents_router)
 app.include_router(reports_router)
 app.include_router(ocr_router)
 app.include_router(extraction_router)
+app.include_router(document_review_router)
 
 app.add_exception_handler(
     HTTPException,

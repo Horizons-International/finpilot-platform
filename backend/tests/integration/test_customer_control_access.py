@@ -9,7 +9,7 @@ def test_administrator_can_access_customer(
     create_test_user,
     cleanup_test_customers,
 ):
-    _, user = create_test_user(
+    user = create_test_user(
         email="admin-access@example.com",
         role=UserRole.ADMINISTRATOR,
     )
@@ -47,7 +47,7 @@ def test_standard_user_cannot_create_customer(
     create_test_user,
     cleanup_test_customers,
 ):
-    _, user = create_test_user(
+    user = create_test_user(
         email="standard-customer-access@example.com",
         role=UserRole.AUDITOR,
     )
@@ -76,7 +76,7 @@ def test_standard_user_cannot_view_customers(
     create_test_user,
     cleanup_test_customers,
 ):
-    _, admin = create_test_user(
+    admin = create_test_user(
         email="standard-view-admin@example.com",
         role=UserRole.ADMINISTRATOR,
     )
@@ -99,7 +99,7 @@ def test_standard_user_cannot_view_customers(
 
     client.headers.clear()
 
-    _, user = create_test_user(
+    user = create_test_user(
         email="standard-view@example.com",
         role=UserRole.AUDITOR,
     )
@@ -118,7 +118,7 @@ def test_compliance_officer_can_view_customer(
     create_test_user,
     cleanup_test_customers,
 ):
-    _, admin = create_test_user(
+    admin = create_test_user(
         email="compliance-admin@example.com",
         role=UserRole.ADMINISTRATOR,
     )
@@ -141,7 +141,7 @@ def test_compliance_officer_can_view_customer(
 
     client.headers.clear()
 
-    _, compliance_user = create_test_user(
+    compliance_user = create_test_user(
         email="compliance-view@example.com",
         role=UserRole.COMPLIANCE_OFFICER,
     )
@@ -165,7 +165,7 @@ def test_reviewer_can_view_customer(
     create_test_user,
     cleanup_test_customers,
 ):
-    _, admin = create_test_user(
+    admin = create_test_user(
         email="reviewer-admin@example.com",
         role=UserRole.ADMINISTRATOR,
     )
@@ -188,7 +188,7 @@ def test_reviewer_can_view_customer(
 
     client.headers.clear()
 
-    _, reviewer = create_test_user(
+    reviewer = create_test_user(
         email="reviewer-view@example.com",
         role=UserRole.REVIEWER,
     )
@@ -211,7 +211,7 @@ def test_compliance_officer_cannot_create_customer(
     client,
     create_test_user,
 ):
-    _, user = create_test_user(
+    user = create_test_user(
         email="compliance-create@example.com",
         role=UserRole.COMPLIANCE_OFFICER,
     )
@@ -235,7 +235,7 @@ def test_reviewer_cannot_create_customer(
     client,
     create_test_user,
 ):
-    _, user = create_test_user(
+    user = create_test_user(
         email="reviewer-create@example.com",
         role=UserRole.REVIEWER,
     )
@@ -260,7 +260,7 @@ def test_standard_user_access_denial_is_audited(
     create_test_user,
     db_session,
 ):
-    _, user = create_test_user(
+    user = create_test_user(
         email="access-denied@example.com",
         role=UserRole.AUDITOR,
     )
@@ -297,7 +297,7 @@ def test_standard_user_customer_access_denial_records_resource_id(
     cleanup_test_customers,
     db_session,
 ):
-    _, admin = create_test_user(
+    admin = create_test_user(
         email="resource-admin@example.com",
         role=UserRole.ADMINISTRATOR,
     )
@@ -320,7 +320,7 @@ def test_standard_user_customer_access_denial_records_resource_id(
 
     client.headers.clear()
 
-    _, user = create_test_user(
+    user = create_test_user(
         email="resource-denied@example.com",
         role=UserRole.AUDITOR,
     )
@@ -360,7 +360,7 @@ def test_administrator_access_does_not_create_access_denied_audit(
     cleanup_test_customers,
     db_session,
 ):
-    _, user = create_test_user(
+    user = create_test_user(
         email="admin-no-denied@example.com",
         role=UserRole.ADMINISTRATOR,
     )

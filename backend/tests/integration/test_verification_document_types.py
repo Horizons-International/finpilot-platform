@@ -10,7 +10,7 @@ def test_initial_document_types_are_seeded(
     client,
     create_test_user,
 ):
-    _, admin_user = create_test_user(
+    admin_user = create_test_user(
         email="initiation-admin@example.com",
         role=UserRole.ADMINISTRATOR,
     )
@@ -36,7 +36,7 @@ def test_create_document_type(
     create_test_user,
     reset_verification_document_types,
 ):
-    _, admin_user = create_test_user(
+    admin_user = create_test_user(
         email="initiation-admin@example.com",
         role=UserRole.ADMINISTRATOR,
     )
@@ -67,7 +67,7 @@ def test_get_document_types(
     client,
     create_test_user,
 ):
-    _, admin_user = create_test_user(
+    admin_user = create_test_user(
         email="initiation-admin@example.com",
         role=UserRole.ADMINISTRATOR,
     )
@@ -84,7 +84,7 @@ def test_get_active_document_types(
     client,
     create_test_user,
 ):
-    _, admin_user = create_test_user(
+    admin_user = create_test_user(
         email="initiation-admin@example.com",
         role=UserRole.ADMINISTRATOR,
     )
@@ -104,7 +104,7 @@ def test_get_document_type_by_id(
     db_session,
     create_test_user,
 ):
-    _, admin_user = create_test_user(
+    admin_user = create_test_user(
         email="initiation-admin@example.com",
         role=UserRole.ADMINISTRATOR,
     )
@@ -123,7 +123,7 @@ def test_get_nonexistent_document_type(
     client,
     create_test_user,
 ):
-    _, admin_user = create_test_user(
+    admin_user = create_test_user(
         email="initiation-admin@example.com",
         role=UserRole.ADMINISTRATOR,
     )
@@ -141,7 +141,7 @@ def test_deactivate_document_type(
     create_test_user,
     reset_verification_document_types,
 ):
-    _, admin_user = create_test_user(
+    admin_user = create_test_user(
         email="initiation-admin@example.com",
         role=UserRole.ADMINISTRATOR,
     )
@@ -166,7 +166,7 @@ def test_reactivate_document_type(
     db_session,
     create_test_user,
 ):
-    _, admin_user = create_test_user(
+    admin_user = create_test_user(
         email="initiation-admin@example.com",
         role=UserRole.ADMINISTRATOR,
     )
@@ -201,7 +201,7 @@ def test_future_country_can_be_added(
     create_test_user,
     reset_verification_document_types,
 ):
-    _, admin_user = create_test_user(
+    admin_user = create_test_user(
         email="initiation-admin@example.com",
         role=UserRole.ADMINISTRATOR,
     )
@@ -235,7 +235,7 @@ def test_duplicate_document_type_name_is_rejected(
     db_session,
     create_test_user,
 ):
-    _, admin_user = create_test_user(
+    admin_user = create_test_user(
         email="initiation-admin@example.com",
         role=UserRole.ADMINISTRATOR,
     )
@@ -261,7 +261,7 @@ def test_invalid_country_code_is_rejected(
     client,
     create_test_user,
 ):
-    _, admin_user = create_test_user(
+    admin_user = create_test_user(
         email="initiation-admin@example.com",
         role=UserRole.ADMINISTRATOR,
     )
@@ -286,7 +286,7 @@ def test_administrator_can_create_document_type(
     create_test_user,
     reset_verification_document_types,
 ):
-    _, admin_user = create_test_user(
+    admin_user = create_test_user(
         email="initiation-admin@example.com",
         role=UserRole.ADMINISTRATOR,
     )
@@ -310,7 +310,7 @@ def test_compliance_officer_cannot_create_document_type(
     client,
     create_test_user,
 ):
-    _, compliance_officer = create_test_user(
+    compliance_officer = create_test_user(
         email="initiation-admin@example.com",
         role=UserRole.COMPLIANCE_OFFICER,
     )
@@ -334,7 +334,7 @@ def test_reviewer_cannot_create_document_type(
     client,
     create_test_user,
 ):
-    _, reviewer = create_test_user(
+    reviewer = create_test_user(
         email="initiation-admin@example.com",
         role=UserRole.REVIEWER,
     )
@@ -358,7 +358,7 @@ def test_standard_user_cannot_create_document_type(
     client,
     create_test_user,
 ):
-    _, standard_user = create_test_user(
+    standard_user = create_test_user(
         email="initiation-admin@example.com",
         role=UserRole.AUDITOR,
     )
@@ -385,7 +385,7 @@ def test_compliance_officer_cannot_update_document_type(
 ):
     document_type = db_session.query(VerificationDocumentType).first()
 
-    _, compliance_officer = create_test_user(
+    compliance_officer = create_test_user(
         email="initiation-admin@example.com",
         role=UserRole.COMPLIANCE_OFFICER,
     )
@@ -407,7 +407,7 @@ def test_reviewer_cannot_update_document_type(
     db_session,
     create_test_user,
 ):
-    _, reviewer = create_test_user(
+    reviewer = create_test_user(
         email="initiation-admin@example.com",
         role=UserRole.REVIEWER,
     )
@@ -431,7 +431,7 @@ def test_standard_user_cannot_update_document_type(
     db_session,
     create_test_user,
 ):
-    _, standard_user = create_test_user(
+    standard_user = create_test_user(
         email="initiation-admin@example.com",
         role=UserRole.AUDITOR,
     )
@@ -455,7 +455,7 @@ def test_access_denied_is_audited_for_document_type_management(
     db_session,
     create_test_user,
 ):
-    _, compliance_officer = create_test_user(
+    compliance_officer = create_test_user(
         email="initiation-admin@example.com",
         role=UserRole.COMPLIANCE_OFFICER,
     )
@@ -493,7 +493,7 @@ def test_document_type_creation_is_audited(
     create_test_user,
     reset_verification_document_types,
 ):
-    _, admin_user = create_test_user(
+    admin_user = create_test_user(
         email="initiation-admin@example.com",
         role=UserRole.ADMINISTRATOR,
     )
@@ -536,7 +536,7 @@ def test_document_type_update_is_audited(
     create_test_user,
     reset_verification_document_types,
 ):
-    _, admin_user = create_test_user(
+    admin_user = create_test_user(
         email="initiation-admin@example.com",
         role=UserRole.ADMINISTRATOR,
     )
@@ -576,7 +576,7 @@ def test_document_type_status_change_is_audited(
     create_test_user,
     reset_verification_document_types,
 ):
-    _, admin_user = create_test_user(
+    admin_user = create_test_user(
         email="initiation-admin@example.com",
         role=UserRole.ADMINISTRATOR,
     )
@@ -617,7 +617,7 @@ def test_document_type_country_update_is_not_status_change(
     create_test_user,
     reset_verification_document_types,
 ):
-    _, admin_user = create_test_user(
+    admin_user = create_test_user(
         email="initiation-admin@example.com",
         role=UserRole.ADMINISTRATOR,
     )

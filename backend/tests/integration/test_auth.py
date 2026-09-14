@@ -5,7 +5,7 @@ from tests.conftest import TestSessionLocal
 
 
 def test_login_with_valid_credentials(client, create_test_user):
-    _, user = create_test_user(
+    user = create_test_user(
         role=UserRole.AUDITOR,
         email="test-login@example.com",
     )
@@ -28,7 +28,7 @@ def test_login_with_valid_credentials(client, create_test_user):
 
 
 def test_login_with_invalid_password(client, create_test_user):
-    _, user = create_test_user(
+    user = create_test_user(
         role=UserRole.AUDITOR,
         email="test-invalid-password@example.com",
     )
@@ -45,7 +45,7 @@ def test_login_with_invalid_password(client, create_test_user):
 
 
 def test_refresh_token(client, create_test_user):
-    _, user = create_test_user(
+    user = create_test_user(
         role=UserRole.AUDITOR,
         email="test-refresh@example.com",
     )
@@ -133,7 +133,7 @@ def test_login_rejects_invalid_email(client):
 
 
 def test_login_rejects_missing_password(client, create_test_user):
-    _, user = create_test_user(
+    user = create_test_user(
         role=UserRole.AUDITOR,
         email="test-missing-password@example.com",
     )
@@ -154,7 +154,7 @@ def test_login_rejects_missing_password(client, create_test_user):
 
 
 def test_invalid_user_status(client, create_test_user):
-    _, admin = create_test_user(
+    admin = create_test_user(
         role=UserRole.ADMINISTRATOR,
         email="admin-invalid-status@example.com",
     )

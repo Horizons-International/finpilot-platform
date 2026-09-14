@@ -46,7 +46,7 @@ def test_create_customer_contact(
     create_test_user,
     cleanup_test_customers,
 ):
-    _, user = create_test_user(
+    user = create_test_user(
         email="contact-create@example.com",
         role=UserRole.ADMINISTRATOR,
     )
@@ -88,7 +88,7 @@ def test_get_customer_contacts(
     create_test_user,
     cleanup_test_customers,
 ):
-    _, user = create_test_user(
+    user = create_test_user(
         email="contact-get@example.com",
         role=UserRole.ADMINISTRATOR,
     )
@@ -147,7 +147,7 @@ def test_update_customer_contact(
     create_test_user,
     cleanup_test_customers,
 ):
-    _, user = create_test_user(
+    user = create_test_user(
         email="contact-update@example.com",
         role=UserRole.ADMINISTRATOR,
     )
@@ -206,7 +206,7 @@ def test_multiple_contacts_allowed_for_customer(
     create_test_user,
     cleanup_test_customers,
 ):
-    _, user = create_test_user(
+    user = create_test_user(
         email="contact-multiple@example.com",
         role=UserRole.ADMINISTRATOR,
     )
@@ -263,7 +263,7 @@ def test_create_contact_with_phone_only(
     create_test_user,
     cleanup_test_customers,
 ):
-    _, user = create_test_user(
+    user = create_test_user(
         email="contact-phone-only@example.com",
         role=UserRole.ADMINISTRATOR,
     )
@@ -301,7 +301,7 @@ def test_create_contact_with_email_only(
     create_test_user,
     cleanup_test_customers,
 ):
-    _, user = create_test_user(
+    user = create_test_user(
         email="contact-email-only@example.com",
         role=UserRole.ADMINISTRATOR,
     )
@@ -339,7 +339,7 @@ def test_create_contact_without_phone_or_email(
     create_test_user,
     cleanup_test_customers,
 ):
-    _, user = create_test_user(
+    user = create_test_user(
         email="contact-empty@example.com",
         role=UserRole.ADMINISTRATOR,
     )
@@ -379,7 +379,7 @@ def test_create_contact_invalid_email(
     create_test_user,
     cleanup_test_customers,
 ):
-    _, user = create_test_user(
+    user = create_test_user(
         email="contact-invalid-email@example.com",
         role=UserRole.ADMINISTRATOR,
     )
@@ -409,7 +409,7 @@ def test_create_contact_invalid_preferred_method(
     create_test_user,
     cleanup_test_customers,
 ):
-    _, user = create_test_user(
+    user = create_test_user(
         email="contact-invalid-method@example.com",
         role=UserRole.ADMINISTRATOR,
     )
@@ -439,7 +439,7 @@ def test_contact_normalizes_phone_and_email(
     create_test_user,
     cleanup_test_customers,
 ):
-    _, user = create_test_user(
+    user = create_test_user(
         email="contact-normalize@example.com",
         role=UserRole.ADMINISTRATOR,
     )
@@ -475,7 +475,7 @@ def test_update_contact_verification_status(
     create_test_user,
     cleanup_test_customers,
 ):
-    _, user = create_test_user(
+    user = create_test_user(
         email="contact-verification@example.com",
         role=UserRole.ADMINISTRATOR,
     )
@@ -521,7 +521,7 @@ def test_update_contact_to_null_optional_fields(
     create_test_user,
     cleanup_test_customers,
 ):
-    _, user = create_test_user(
+    user = create_test_user(
         email="contact-null-update@example.com",
         role=UserRole.ADMINISTRATOR,
     )
@@ -569,7 +569,7 @@ def test_update_nonexistent_contact(
     create_test_user,
     cleanup_test_customers,
 ):
-    _, user = create_test_user(
+    user = create_test_user(
         email="contact-not-found@example.com",
         role=UserRole.ADMINISTRATOR,
     )
@@ -605,7 +605,7 @@ def test_update_contact_from_another_customer_returns_404(
     create_test_user,
     cleanup_test_customers,
 ):
-    _, user = create_test_user(
+    user = create_test_user(
         email="contact-ownership@example.com",
         role=UserRole.ADMINISTRATOR,
     )
@@ -652,7 +652,7 @@ def test_customer_contact_requires_admin_for_create(
     create_test_user,
     cleanup_test_customers,
 ):
-    _, user = create_test_user(
+    user = create_test_user(
         email="contact-create-auditor@example.com",
         role=UserRole.AUDITOR,
     )
@@ -683,7 +683,7 @@ def test_customer_contact_requires_admin_for_get(
     create_test_user,
     cleanup_test_customers,
 ):
-    _, admin = create_test_user(
+    admin = create_test_user(
         email="contact-get-admin@example.com",
         role=UserRole.ADMINISTRATOR,
     )
@@ -708,7 +708,7 @@ def test_customer_contact_requires_admin_for_get(
 
     client.headers.clear()
 
-    _, auditor = create_test_user(
+    auditor = create_test_user(
         email="contact-get-auditor@example.com",
         role=UserRole.AUDITOR,
     )
@@ -727,7 +727,7 @@ def test_customer_contact_requires_admin_for_update(
     create_test_user,
     cleanup_test_customers,
 ):
-    _, admin = create_test_user(
+    admin = create_test_user(
         email="contact-update-admin@example.com",
         role=UserRole.ADMINISTRATOR,
     )
@@ -754,7 +754,7 @@ def test_customer_contact_requires_admin_for_update(
 
     client.headers.clear()
 
-    _, auditor = create_test_user(
+    auditor = create_test_user(
         email="contact-update-auditor@example.com",
         role=UserRole.AUDITOR,
     )

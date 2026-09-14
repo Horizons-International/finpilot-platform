@@ -105,7 +105,7 @@ def test_verification_summary_returns_accurate_counts(
     cleanup_test_files,
     cleanup_test_customers,
 ):
-    _, admin = create_test_user(
+    admin = create_test_user(
         email="verification-report-admin@example.com",
         role=UserRole.ADMINISTRATOR,
     )
@@ -168,7 +168,7 @@ def test_verification_summary_status_filter(
     cleanup_test_files,
     cleanup_test_customers,
 ):
-    _, admin = create_test_user(
+    admin = create_test_user(
         email="verification-status-report-admin@example.com",
         role=UserRole.ADMINISTRATOR,
     )
@@ -234,7 +234,7 @@ def test_verification_summary_date_filter(
     cleanup_test_files,
     cleanup_test_customers,
 ):
-    _, admin = create_test_user(
+    admin = create_test_user(
         email="verification-date-report-admin@example.com",
         role=UserRole.ADMINISTRATOR,
     )
@@ -296,7 +296,7 @@ def test_verification_summary_combined_filters(
     cleanup_test_files,
     cleanup_test_customers,
 ):
-    _, admin = create_test_user(
+    admin = create_test_user(
         email="verification-combined-report-admin@example.com",
         role=UserRole.ADMINISTRATOR,
     )
@@ -372,7 +372,7 @@ def test_verification_summary_returns_zero_when_no_cases(
     cleanup_test_files,
     cleanup_test_customers,
 ):
-    _, admin = create_test_user(
+    admin = create_test_user(
         email="verification-empty-report-admin@example.com",
         role=UserRole.ADMINISTRATOR,
     )
@@ -437,7 +437,7 @@ def test_document_summary_returns_accurate_counts(
     cleanup_test_files,
     cleanup_test_customers,
 ):
-    _, admin = create_test_user(
+    admin = create_test_user(
         email="document-report-admin@example.com",
         role=UserRole.ADMINISTRATOR,
     )
@@ -497,7 +497,7 @@ def test_document_summary_status_filter(
     cleanup_test_files,
     cleanup_test_customers,
 ):
-    _, admin = create_test_user(
+    admin = create_test_user(
         email="document-status-report-admin@example.com",
         role=UserRole.ADMINISTRATOR,
     )
@@ -552,7 +552,7 @@ def test_document_summary_date_filter(
     cleanup_test_files,
     cleanup_test_customers,
 ):
-    _, admin = create_test_user(
+    admin = create_test_user(
         email="document-date-report-admin@example.com",
         role=UserRole.ADMINISTRATOR,
     )
@@ -610,7 +610,7 @@ def test_document_summary_combined_filters(
     cleanup_test_files,
     cleanup_test_customers,
 ):
-    _, admin = create_test_user(
+    admin = create_test_user(
         email="document-combined-report-admin@example.com",
         role=UserRole.ADMINISTRATOR,
     )
@@ -676,7 +676,7 @@ def test_document_summary_returns_zero_when_no_documents(
     create_test_user,
     cleanup_test_customers,
 ):
-    _, admin = create_test_user(
+    admin = create_test_user(
         email="document-empty-report-admin@example.com",
         role=UserRole.ADMINISTRATOR,
     )
@@ -706,7 +706,7 @@ def test_admin_can_access_verification_report(
     create_test_user,
     cleanup_test_customers,
 ):
-    _, admin = create_test_user(
+    admin = create_test_user(
         email="report-admin@example.com",
         role=UserRole.ADMINISTRATOR,
     )
@@ -725,7 +725,7 @@ def test_compliance_officer_can_access_verification_report(
     create_test_user,
     cleanup_test_customers,
 ):
-    _, compliance_officer = create_test_user(
+    compliance_officer = create_test_user(
         email="report-compliance@example.com",
         role=UserRole.COMPLIANCE_OFFICER,
     )
@@ -744,7 +744,7 @@ def test_auditor_can_access_verification_report(
     create_test_user,
     cleanup_test_customers,
 ):
-    _, auditor = create_test_user(
+    auditor = create_test_user(
         email="report-auditor@example.com",
         role=UserRole.AUDITOR,
     )
@@ -763,7 +763,7 @@ def test_reviewer_cannot_access_verification_report(
     create_test_user,
     cleanup_test_customers,
 ):
-    _, reviewer = create_test_user(
+    reviewer = create_test_user(
         email="report-reviewer@example.com",
         role=UserRole.REVIEWER,
     )
@@ -792,7 +792,7 @@ def test_reviewer_cannot_access_document_report(
     create_test_user,
     cleanup_test_customers,
 ):
-    _, reviewer = create_test_user(
+    reviewer = create_test_user(
         email="document-report-reviewer@example.com",
         role=UserRole.REVIEWER,
     )
@@ -811,7 +811,7 @@ def test_auditor_can_access_document_report(
     create_test_user,
     cleanup_test_customers,
 ):
-    _, auditor = create_test_user(
+    auditor = create_test_user(
         email="document-report-auditor@example.com",
         role=UserRole.AUDITOR,
     )
@@ -835,7 +835,7 @@ def test_verification_report_rejects_invalid_date_range(
     create_test_user,
     cleanup_test_customers,
 ):
-    _, admin = create_test_user(
+    admin = create_test_user(
         email="invalid-date-report-admin@example.com",
         role=UserRole.ADMINISTRATOR,
     )
@@ -860,7 +860,7 @@ def test_document_report_rejects_invalid_date_range(
     create_test_user,
     cleanup_test_customers,
 ):
-    _, admin = create_test_user(
+    admin = create_test_user(
         email="invalid-document-date-report-admin@example.com",
         role=UserRole.ADMINISTRATOR,
     )

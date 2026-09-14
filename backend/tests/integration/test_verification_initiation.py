@@ -19,7 +19,7 @@ def test_verification_can_be_initiated(
     create_test_user,
     cleanup_test_customers,
 ):
-    _, admin = create_test_user(
+    admin = create_test_user(
         email="initiation-admin@example.com",
         role=UserRole.ADMINISTRATOR,
     )
@@ -56,7 +56,7 @@ def test_duplicate_active_verification_is_rejected(
     create_test_user,
     cleanup_test_customers,
 ):
-    _, admin = create_test_user(
+    admin = create_test_user(
         email="duplicate-initiation-admin@example.com",
         role=UserRole.ADMINISTRATOR,
     )
@@ -96,7 +96,7 @@ def test_duplicate_verification_is_rejected_while_under_review(
     create_test_user,
     cleanup_test_customers,
 ):
-    _, admin = create_test_user(
+    admin = create_test_user(
         email="under-review-duplicate-admin@example.com",
         role=UserRole.ADMINISTRATOR,
     )
@@ -147,7 +147,7 @@ def test_new_verification_can_be_initiated_after_previous_case_is_approved(
     create_test_user,
     cleanup_test_customers,
 ):
-    _, admin = create_test_user(
+    admin = create_test_user(
         email="reverification-admin@example.com",
         role=UserRole.ADMINISTRATOR,
     )

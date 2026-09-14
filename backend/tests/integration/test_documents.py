@@ -1,5 +1,10 @@
+from pathlib import Path
+from shutil import rmtree
 from uuid import UUID
 
+import pytest
+
+from app.core.config import settings
 from app.models.document import CustomerDocument
 from app.models.file import File
 from app.utils.enums import UserRole
@@ -12,13 +17,34 @@ from tests.helpers import (
 )
 
 
+@pytest.fixture(autouse=True)
+def cleanup_extraction_storage():
+    verification_root = Path(settings.STORAGE_PATH) / "verification"
+
+    existing_folders = set()
+
+    if verification_root.exists():
+        existing_folders = {
+            folder for folder in verification_root.iterdir() if folder.is_dir()
+        }
+
+    yield
+
+    if not verification_root.exists():
+        return
+
+    for folder in verification_root.iterdir():
+        if folder.is_dir() and folder not in existing_folders:
+            rmtree(folder, ignore_errors=True)
+
+
 def test_upload_customer_document_success(
     client,
     db_session,
     create_test_user,
     cleanup_test_customers,
 ):
-    _, admin = create_test_user(
+    admin = create_test_user(
         email="document-admin@example.com",
         role=UserRole.ADMINISTRATOR,
     )
@@ -75,7 +101,7 @@ def test_customer_document_metadata_is_stored(
     create_test_user,
     cleanup_test_customers,
 ):
-    _, admin = create_test_user(
+    admin = create_test_user(
         email="document-metadata-admin@example.com",
         role=UserRole.ADMINISTRATOR,
     )
@@ -142,7 +168,7 @@ def test_customer_document_links_to_file_record(
     create_test_user,
     cleanup_test_customers,
 ):
-    _, admin = create_test_user(
+    admin = create_test_user(
         email="document-file-admin@example.com",
         role=UserRole.ADMINISTRATOR,
     )
@@ -208,7 +234,7 @@ def test_upload_jpeg_document(
     create_test_user,
     cleanup_test_customers,
 ):
-    _, admin = create_test_user(
+    admin = create_test_user(
         email="document-jpeg-admin@example.com",
         role=UserRole.ADMINISTRATOR,
     )
@@ -253,7 +279,7 @@ def test_upload_png_document(
     create_test_user,
     cleanup_test_customers,
 ):
-    _, admin = create_test_user(
+    admin = create_test_user(
         email="document-png-admin@example.com",
         role=UserRole.ADMINISTRATOR,
     )
@@ -298,7 +324,7 @@ def test_reject_unsupported_document_file_type(
     create_test_user,
     cleanup_test_customers,
 ):
-    _, admin = create_test_user(
+    admin = create_test_user(
         email="document-invalid-admin@example.com",
         role=UserRole.ADMINISTRATOR,
     )
@@ -343,7 +369,7 @@ def test_reject_document_for_wrong_customer_case(
     create_test_user,
     cleanup_test_customers,
 ):
-    _, admin = create_test_user(
+    admin = create_test_user(
         email="document-wrong-case-admin@example.com",
         role=UserRole.ADMINISTRATOR,
     )
@@ -403,7 +429,7 @@ def test_reject_document_with_inactive_document_type(
     cleanup_test_customers,
     reset_verification_document_types,
 ):
-    _, admin = create_test_user(
+    admin = create_test_user(
         email="document-inactive-admin@example.com",
         role=UserRole.ADMINISTRATOR,
     )
@@ -448,7 +474,7 @@ def test_get_customer_documents(
     create_test_user,
     cleanup_test_customers,
 ):
-    _, admin = create_test_user(
+    admin = create_test_user(
         email="document-list-admin@example.com",
         role=UserRole.ADMINISTRATOR,
     )
@@ -514,7 +540,7 @@ def test_get_customer_document_by_id(
     create_test_user,
     cleanup_test_customers,
 ):
-    _, admin = create_test_user(
+    admin = create_test_user(
         email="document-get-admin@example.com",
         role=UserRole.ADMINISTRATOR,
     )
@@ -573,7 +599,7 @@ def test_standard_user_cannot_upload_customer_document(
     create_test_user,
     cleanup_test_customers,
 ):
-    _, admin = create_test_user(
+    admin = create_test_user(
         email="document-standard-admin@example.com",
         role=UserRole.ADMINISTRATOR,
     )
@@ -598,7 +624,7 @@ def test_standard_user_cannot_upload_customer_document(
 
     document_type = get_passport_document_type(db_session)
 
-    _, standard_user = create_test_user(
+    standard_user = create_test_user(
         email="document-standard-user@example.com",
         role=UserRole.AUDITOR,
     )
@@ -621,7 +647,7 @@ def test_reviewer_can_retrieve_customer_documents(
     create_test_user,
     cleanup_test_customers,
 ):
-    _, admin = create_test_user(
+    admin = create_test_user(
         email="document-reviewer-admin@example.com",
         role=UserRole.ADMINISTRATOR,
     )
@@ -655,7 +681,7 @@ def test_reviewer_can_retrieve_customer_documents(
 
     assert upload_response.status_code == 201
 
-    _, reviewer = create_test_user(
+    reviewer = create_test_user(
         email="document-reviewer@example.com",
         role=UserRole.REVIEWER,
     )

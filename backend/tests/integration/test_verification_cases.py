@@ -44,7 +44,7 @@ def test_create_identity_verification_case(
     create_test_user,
     cleanup_test_customers,
 ):
-    _, admin = create_test_user(
+    admin = create_test_user(
         email="verification-admin@example.com",
         role=UserRole.ADMINISTRATOR,
     )
@@ -86,7 +86,7 @@ def test_create_address_verification_case(
     create_test_user,
     cleanup_test_customers,
 ):
-    _, admin = create_test_user(
+    admin = create_test_user(
         email="address-verification-admin@example.com",
         role=UserRole.ADMINISTRATOR,
     )
@@ -123,7 +123,7 @@ def test_get_customer_verification_cases(
     create_test_user,
     cleanup_test_customers,
 ):
-    _, admin = create_test_user(
+    admin = create_test_user(
         email="verification-list-admin@example.com",
         role=UserRole.ADMINISTRATOR,
     )
@@ -180,7 +180,7 @@ def test_multiple_verification_cases_can_exist_for_customer(
     create_test_user,
     cleanup_test_customers,
 ):
-    _, admin = create_test_user(
+    admin = create_test_user(
         email="multiple-cases-admin@example.com",
         role=UserRole.ADMINISTRATOR,
     )
@@ -223,7 +223,7 @@ def test_create_verification_case_for_nonexistent_customer(
     client,
     create_test_user,
 ):
-    _, admin = create_test_user(
+    admin = create_test_user(
         email="verification-not-found-admin@example.com",
         role=UserRole.ADMINISTRATOR,
     )
@@ -245,7 +245,7 @@ def test_compliance_officer_can_create_verification_case(
     create_test_user,
     cleanup_test_customers,
 ):
-    _, admin = create_test_user(
+    admin = create_test_user(
         email="verification-compliance-admin@example.com",
         role=UserRole.ADMINISTRATOR,
     )
@@ -265,7 +265,7 @@ def test_compliance_officer_can_create_verification_case(
 
     client.headers.clear()
 
-    _, compliance_officer = create_test_user(
+    compliance_officer = create_test_user(
         email="verification-compliance@example.com",
         role=UserRole.COMPLIANCE_OFFICER,
     )
@@ -293,7 +293,7 @@ def test_standard_user_cannot_view_verification_cases(
     create_test_user,
     cleanup_test_customers,
 ):
-    _, admin = create_test_user(
+    admin = create_test_user(
         email="verification-view-standard@example.com",
         role=UserRole.ADMINISTRATOR,
     )
@@ -313,7 +313,7 @@ def test_standard_user_cannot_view_verification_cases(
 
     client.headers.clear()
 
-    _, user = create_test_user(
+    user = create_test_user(
         email="verification-reviewer@example.com",
         role=UserRole.AUDITOR,
     )
@@ -332,7 +332,7 @@ def test_reviewer_can_view_verification_cases(
     create_test_user,
     cleanup_test_customers,
 ):
-    _, admin = create_test_user(
+    admin = create_test_user(
         email="verification-review-admin@example.com",
         role=UserRole.ADMINISTRATOR,
     )
@@ -359,7 +359,7 @@ def test_reviewer_can_view_verification_cases(
 
     client.headers.clear()
 
-    _, reviewer = create_test_user(
+    reviewer = create_test_user(
         email="verification-reviewer@example.com",
         role=UserRole.REVIEWER,
     )
@@ -379,7 +379,7 @@ def test_verification_case_creation_is_audited(
     cleanup_test_customers,
     db_session,
 ):
-    _, admin = create_test_user(
+    admin = create_test_user(
         email="verification-audit@example.com",
         role=UserRole.ADMINISTRATOR,
     )
@@ -427,7 +427,7 @@ def test_not_started_can_transition_to_pending(
     create_test_user,
     cleanup_test_customers,
 ):
-    _, admin = create_test_user(
+    admin = create_test_user(
         email="workflow-pending-admin@example.com",
         role=UserRole.ADMINISTRATOR,
     )
@@ -468,7 +468,7 @@ def test_pending_can_transition_to_under_review(
     create_test_user,
     cleanup_test_customers,
 ):
-    _, admin = create_test_user(
+    admin = create_test_user(
         email="workflow-review-admin@example.com",
         role=UserRole.ADMINISTRATOR,
     )
@@ -516,7 +516,7 @@ def test_under_review_can_transition_to_approved(
     create_test_user,
     cleanup_test_customers,
 ):
-    _, admin = create_test_user(
+    admin = create_test_user(
         email="workflow-approved-admin@example.com",
         role=UserRole.ADMINISTRATOR,
     )
@@ -565,7 +565,7 @@ def test_under_review_can_transition_to_rejected(
     create_test_user,
     cleanup_test_customers,
 ):
-    _, admin = create_test_user(
+    admin = create_test_user(
         email="workflow-rejected-admin@example.com",
         role=UserRole.ADMINISTRATOR,
     )
@@ -614,7 +614,7 @@ def test_invalid_verification_status_transition_is_rejected(
     create_test_user,
     cleanup_test_customers,
 ):
-    _, admin = create_test_user(
+    admin = create_test_user(
         email="workflow-invalid-admin@example.com",
         role=UserRole.ADMINISTRATOR,
     )
@@ -652,7 +652,7 @@ def test_approved_cannot_transition_to_pending(
     create_test_user,
     cleanup_test_customers,
 ):
-    _, admin = create_test_user(
+    admin = create_test_user(
         email="workflow-terminal-admin@example.com",
         role=UserRole.ADMINISTRATOR,
     )
@@ -703,7 +703,7 @@ def test_invalid_transition_does_not_change_status(
     create_test_user,
     cleanup_test_customers,
 ):
-    _, admin = create_test_user(
+    admin = create_test_user(
         email="workflow-no-change-admin@example.com",
         role=UserRole.ADMINISTRATOR,
     )
@@ -755,7 +755,7 @@ def test_verification_status_change_is_audited(
     cleanup_test_customers,
     db_session,
 ):
-    _, admin = create_test_user(
+    admin = create_test_user(
         email="workflow-audit-admin@example.com",
         role=UserRole.ADMINISTRATOR,
     )
@@ -804,7 +804,7 @@ def test_standard_user_cannot_update_verification_status(
     create_test_user,
     cleanup_test_customers,
 ):
-    _, admin = create_test_user(
+    admin = create_test_user(
         email="workflow-rbac-admin@example.com",
         role=UserRole.ADMINISTRATOR,
     )
@@ -825,7 +825,7 @@ def test_standard_user_cannot_update_verification_status(
 
     client.headers.clear()
 
-    _, user = create_test_user(
+    user = create_test_user(
         email="workflow-rbac-user@example.com",
         role=UserRole.AUDITOR,
     )
@@ -847,7 +847,7 @@ def test_update_nonexistent_verification_case_returns_404(
     create_test_user,
     cleanup_test_customers,
 ):
-    _, admin = create_test_user(
+    admin = create_test_user(
         email="workflow-not-found-admin@example.com",
         role=UserRole.ADMINISTRATOR,
     )
@@ -875,11 +875,11 @@ def test_update_nonexistent_verification_case_returns_404(
 
 
 def test_submit_verification_to_mock_provider(
-    client,
     create_test_user,
     cleanup_test_customers,
+    client,
 ):
-    _, admin = create_test_user(
+    admin = create_test_user(
         role=UserRole.ADMINISTRATOR,
         email=f"admin-{uuid.uuid4()}@example.com",
     )
@@ -920,7 +920,7 @@ def test_providers_does_not_change_core_logic(
     create_test_user,
     cleanup_test_customers,
 ):
-    _, admin = create_test_user(
+    admin = create_test_user(
         role=UserRole.ADMINISTRATOR,
         email=f"admin-{uuid.uuid4()}@example.com",
     )
