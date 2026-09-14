@@ -1,24 +1,7 @@
 from app.models.audit_log import AuditLog
 from app.models.user import UserRole
 from app.utils.enums import AuditEventType
-
-
-def authenticate_client(client, user):
-    response = client.post(
-        "/api/v1/auth/login",
-        json={
-            "email": user.email,
-            "password": "Password123!",
-        },
-    )
-
-    assert response.status_code == 200
-
-    access_token = response.json()["data"]["access_token"]
-
-    client.headers.update(
-        {"Authorization": f"Bearer {access_token}"},
-    )
+from tests.helpers import authenticate_client
 
 
 def test_administrator_can_access_customer(

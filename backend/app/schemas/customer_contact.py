@@ -1,58 +1,34 @@
 from datetime import datetime
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
+from pydantic import BaseModel, ConfigDict, EmailStr, Field
 
+from app.schemas.mixins import EmailFieldValidatorMixin, PhoneFieldValidatorMixin
 from app.utils.enums import PreferredContactMethod
-from app.utils.validators import validate_email, validate_phone
 
 
-class CustomerContactCreate(BaseModel):
+class CustomerContactCreate(
+    PhoneFieldValidatorMixin,
+    EmailFieldValidatorMixin,
+    BaseModel,
+):
     phone_number: str | None = Field(default=None, max_length=30)
     email: EmailStr | None = None
     preferred_contact_method: PreferredContactMethod | None = None
     phone_verified: bool = False
     email_verified: bool = False
 
-    @field_validator("phone_number", mode="before")
-    @classmethod
-    def normalize_phone_number(cls, value: str | None) -> str | None:
-        if value is None:
-            return None
 
-        return validate_phone(value)
-
-    @field_validator("email", mode="before")
-    @classmethod
-    def normalize_email_address(cls, value: str | None) -> str | None:
-        if value is None:
-            return None
-
-        return validate_email(value)
-
-
-class CustomerContactUpdate(BaseModel):
+class CustomerContactUpdate(
+    PhoneFieldValidatorMixin,
+    EmailFieldValidatorMixin,
+    BaseModel,
+):
     phone_number: str | None = Field(default=None, max_length=30)
     email: EmailStr | None = None
     preferred_contact_method: PreferredContactMethod | None = None
     phone_verified: bool | None = None
     email_verified: bool | None = None
-
-    @field_validator("phone_number", mode="before")
-    @classmethod
-    def normalize_phone_number(cls, value: str | None) -> str | None:
-        if value is None:
-            return None
-
-        return validate_phone(value)
-
-    @field_validator("email", mode="before")
-    @classmethod
-    def normalize_email_address(cls, value: str | None) -> str | None:
-        if value is None:
-            return None
-
-        return validate_email(value)
 
 
 class CustomerContactResponse(BaseModel):

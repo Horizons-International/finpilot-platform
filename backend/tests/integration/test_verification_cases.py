@@ -13,60 +13,11 @@ from app.utils.enums import (
     VerificationStatus,
     VerificationType,
 )
-
-
-def authenticate_client(client, user):
-    response = client.post(
-        "/api/v1/auth/login",
-        json={
-            "email": user.email,
-            "password": "Password123!",
-        },
-    )
-
-    assert response.status_code == 200
-
-    token = response.json()["data"]["access_token"]
-
-    client.headers.update(
-        {
-            "Authorization": f"Bearer {token}",
-        }
-    )
-
-
-def create_customer_with_data(client, **overrides):
-    data = {
-        "first_name": "John",
-        "middle_name": "Michael",
-        "last_name": "Smith",
-        "date_of_birth": "1990-05-15",
-        "nationality": "US",
-        "country_of_residence": "US",
-        "email": "john.smith@example.com",
-        "phone_number": "+249912345678",
-        "status": "new",
-    }
-
-    data.update(overrides)
-
-    return client.post(
-        "/api/v1/customers",
-        json=data,
-    )
-
-
-def create_verification_case(client, customer_id):
-    response = client.post(
-        f"/api/v1/customers/{customer_id}/verification-cases",
-        json={
-            "verification_type": "IDENTITY",
-        },
-    )
-
-    assert response.status_code == 201
-
-    return response.json()["data"]
+from tests.helpers import (
+    authenticate_client,
+    create_customer_with_data,
+    create_verification_case,
+)
 
 
 class FakeVerificationProvider(VerificationProvider):
