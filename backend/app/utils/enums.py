@@ -58,6 +58,10 @@ class AuditEventType(str, Enum):
     OCR_COMPLETED = "OCR_COMPLETED"
     OCR_FAILED = "OCR_FAILED"
 
+    DOCUMENT_EXTRACTION_REQUESTED = "DOCUMENT_EXTRACTION_REQUESTED"
+    DOCUMENT_EXTRACTION_COMPLETED = "DOCUMENT_EXTRACTION_COMPLETED"
+    DOCUMENT_EXTRACTION_FAILED = "DOCUMENT_EXTRACTION_FAILED"
+
 
 class UserStatus(str, Enum):
     ACTIVE = "active"
@@ -117,6 +121,13 @@ class ReviewDecision(str, Enum):
 
 
 class OCRProcessingStatus(str, Enum):
+    SUBMITTED = "submitted"
+    PROCESSING = "processing"
+    COMPLETED = "completed"
+    FAILED = "failed"
+
+
+class ExtractionStatus(str, Enum):
     SUBMITTED = "submitted"
     PROCESSING = "processing"
     COMPLETED = "completed"

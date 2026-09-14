@@ -1,24 +1,9 @@
 from fastapi.testclient import TestClient
 
 from app.main import app
+from tests.helpers import authenticate_client
 
 client = TestClient(app)
-
-
-def authenticate_client(client: TestClient, user) -> None:
-    response = client.post(
-        "/api/v1/auth/login",
-        json={
-            "email": user.email,
-            "password": "Password123!",
-        },
-    )
-
-    assert response.status_code == 200
-
-    access_token = response.json()["data"]["access_token"]
-
-    client.headers.update({"Authorization": f"Bearer {access_token}"})
 
 
 def test_user_can_get_own_profile(client, create_test_user):

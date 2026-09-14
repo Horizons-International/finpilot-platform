@@ -1,21 +1,6 @@
 from app.core.config import settings
 from app.utils.enums import UserRole
-
-
-def authenticate_client(client, user):
-    response = client.post(
-        "/api/v1/auth/login",
-        json={
-            "email": user.email,
-            "password": "Password123!",
-        },
-    )
-
-    assert response.status_code == 200
-
-    access_token = response.json()["data"]["access_token"]
-
-    client.headers.update({"Authorization": f"Bearer {access_token}"})
+from tests.helpers import authenticate_client
 
 
 def test_upload_file(client, create_test_user, cleanup_test_files):

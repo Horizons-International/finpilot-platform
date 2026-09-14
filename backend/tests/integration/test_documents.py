@@ -1,103 +1,15 @@
-from io import BytesIO
 from uuid import UUID
 
 from app.models.document import CustomerDocument
 from app.models.file import File
-from app.models.verification_document_type import VerificationDocumentType
 from app.utils.enums import UserRole
-
-
-def authenticate_client(client, user):
-    response = client.post(
-        "/api/v1/auth/login",
-        json={
-            "email": user.email,
-            "password": "Password123!",
-        },
-    )
-
-    assert response.status_code == 200
-
-    token = response.json()["data"]["access_token"]
-
-    client.headers.update(
-        {
-            "Authorization": f"Bearer {token}",
-        }
-    )
-
-
-def create_customer_with_data(client, **overrides):
-    data = {
-        "first_name": "John",
-        "middle_name": "Michael",
-        "last_name": "Smith",
-        "date_of_birth": "1990-05-15",
-        "nationality": "US",
-        "country_of_residence": "US",
-        "email": "john.smith@example.com",
-        "phone_number": "+249912345678",
-        "status": "new",
-    }
-
-    data.update(overrides)
-
-    return client.post(
-        "/api/v1/customers",
-        json=data,
-    )
-
-
-def create_verification_case(client, customer_id):
-    return client.post(
-        f"/api/v1/customers/{customer_id}/verification-cases",
-        json={
-            "verification_type": "IDENTITY",
-        },
-    )
-
-
-def get_passport_document_type(db_session):
-    document_type = (
-        db_session.query(VerificationDocumentType)
-        .filter(
-            VerificationDocumentType.name == "Passport",
-            VerificationDocumentType.is_active.is_(True),
-        )
-        .first()
-    )
-
-    assert document_type is not None
-
-    return document_type
-
-
-def upload_document(
-    client,
-    customer_id,
-    verification_case_id,
-    document_type_id,
-    filename="passport.pdf",
-    content_type="application/pdf",
-    content=b"%PDF-1.4 test document",
-):
-    return client.post(
-        (
-            f"/api/v1/customers/{customer_id}"
-            f"/verification-cases/{verification_case_id}"
-            "/documents"
-        ),
-        data={
-            "document_type_id": str(document_type_id),
-        },
-        files={
-            "file": (
-                filename,
-                BytesIO(content),
-                content_type,
-            ),
-        },
-    )
+from tests.helpers import (
+    authenticate_client,
+    create_customer_with_data,
+    create_verification_case,
+    get_passport_document_type,
+    upload_document,
+)
 
 
 def test_upload_customer_document_success(
@@ -129,9 +41,7 @@ def test_upload_customer_document_success(
         customer_id,
     )
 
-    assert verification_response.status_code == 201
-
-    verification_case_id = verification_response.json()["data"]["id"]
+    verification_case_id = verification_response["id"]
 
     document_type = get_passport_document_type(db_session)
 
@@ -188,9 +98,7 @@ def test_customer_document_metadata_is_stored(
         customer_id,
     )
 
-    assert verification_response.status_code == 201
-
-    verification_case_id = UUID(verification_response.json()["data"]["id"])
+    verification_case_id = UUID(verification_response["id"])
 
     document_type = get_passport_document_type(db_session)
 
@@ -255,9 +163,7 @@ def test_customer_document_links_to_file_record(
         customer_id,
     )
 
-    assert verification_response.status_code == 201
-
-    verification_case_id = verification_response.json()["data"]["id"]
+    verification_case_id = verification_response["id"]
 
     document_type = get_passport_document_type(db_session)
 
@@ -323,9 +229,7 @@ def test_upload_jpeg_document(
         customer_id,
     )
 
-    assert verification_response.status_code == 201
-
-    verification_case_id = verification_response.json()["data"]["id"]
+    verification_case_id = verification_response["id"]
 
     document_type = get_passport_document_type(db_session)
 
@@ -370,9 +274,7 @@ def test_upload_png_document(
         customer_id,
     )
 
-    assert verification_response.status_code == 201
-
-    verification_case_id = verification_response.json()["data"]["id"]
+    verification_case_id = verification_response["id"]
 
     document_type = get_passport_document_type(db_session)
 
@@ -417,9 +319,7 @@ def test_reject_unsupported_document_file_type(
         customer_id,
     )
 
-    assert verification_response.status_code == 201
-
-    verification_case_id = verification_response.json()["data"]["id"]
+    verification_case_id = verification_response["id"]
 
     document_type = get_passport_document_type(db_session)
 
@@ -472,21 +372,17 @@ def test_reject_document_for_wrong_customer_case(
 
     second_customer_id = second_customer_response.json()["data"]["id"]
 
-    first_case_response = create_verification_case(
+    create_verification_case(
         client,
         first_customer_id,
     )
-
-    assert first_case_response.status_code == 201
 
     second_case_response = create_verification_case(
         client,
         second_customer_id,
     )
 
-    assert second_case_response.status_code == 201
-
-    second_case_id = second_case_response.json()["data"]["id"]
+    second_case_id = second_case_response["id"]
 
     document_type = get_passport_document_type(db_session)
 
@@ -528,9 +424,7 @@ def test_reject_document_with_inactive_document_type(
         customer_id,
     )
 
-    assert verification_response.status_code == 201
-
-    verification_case_id = verification_response.json()["data"]["id"]
+    verification_case_id = verification_response["id"]
 
     document_type = get_passport_document_type(db_session)
 
@@ -575,9 +469,7 @@ def test_get_customer_documents(
         customer_id,
     )
 
-    assert verification_response.status_code == 201
-
-    verification_case_id = verification_response.json()["data"]["id"]
+    verification_case_id = verification_response["id"]
 
     document_type = get_passport_document_type(db_session)
 
@@ -643,9 +535,7 @@ def test_get_customer_document_by_id(
         customer_id,
     )
 
-    assert verification_response.status_code == 201
-
-    verification_case_id = verification_response.json()["data"]["id"]
+    verification_case_id = verification_response["id"]
 
     document_type = get_passport_document_type(db_session)
 
@@ -704,9 +594,7 @@ def test_standard_user_cannot_upload_customer_document(
         customer_id,
     )
 
-    assert verification_response.status_code == 201
-
-    verification_case_id = verification_response.json()["data"]["id"]
+    verification_case_id = verification_response["id"]
 
     document_type = get_passport_document_type(db_session)
 
@@ -754,9 +642,7 @@ def test_reviewer_can_retrieve_customer_documents(
         customer_id,
     )
 
-    assert verification_response.status_code == 201
-
-    verification_case_id = verification_response.json()["data"]["id"]
+    verification_case_id = verification_response["id"]
 
     document_type = get_passport_document_type(db_session)
 

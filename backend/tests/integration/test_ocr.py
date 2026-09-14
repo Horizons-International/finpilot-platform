@@ -1,5 +1,4 @@
 import uuid
-from io import BytesIO
 from unittest.mock import MagicMock
 
 import pytest
@@ -7,7 +6,6 @@ import pytest
 from app.models.audit_log import AuditLog
 from app.models.document import CustomerDocument
 from app.models.ocr_result import OCRResult
-from app.models.verification_document_type import VerificationDocumentType
 from app.ocr.exceptions import (
     OCRConfigurationError,
     OCRProviderError,
@@ -20,6 +18,13 @@ from app.ocr.schemas.requests import OCRRequest
 from app.ocr.schemas.responses import OCRResponse
 from app.ocr.services.ocr_service import OCRService
 from app.utils.enums import AuditEventType, OCRProcessingStatus, UserRole
+from tests.helpers import (
+    authenticate_client,
+    create_customer_with_data,
+    create_verification_case,
+    get_passport_document_type,
+    upload_document,
+)
 
 
 class FakeOCRProvider(OCRProvider):
@@ -52,99 +57,6 @@ class FailingOCRProvider(OCRProvider):
 class UnexpectedOCRProvider(OCRProvider):
     def process(self, request: OCRRequest) -> OCRResponse:
         raise RuntimeError("Unexpected provider failure.")
-
-
-def authenticate_client(client, user):
-    response = client.post(
-        "/api/v1/auth/login",
-        json={
-            "email": user.email,
-            "password": "Password123!",
-        },
-    )
-
-    assert response.status_code == 200
-
-    token = response.json()["data"]["access_token"]
-
-    client.headers.update(
-        {
-            "Authorization": f"Bearer {token}",
-        }
-    )
-
-
-def create_customer_with_data(client, **overrides):
-    data = {
-        "first_name": "John",
-        "middle_name": "Michael",
-        "last_name": "Smith",
-        "date_of_birth": "1990-05-15",
-        "nationality": "US",
-        "country_of_residence": "US",
-        "email": "john.smith@example.com",
-        "phone_number": "+249912345678",
-        "status": "new",
-    }
-
-    data.update(overrides)
-
-    return client.post(
-        "/api/v1/customers",
-        json=data,
-    )
-
-
-def create_verification_case(client, customer_id):
-    return client.post(
-        f"/api/v1/customers/{customer_id}/verification-cases",
-        json={
-            "verification_type": "IDENTITY",
-        },
-    )
-
-
-def get_passport_document_type(db_session):
-    document_type = (
-        db_session.query(VerificationDocumentType)
-        .filter(
-            VerificationDocumentType.name == "Passport",
-            VerificationDocumentType.is_active.is_(True),
-        )
-        .first()
-    )
-
-    assert document_type is not None
-
-    return document_type
-
-
-def upload_document(
-    client,
-    customer_id,
-    verification_case_id,
-    document_type_id,
-    filename="passport.pdf",
-    content_type="application/pdf",
-    content=b"%PDF-1.4 test document",
-):
-    return client.post(
-        (
-            f"/api/v1/customers/{customer_id}"
-            f"/verification-cases/{verification_case_id}"
-            "/documents"
-        ),
-        data={
-            "document_type_id": str(document_type_id),
-        },
-        files={
-            "file": (
-                filename,
-                BytesIO(content),
-                content_type,
-            ),
-        },
-    )
 
 
 def create_document() -> MagicMock:
@@ -781,9 +693,7 @@ def test_process_document_ocr_api_success(
         customer_id,
     )
 
-    assert verification_response.status_code == 201
-
-    verification_case_id = verification_response.json()["data"]["id"]
+    verification_case_id = verification_response["id"]
 
     document_type = get_passport_document_type(db_session)
 
@@ -861,9 +771,7 @@ def test_process_document_ocr_api_uses_authenticated_requester(
         customer_id,
     )
 
-    assert verification_response.status_code == 201
-
-    verification_case_id = verification_response.json()["data"]["id"]
+    verification_case_id = verification_response["id"]
 
     document_type = get_passport_document_type(db_session)
 
@@ -954,9 +862,7 @@ def test_process_document_ocr_api_persists_failed_result(
         customer_id,
     )
 
-    assert verification_response.status_code == 201
-
-    verification_case_id = verification_response.json()["data"]["id"]
+    verification_case_id = verification_response["id"]
 
     document_type = get_passport_document_type(db_session)
 
@@ -1091,9 +997,7 @@ def test_get_document_ocr_api_returns_latest_result(
         customer_id,
     )
 
-    assert verification_response.status_code == 201
-
-    verification_case_id = verification_response.json()["data"]["id"]
+    verification_case_id = verification_response["id"]
 
     document_type = get_passport_document_type(db_session)
 
@@ -1167,9 +1071,7 @@ def test_get_document_ocr_api_returns_404_when_no_result_exists(
         customer_id,
     )
 
-    assert verification_response.status_code == 201
-
-    verification_case_id = verification_response.json()["data"]["id"]
+    verification_case_id = verification_response["id"]
 
     document_type = get_passport_document_type(db_session)
 

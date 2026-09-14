@@ -1,24 +1,10 @@
 from uuid import UUID
 
 from app.utils.enums import UserRole
-
-
-def authenticate_client(client, user):
-    response = client.post(
-        "/api/v1/auth/login",
-        json={
-            "email": user.email,
-            "password": "Password123!",
-        },
-    )
-
-    assert response.status_code == 200
-
-    access_token = response.json()["data"]["access_token"]
-
-    client.headers.update(
-        {"Authorization": f"Bearer {access_token}"},
-    )
+from tests.helpers import (
+    authenticate_client,
+    create_customer_with_data,
+)
 
 
 def create_customer(client):
@@ -35,27 +21,6 @@ def create_customer(client):
             "phone_number": "+249912345678",
             "status": "new",
         },
-    )
-
-
-def create_customer_with_data(client, **overrides):
-    data = {
-        "first_name": "John",
-        "middle_name": "Michael",
-        "last_name": "Smith",
-        "date_of_birth": "1990-05-15",
-        "nationality": "US",
-        "country_of_residence": "US",
-        "email": "john.smith@example.com",
-        "phone_number": "+249912345678",
-        "status": "new",
-    }
-
-    data.update(overrides)
-
-    return client.post(
-        "/api/v1/customers",
-        json=data,
     )
 
 

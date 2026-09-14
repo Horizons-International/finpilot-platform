@@ -6,15 +6,17 @@ from pydantic import (
     ConfigDict,
     EmailStr,
     Field,
-    ValidationInfo,
-    field_validator,
 )
 
+from app.schemas.mixins import (
+    EmailFieldValidatorMixin,
+    NameFieldValidatorMixin,
+    PhoneFieldValidatorMixin,
+)
 from app.utils.enums import UserRole, UserStatus
-from app.utils.validators import validate_email, validate_name, validate_phone
 
 
-class UserCreate(BaseModel):
+class UserCreate(NameFieldValidatorMixin, EmailFieldValidatorMixin, BaseModel):
     first_name: str = Field(
         min_length=1,
         max_length=100,
@@ -30,32 +32,8 @@ class UserCreate(BaseModel):
     )
     role: UserRole
 
-    @field_validator(
-        "first_name",
-        "last_name",
-        mode="before",
-    )
-    @classmethod
-    def validate_names(
-        cls,
-        value: str,
-        info: ValidationInfo,
-    ) -> str:
-        field_name = info.field_name
 
-        if field_name is None:
-            field_name = "Name"
-
-        field_name = field_name.replace("_", " ").title()
-        return validate_name(value, field_name=field_name)
-
-    @field_validator("email", mode="before")
-    @classmethod
-    def validate_email_address(cls, value: str) -> str:
-        return validate_email(value)
-
-
-class UserUpdate(BaseModel):
+class UserUpdate(NameFieldValidatorMixin, EmailFieldValidatorMixin, BaseModel):
     first_name: str | None = Field(
         default=None,
         min_length=1,
@@ -68,34 +46,6 @@ class UserUpdate(BaseModel):
     )
     email: EmailStr | None = None
     role: UserRole | None = None
-
-    @field_validator(
-        "first_name",
-        "last_name",
-        mode="before",
-    )
-    @classmethod
-    def normalize_names(
-        cls,
-        value: str | None,
-        info: ValidationInfo,
-    ) -> str | None:
-        if value is None:
-            return None
-        field_name = info.field_name
-
-        if field_name is None:
-            field_name = "Name"
-
-        field_name = field_name.replace("_", " ").title()
-        return validate_name(value, field_name=field_name)
-
-    @field_validator("email", mode="before")
-    @classmethod
-    def normalize_email(cls, value: str | None) -> str | None:
-        if value is None:
-            return None
-        return validate_email(value)
 
 
 class UserStatusUpdate(BaseModel):
@@ -124,7 +74,9 @@ class UserListResponse(BaseModel):
     total_pages: int
 
 
-class ProfileUpdateRequest(BaseModel):
+class ProfileUpdateRequest(
+    NameFieldValidatorMixin, PhoneFieldValidatorMixin, BaseModel
+):
     first_name: str | None = Field(
         default=None,
         min_length=1,
@@ -141,33 +93,6 @@ class ProfileUpdateRequest(BaseModel):
         default=None,
         max_length=30,
     )
-
-    @field_validator(
-        "first_name",
-        "last_name",
-        mode="before",
-    )
-    @classmethod
-    def normalize_names(
-        cls,
-        value: str,
-        info: ValidationInfo,
-    ) -> str:
-        field_name = info.field_name
-
-        if field_name is None:
-            field_name = "Name"
-
-        field_name = field_name.replace("_", " ").title()
-        return validate_name(value, field_name=field_name)
-
-    @field_validator("phone_number", mode="before")
-    @classmethod
-    def validate_phone_number(cls, value: str | None) -> str | None:
-        if value is None:
-            return None
-
-        return validate_phone(value)
 
 
 class ProfileResponse(BaseModel):

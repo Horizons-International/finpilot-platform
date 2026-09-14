@@ -10,6 +10,9 @@ from sqlalchemy.orm import sessionmaker
 from app.core.config import settings
 from app.core.database import get_db
 from app.core.security import hash_password
+from app.extraction.providers.base import ExtractionProvider
+from app.extraction.services.dependencies import get_document_extraction_service
+from app.extraction.services.extraction_service import DocumentExtractionService
 from app.main import app
 from app.models.audit_log import AuditLog
 from app.models.customer import Customer
@@ -335,3 +338,19 @@ def ocr_service_override(db_session):
     yield apply
 
     app.dependency_overrides.pop(get_ocr_service, None)
+
+
+@pytest.fixture
+def extraction_service_override(db_session):
+    def apply(provider: ExtractionProvider) -> DocumentExtractionService:
+        service = DocumentExtractionService(
+            db=db_session,
+            provider=provider,
+        )
+
+        app.dependency_overrides[get_document_extraction_service] = lambda: service
+        return service
+
+    yield apply
+
+    app.dependency_overrides.pop(get_document_extraction_service, None)

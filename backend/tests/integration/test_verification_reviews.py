@@ -3,20 +3,10 @@ import uuid
 from app.models.verification_case import IdentityVerificationCase
 from app.models.verification_review import VerificationReview
 from app.utils.enums import ReviewDecision, UserRole, VerificationStatus
-
-
-def authenticate_client(client, user):
-    response = client.post(
-        "/api/v1/auth/login",
-        json={
-            "email": user.email,
-            "password": "Password123!",
-        },
-    )
-    assert response.status_code == 200
-
-    token = response.json()["data"]["access_token"]
-    client.headers.update({"Authorization": f"Bearer {token}"})
+from tests.helpers import (
+    authenticate_client,
+    initiate_verification,
+)
 
 
 def create_customer(client):
@@ -32,19 +22,6 @@ def create_customer(client):
             "email": f"customer-{uuid.uuid4()}@example.com",
             "phone_number": "+249912345678",
             "status": "new",
-        },
-    )
-
-    assert response.status_code in {200, 201}
-
-    return response.json()["data"]["id"]
-
-
-def create_verification_case(client, customer_id):
-    response = client.post(
-        f"/api/v1/customers/{customer_id}/verification",
-        json={
-            "verification_type": "IDENTITY",
         },
     )
 
@@ -104,10 +81,10 @@ def create_assigned_review_case(
     customer_id = create_customer(client)
 
     # Administrator creates the verification case.
-    case_id = create_verification_case(
+    case_id = initiate_verification(
         client,
         customer_id,
-    )
+    )["id"]
 
     # Create reviewer.
     _, reviewer = create_test_user(
@@ -284,7 +261,7 @@ def test_reviewer_cannot_review_case_assigned_to_another_reviewer(
     authenticate_client(client, admin)
 
     customer_id = create_customer(client)
-    case_id = create_verification_case(client, customer_id)
+    case_id = initiate_verification(client, customer_id)["id"]
 
     # Create two reviewers.
     _, assigned_reviewer = create_test_user(
@@ -339,7 +316,7 @@ def test_unassigned_reviewer_cannot_review_case(
     authenticate_client(client, admin)
 
     customer_id = create_customer(client)
-    case_id = create_verification_case(client, customer_id)
+    case_id = initiate_verification(client, customer_id)["id"]
 
     # Create reviewer but do not assign the case.
     _, reviewer = create_test_user(
@@ -461,7 +438,7 @@ def test_auditor_cannot_create_verification_review(
     authenticate_client(client, admin)
 
     customer_id = create_customer(client)
-    case_id = create_verification_case(client, customer_id)
+    case_id = initiate_verification(client, customer_id)["id"]
 
     _, user = create_test_user(
         role=UserRole.AUDITOR,

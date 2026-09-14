@@ -1,9 +1,10 @@
 from pydantic import BaseModel, ConfigDict, EmailStr, Field
 
+from app.schemas.mixins import EmailFieldValidatorMixin
 from app.utils.enums import UserRole, UserStatus
 
 
-class LoginRequest(BaseModel):
+class LoginRequest(EmailFieldValidatorMixin, BaseModel):
     email: EmailStr
     password: str = Field(
         min_length=8,
