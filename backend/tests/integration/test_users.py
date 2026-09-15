@@ -8,8 +8,8 @@ from app.models.user import User
 client = TestClient(app)
 
 
-def test_create_user(client, create_test_user):
-    db, admin = create_test_user(
+def test_create_user(client, create_test_user, db_session):
+    admin = create_test_user(
         role="Administrator",
         email="admin-user-test@example.com",
     )
@@ -48,27 +48,27 @@ def test_create_user(client, create_test_user):
     # The endpoint-created user is not created by create_test_user,
     # so explicitly remove it and its audit records.
     created_user = (
-        db.query(User).filter(User.email == "new-user-test@example.com").first()
+        db_session.query(User).filter(User.email == "new-user-test@example.com").first()
     )
 
     if created_user:
-        db.query(AuditLog).filter(AuditLog.user_id == created_user.id).delete(
+        db_session.query(AuditLog).filter(AuditLog.user_id == created_user.id).delete(
             synchronize_session=False
         )
 
-        db.delete(created_user)
-        db.commit()
+        db_session.delete(created_user)
+        db_session.commit()
 
-    db.close()
+    db_session.close()
 
 
 def test_get_user(client, create_test_user):
-    _, admin = create_test_user(
+    admin = create_test_user(
         role="Administrator",
         email="admin-get-user@example.com",
     )
 
-    _, target_user = create_test_user(
+    target_user = create_test_user(
         role="Reviewer",
         email="target-get-user@example.com",
     )
@@ -98,14 +98,9 @@ def test_get_user(client, create_test_user):
 
 
 def test_get_all_users(client, create_test_user):
-    _, admin = create_test_user(
+    admin = create_test_user(
         role="Administrator",
         email="admin-list-users@example.com",
-    )
-
-    _, target_user = create_test_user(
-        role="Reviewer",
-        email="target-list-users@example.com",
     )
 
     token = create_access_token(
@@ -135,12 +130,12 @@ def test_get_all_users(client, create_test_user):
 
 
 def test_update_user(client, create_test_user):
-    _, admin = create_test_user(
+    admin = create_test_user(
         role="Administrator",
         email="admin-update-user@example.com",
     )
 
-    _, target_user = create_test_user(
+    target_user = create_test_user(
         role="Reviewer",
         email="target-update-user@example.com",
     )
@@ -174,12 +169,12 @@ def test_update_user(client, create_test_user):
 
 
 def test_deactivate_user(client, create_test_user):
-    _, admin = create_test_user(
+    admin = create_test_user(
         role="Administrator",
         email="admin-deactivate@example.com",
     )
 
-    _, target_user = create_test_user(
+    target_user = create_test_user(
         role="Reviewer",
         email="target-deactivate@example.com",
     )
@@ -210,12 +205,12 @@ def test_deactivate_user(client, create_test_user):
 
 
 def test_delete_user(client, create_test_user):
-    _, admin = create_test_user(
+    admin = create_test_user(
         role="Administrator",
         email="admin-delete-user@example.com",
     )
 
-    _, target_user = create_test_user(
+    target_user = create_test_user(
         role="Reviewer",
         email="target-delete-user@example.com",
     )

@@ -25,7 +25,7 @@ def create_customer(client):
 
 
 def test_create_customer(client, create_test_user, cleanup_test_customers):
-    _, user = create_test_user(
+    user = create_test_user(
         role=UserRole.ADMINISTRATOR,
         email="customer-create@example.com",
     )
@@ -56,7 +56,7 @@ def test_create_customer(client, create_test_user, cleanup_test_customers):
 
 
 def test_get_customer(client, create_test_user, cleanup_test_customers):
-    _, user = create_test_user(
+    user = create_test_user(
         role=UserRole.ADMINISTRATOR,
         email="customer-get@example.com",
     )
@@ -89,7 +89,7 @@ def test_get_customer(client, create_test_user, cleanup_test_customers):
 
 
 def test_update_customer(client, create_test_user, cleanup_test_customers):
-    _, user = create_test_user(
+    user = create_test_user(
         role=UserRole.ADMINISTRATOR,
         email="customer-update@example.com",
     )
@@ -135,7 +135,7 @@ def test_update_customer(client, create_test_user, cleanup_test_customers):
 def test_update_customer_preserves_unchanged_fields(
     client, create_test_user, cleanup_test_customers
 ):
-    _, user = create_test_user(
+    user = create_test_user(
         role=UserRole.ADMINISTRATOR,
         email="customer-partial-update@example.com",
     )
@@ -172,7 +172,7 @@ def test_update_customer_preserves_unchanged_fields(
 
 
 def test_get_nonexistent_customer(client, create_test_user, cleanup_test_customers):
-    _, user = create_test_user(
+    user = create_test_user(
         role=UserRole.ADMINISTRATOR,
         email="customer-not-found@example.com",
     )
@@ -195,7 +195,7 @@ def test_get_nonexistent_customer(client, create_test_user, cleanup_test_custome
 def test_customer_create_requires_authorization(
     client, create_test_user, cleanup_test_customers
 ):
-    _, user = create_test_user(
+    user = create_test_user(
         role=UserRole.AUDITOR,
         email="customer-create-unauthorized@example.com",
     )
@@ -210,7 +210,7 @@ def test_customer_create_requires_authorization(
 def test_customer_get_requires_authorization(
     client, create_test_user, cleanup_test_customers
 ):
-    _, admin = create_test_user(
+    admin = create_test_user(
         role=UserRole.ADMINISTRATOR,
         email="customer-get-owner@example.com",
     )
@@ -225,7 +225,7 @@ def test_customer_get_requires_authorization(
 
     client.headers.clear()
 
-    _, auditor = create_test_user(
+    auditor = create_test_user(
         role=UserRole.AUDITOR,
         email="customer-get-unauthorized@example.com",
     )
@@ -242,7 +242,7 @@ def test_customer_get_requires_authorization(
 def test_customer_update_requires_authorization(
     client, create_test_user, cleanup_test_customers
 ):
-    _, admin = create_test_user(
+    admin = create_test_user(
         role=UserRole.ADMINISTRATOR,
         email="customer-update-owner@example.com",
     )
@@ -257,7 +257,7 @@ def test_customer_update_requires_authorization(
 
     client.headers.clear()
 
-    _, auditor = create_test_user(
+    auditor = create_test_user(
         role=UserRole.AUDITOR,
         email="customer-update-unauthorized@example.com",
     )
@@ -279,7 +279,7 @@ def test_create_customer_validates_required_fields(
     create_test_user,
     cleanup_test_customers,
 ):
-    _, user = create_test_user(
+    user = create_test_user(
         role=UserRole.ADMINISTRATOR,
         email="customer-validation@example.com",
     )
@@ -299,7 +299,7 @@ def test_create_customer_validates_required_fields(
 
 
 def test_search_customers_by_name(client, create_test_user, cleanup_test_customers):
-    _, user = create_test_user(
+    user = create_test_user(
         role=UserRole.ADMINISTRATOR,
         email="customer-search-name@example.com",
     )
@@ -340,7 +340,7 @@ def test_search_customers_by_email(
     create_test_user,
     cleanup_test_customers,
 ):
-    _, user = create_test_user(
+    user = create_test_user(
         role=UserRole.ADMINISTRATOR,
         email="customer-search-email@example.com",
     )
@@ -381,7 +381,7 @@ def test_search_customers_by_phone_number(
     create_test_user,
     cleanup_test_customers,
 ):
-    _, user = create_test_user(
+    user = create_test_user(
         role=UserRole.ADMINISTRATOR,
         email="customer-search-phone@example.com",
     )
@@ -423,7 +423,7 @@ def test_search_customers_by_id(
     create_test_user,
     cleanup_test_customers,
 ):
-    _, user = create_test_user(
+    user = create_test_user(
         role=UserRole.ADMINISTRATOR,
         email="customer-search-id@example.com",
     )
@@ -462,7 +462,7 @@ def test_search_customers_returns_empty_results(
     client,
     create_test_user,
 ):
-    _, user = create_test_user(
+    user = create_test_user(
         role=UserRole.ADMINISTRATOR,
         email="customer-search-empty@example.com",
     )
@@ -490,7 +490,7 @@ def test_search_customers_pagination(
     create_test_user,
     cleanup_test_customers,
 ):
-    _, user = create_test_user(
+    user = create_test_user(
         role=UserRole.ADMINISTRATOR,
         email="customer-search-pagination@example.com",
     )
@@ -561,7 +561,7 @@ def test_search_customers_by_status(
     create_test_user,
     cleanup_test_customers,
 ):
-    _, user = create_test_user(
+    user = create_test_user(
         role=UserRole.ADMINISTRATOR,
         email="customer-search-status@example.com",
     )
@@ -616,7 +616,7 @@ def test_search_customers_requires_authorization(
     client,
     create_test_user,
 ):
-    _, user = create_test_user(
+    user = create_test_user(
         role=UserRole.AUDITOR,
         email="customer-search-unauthorized@example.com",
     )

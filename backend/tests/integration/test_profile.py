@@ -7,7 +7,7 @@ client = TestClient(app)
 
 
 def test_user_can_get_own_profile(client, create_test_user):
-    _, user = create_test_user(
+    user = create_test_user(
         role="Reviewer",
         email="profile-get@example.com",
     )
@@ -28,7 +28,7 @@ def test_user_can_get_own_profile(client, create_test_user):
 
 
 def test_user_can_update_own_profile(client, create_test_user):
-    _, user = create_test_user(
+    user = create_test_user(
         role="Reviewer",
         email="profile-update@example.com",
     )
@@ -60,8 +60,8 @@ def test_unauthenticated_user_cannot_get_profile(client):
     assert response.status_code == 401
 
 
-def test_user_cannot_change_role(client, create_test_user):
-    db, user = create_test_user(
+def test_user_cannot_change_role(client, create_test_user, db_session):
+    user = create_test_user(
         role="Reviewer",
         email="profile-role@example.com",
     )
@@ -86,7 +86,5 @@ def test_user_cannot_change_role(client, create_test_user):
 
     # The profile endpoint should ignore the role field.
     assert data["role"] == original_role
-
-    db.refresh(user)
 
     assert user.role == original_role

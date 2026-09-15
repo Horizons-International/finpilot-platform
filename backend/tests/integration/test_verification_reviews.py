@@ -69,7 +69,7 @@ def create_assigned_review_case(
     create_test_user,
 ):
     # Create administrator.
-    _, admin = create_test_user(
+    admin = create_test_user(
         role=UserRole.ADMINISTRATOR,
         email=f"admin-{uuid.uuid4()}@example.com",
     )
@@ -87,7 +87,7 @@ def create_assigned_review_case(
     )["id"]
 
     # Create reviewer.
-    _, reviewer = create_test_user(
+    reviewer = create_test_user(
         role=UserRole.REVIEWER,
         email=f"reviewer-{uuid.uuid4()}@example.com",
     )
@@ -253,7 +253,7 @@ def test_reviewer_cannot_review_case_assigned_to_another_reviewer(
     cleanup_test_customers,
 ):
     # Admin creates customer and case.
-    _, admin = create_test_user(
+    admin = create_test_user(
         role=UserRole.ADMINISTRATOR,
         email=f"admin-{uuid.uuid4()}@example.com",
     )
@@ -264,12 +264,12 @@ def test_reviewer_cannot_review_case_assigned_to_another_reviewer(
     case_id = initiate_verification(client, customer_id)["id"]
 
     # Create two reviewers.
-    _, assigned_reviewer = create_test_user(
+    assigned_reviewer = create_test_user(
         role=UserRole.REVIEWER,
         email=f"assigned-{uuid.uuid4()}@example.com",
     )
 
-    _, reviewer = create_test_user(
+    reviewer = create_test_user(
         role=UserRole.REVIEWER,
         email=f"reviewer-{uuid.uuid4()}@example.com",
     )
@@ -308,7 +308,7 @@ def test_unassigned_reviewer_cannot_review_case(
     cleanup_test_customers,
 ):
     # Admin creates customer and case.
-    _, admin = create_test_user(
+    admin = create_test_user(
         role=UserRole.ADMINISTRATOR,
         email=f"admin-{uuid.uuid4()}@example.com",
     )
@@ -319,7 +319,7 @@ def test_unassigned_reviewer_cannot_review_case(
     case_id = initiate_verification(client, customer_id)["id"]
 
     # Create reviewer but do not assign the case.
-    _, reviewer = create_test_user(
+    reviewer = create_test_user(
         role=UserRole.REVIEWER,
         email=f"reviewer-{uuid.uuid4()}@example.com",
     )
@@ -430,7 +430,7 @@ def test_auditor_cannot_create_verification_review(
     create_test_user,
     cleanup_test_customers,
 ):
-    _, admin = create_test_user(
+    admin = create_test_user(
         role=UserRole.ADMINISTRATOR,
         email=f"admin-{uuid.uuid4()}@example.com",
     )
@@ -440,7 +440,7 @@ def test_auditor_cannot_create_verification_review(
     customer_id = create_customer(client)
     case_id = initiate_verification(client, customer_id)["id"]
 
-    _, user = create_test_user(
+    user = create_test_user(
         role=UserRole.AUDITOR,
         email=f"auditor-{uuid.uuid4()}@example.com",
     )

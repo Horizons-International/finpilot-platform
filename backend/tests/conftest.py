@@ -49,14 +49,9 @@ TestSessionLocal = sessionmaker(
 
 
 @pytest.fixture
-def client():
+def client(db_session):
     def override_get_db():
-        db = TestSessionLocal()
-
-        try:
-            yield db
-        finally:
-            db.close()
+        yield db_session
 
     app.dependency_overrides[get_db] = override_get_db
 
@@ -83,42 +78,45 @@ def create_test_user():
     def _create_test_user(role: str, email: str):
         db = TestSessionLocal()
 
-        user = User(
-            first_name="Test",
-            last_name="User",
-            email=email,
-            password_hash=hash_password("Password123!"),
-            status=UserStatus.ACTIVE,
-            role=role,
-            is_deleted=False,
-        )
+        try:
+            user = User(
+                first_name="Test",
+                last_name="User",
+                email=email,
+                password_hash=hash_password("Password123!"),
+                status=UserStatus.ACTIVE,
+                role=role,
+                is_deleted=False,
+            )
 
-        db.add(user)
-        db.commit()
-        db.refresh(user)
+            db.add(user)
+            db.commit()
+            db.refresh(user)
 
-        user_id = user.id
+            user_id = user.id
+            created_user_ids.append(user_id)
 
-        created_user_ids.append((db, user_id))
+            return user
 
-        return db, user
+        finally:
+            db.close()
 
     yield _create_test_user
 
+    db = TestSessionLocal()
+
     try:
-        for db, user_id in created_user_ids:
-            # Delete audit records first because they reference the user.
+        for user_id in created_user_ids:
             db.query(AuditLog).filter(AuditLog.user_id == user_id).delete(
                 synchronize_session=False
             )
 
-            # Retrieve the current User from this session.
             user = db.query(User).filter(User.id == user_id).first()
 
             if user:
                 db.delete(user)
 
-            db.commit()
+        db.commit()
 
     finally:
         db.close()
@@ -186,7 +184,7 @@ def create_test_customer():
         db.commit()
         db.refresh(customer)
 
-        created_customer_ids.append(customer)
+        created_customer_ids.append(customer.id)
 
         db.close()
 
@@ -210,12 +208,17 @@ def create_test_customer():
 
 @pytest.fixture
 def cleanup_test_customers():
-    db = TestSessionLocal()
-    repository = CustomerRepository(db)
+    setup_db = TestSessionLocal()
+    repository = CustomerRepository(setup_db)
 
     existing_customers = {customer.id for customer in repository.get_all()}
 
+    setup_db.close()
+
     yield
+
+    db = TestSessionLocal()
+    repository = CustomerRepository(db)
 
     current_customers = repository.get_all()
 

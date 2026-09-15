@@ -4,7 +4,7 @@ from tests.helpers import authenticate_client
 
 
 def test_upload_file(client, create_test_user, cleanup_test_files):
-    _, user = create_test_user(
+    user = create_test_user(
         role=UserRole.ADMINISTRATOR,
         email="file-upload@example.com",
     )
@@ -37,7 +37,7 @@ def test_upload_file(client, create_test_user, cleanup_test_files):
 
 
 def test_upload_rejects_invalid_file_type(client, create_test_user):
-    _, user = create_test_user(
+    user = create_test_user(
         role=UserRole.ADMINISTRATOR,
         email="file-invalid-type@example.com",
     )
@@ -63,7 +63,7 @@ def test_upload_rejects_invalid_file_type(client, create_test_user):
 
 
 def test_upload_duplicate_filenames(client, create_test_user, cleanup_test_files):
-    _, user = create_test_user(
+    user = create_test_user(
         role=UserRole.ADMINISTRATOR,
         email="file-duplicate@example.com",
     )
@@ -108,7 +108,7 @@ def test_upload_duplicate_filenames(client, create_test_user, cleanup_test_files
 
 
 def test_download_file(client, create_test_user, cleanup_test_files):
-    _, user = create_test_user(
+    user = create_test_user(
         role=UserRole.ADMINISTRATOR,
         email="file-download@example.com",
     )
@@ -143,7 +143,7 @@ def test_download_file(client, create_test_user, cleanup_test_files):
 
 
 def test_delete_file(client, create_test_user, cleanup_test_files):
-    _, admin = create_test_user(
+    admin = create_test_user(
         role=UserRole.ADMINISTRATOR,
         email="file-delete@example.com",
     )
@@ -177,7 +177,7 @@ def test_delete_file(client, create_test_user, cleanup_test_files):
 
 
 def test_upload_rejects_large_file(client, create_test_user):
-    _, user = create_test_user(
+    user = create_test_user(
         role=UserRole.ADMINISTRATOR,
         email="file-large@example.com",
     )
@@ -201,7 +201,7 @@ def test_upload_rejects_large_file(client, create_test_user):
 
 
 def test_delete_file_requires_admin(client, create_test_user, cleanup_test_files):
-    _, user = create_test_user(
+    user = create_test_user(
         role=UserRole.AUDITOR,
         email="file-non-admin-delete@example.com",
     )

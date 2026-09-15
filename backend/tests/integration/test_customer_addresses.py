@@ -49,7 +49,7 @@ def test_create_customer_address(
     create_test_user,
     cleanup_test_customers,
 ):
-    _, user = create_test_user(
+    user = create_test_user(
         role=UserRole.ADMINISTRATOR,
         email="address-create@example.com",
     )
@@ -94,7 +94,7 @@ def test_get_customer_addresses(
     create_test_user,
     cleanup_test_customers,
 ):
-    _, user = create_test_user(
+    user = create_test_user(
         role=UserRole.ADMINISTRATOR,
         email="address-get@example.com",
     )
@@ -151,7 +151,7 @@ def test_update_customer_address(
     create_test_user,
     cleanup_test_customers,
 ):
-    _, user = create_test_user(
+    user = create_test_user(
         role=UserRole.ADMINISTRATOR,
         email="address-update@example.com",
     )
@@ -205,7 +205,7 @@ def test_update_customer_address_preserves_unchanged_fields(
     create_test_user,
     cleanup_test_customers,
 ):
-    _, user = create_test_user(
+    user = create_test_user(
         role=UserRole.ADMINISTRATOR,
         email="address-partial-update@example.com",
     )
@@ -254,7 +254,7 @@ def test_set_customer_address_primary(
     create_test_user,
     cleanup_test_customers,
 ):
-    _, user = create_test_user(
+    user = create_test_user(
         role=UserRole.ADMINISTRATOR,
         email="address-primary@example.com",
     )
@@ -330,7 +330,7 @@ def test_get_nonexistent_customer_address(
     create_test_user,
     cleanup_test_customers,
 ):
-    _, user = create_test_user(
+    user = create_test_user(
         role=UserRole.ADMINISTRATOR,
         email="address-not-found@example.com",
     )
@@ -356,7 +356,7 @@ def test_customer_address_create_requires_authorization(
     create_test_user,
     cleanup_test_customers,
 ):
-    _, user = create_test_user(
+    user = create_test_user(
         role=UserRole.AUDITOR,
         email="address-create-unauthorized@example.com",
     )
@@ -378,7 +378,7 @@ def test_customer_address_get_requires_authorization(
     create_test_user,
     cleanup_test_customers,
 ):
-    _, admin = create_test_user(
+    admin = create_test_user(
         role=UserRole.ADMINISTRATOR,
         email="address-get-owner@example.com",
     )
@@ -393,7 +393,7 @@ def test_customer_address_get_requires_authorization(
 
     client.headers.clear()
 
-    _, auditor = create_test_user(
+    auditor = create_test_user(
         role=UserRole.AUDITOR,
         email="address-get-unauthorized@example.com",
     )
@@ -412,7 +412,7 @@ def test_customer_address_update_requires_authorization(
     create_test_user,
     cleanup_test_customers,
 ):
-    _, admin = create_test_user(
+    admin = create_test_user(
         role=UserRole.ADMINISTRATOR,
         email="address-update-owner@example.com",
     )
@@ -436,7 +436,7 @@ def test_customer_address_update_requires_authorization(
 
     client.headers.clear()
 
-    _, auditor = create_test_user(
+    auditor = create_test_user(
         role=UserRole.AUDITOR,
         email="address-update-unauthorized@example.com",
     )
@@ -458,7 +458,7 @@ def test_create_customer_address_missing_required_field(
     create_test_user,
     cleanup_test_customers,
 ):
-    _, user = create_test_user(
+    user = create_test_user(
         email="address.missing@example.com",
         role=UserRole.ADMINISTRATOR,
     )
@@ -490,7 +490,7 @@ def test_create_customer_address_invalid_address_type(
     create_test_user,
     cleanup_test_customers,
 ):
-    _, user = create_test_user(
+    user = create_test_user(
         email="address.invalid.type@example.com",
         role=UserRole.ADMINISTRATOR,
     )
@@ -515,7 +515,7 @@ def test_update_nonexistent_customer_address(
     create_test_user,
     cleanup_test_customers,
 ):
-    _, user = create_test_user(
+    user = create_test_user(
         email="address.update.missing@example.com",
         role=UserRole.ADMINISTRATOR,
     )
@@ -543,7 +543,7 @@ def test_update_customer_address_belonging_to_another_customer(
     create_test_user,
     cleanup_test_customers,
 ):
-    _, user = create_test_user(
+    user = create_test_user(
         email="address.update.other@example.com",
         role=UserRole.ADMINISTRATOR,
     )
@@ -582,7 +582,7 @@ def test_set_nonexistent_customer_address_as_primary(
     create_test_user,
     cleanup_test_customers,
 ):
-    _, user = create_test_user(
+    user = create_test_user(
         email="address.primary.missing@example.com",
         role=UserRole.ADMINISTRATOR,
     )
@@ -607,7 +607,7 @@ def test_set_another_customers_address_as_primary(
     create_test_user,
     cleanup_test_customers,
 ):
-    _, user = create_test_user(
+    user = create_test_user(
         email="address.primary.other@example.com",
         role=UserRole.ADMINISTRATOR,
     )
@@ -643,7 +643,7 @@ def test_create_second_primary_address_makes_first_address_non_primary(
     create_test_user,
     cleanup_test_customers,
 ):
-    _, user = create_test_user(
+    user = create_test_user(
         email="address.second.primary@example.com",
         role=UserRole.ADMINISTRATOR,
     )
@@ -699,7 +699,7 @@ def test_mark_secondary_address_as_primary_makes_previous_primary_non_primary(
     create_test_user,
     cleanup_test_customers,
 ):
-    _, user = create_test_user(
+    user = create_test_user(
         email="address.change.primary@example.com",
         role=UserRole.ADMINISTRATOR,
     )
@@ -763,7 +763,7 @@ def test_customer_can_have_multiple_non_primary_addresses(
     create_test_user,
     cleanup_test_customers,
 ):
-    _, user = create_test_user(
+    user = create_test_user(
         email="address.multiple.nonprimary@example.com",
         role=UserRole.ADMINISTRATOR,
     )
@@ -808,7 +808,7 @@ def test_update_customer_address_all_fields(
     create_test_user,
     cleanup_test_customers,
 ):
-    _, user = create_test_user(
+    user = create_test_user(
         email="address.update.all@example.com",
         role=UserRole.ADMINISTRATOR,
     )
@@ -858,7 +858,7 @@ def test_update_customer_address_type(
     create_test_user,
     cleanup_test_customers,
 ):
-    _, user = create_test_user(
+    user = create_test_user(
         email="address.update.type@example.com",
         role=UserRole.ADMINISTRATOR,
     )
@@ -901,7 +901,7 @@ def test_update_customer_address_sets_nullable_fields_to_null(
     create_test_user,
     cleanup_test_customers,
 ):
-    _, user = create_test_user(
+    user = create_test_user(
         email="address.update.nulls@example.com",
         role=UserRole.ADMINISTRATOR,
     )
@@ -951,7 +951,7 @@ def test_create_customer_address_rejects_empty_required_fields(
     create_test_user,
     cleanup_test_customers,
 ):
-    _, user = create_test_user(
+    user = create_test_user(
         email="address.empty.required@example.com",
         role=UserRole.ADMINISTRATOR,
     )
@@ -978,7 +978,7 @@ def test_create_customer_address_rejects_whitespace_only_city(
     create_test_user,
     cleanup_test_customers,
 ):
-    _, user = create_test_user(
+    user = create_test_user(
         email="address.whitespace.city@example.com",
         role=UserRole.ADMINISTRATOR,
     )
@@ -1005,7 +1005,7 @@ def test_create_customer_address_rejects_whitespace_only_country(
     create_test_user,
     cleanup_test_customers,
 ):
-    _, user = create_test_user(
+    user = create_test_user(
         email="address.whitespace.country@example.com",
         role=UserRole.ADMINISTRATOR,
     )
@@ -1032,7 +1032,7 @@ def test_customer_address_set_primary_requires_authorization(
     create_test_user,
     cleanup_test_customers,
 ):
-    _, user = create_test_user(
+    user = create_test_user(
         email="address.primary.auth@example.com",
         role=UserRole.ADMINISTRATOR,
     )
@@ -1065,7 +1065,7 @@ def test_customer_address_sets_created_and_updated_timestamps(
     create_test_user,
     cleanup_test_customers,
 ):
-    _, user = create_test_user(
+    user = create_test_user(
         email="address.timestamps@example.com",
         role=UserRole.ADMINISTRATOR,
     )
@@ -1093,7 +1093,7 @@ def test_customer_address_updated_at_changes_on_update(
     create_test_user,
     cleanup_test_customers,
 ):
-    _, user = create_test_user(
+    user = create_test_user(
         email="address.updated.timestamp@example.com",
         role=UserRole.ADMINISTRATOR,
     )

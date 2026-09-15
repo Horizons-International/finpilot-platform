@@ -24,6 +24,7 @@ from app.models.document_extraction import DocumentExtraction
 from app.models.ocr_result import OCRResult
 from app.utils.enums import (
     AuditEventType,
+    ExtractionReviewStatus,
     ExtractionStatus,
     OCRProcessingStatus,
     UserRole,
@@ -60,7 +61,9 @@ def cleanup_extraction_storage():
 
 def test_document_extraction_response_accepts_complete_data():
     result = DocumentExtractionResponse(
-        full_name="John Doe",
+        first_name="John",
+        middle_name=None,
+        last_name="Doe",
         date_of_birth=date(1990, 1, 1),
         nationality="Sudanese",
         document_number="P123456",
@@ -68,7 +71,9 @@ def test_document_extraction_response_accepts_complete_data():
         address="Khartoum, Sudan",
     )
 
-    assert result.full_name == "John Doe"
+    assert result.first_name == "John"
+    assert result.middle_name is None
+    assert result.last_name == "Doe"
     assert result.date_of_birth == date(1990, 1, 1)
     assert result.nationality == "Sudanese"
     assert result.document_number == "P123456"
@@ -79,7 +84,8 @@ def test_document_extraction_response_accepts_complete_data():
 def test_document_extraction_response_accepts_ai_json():
     result = DocumentExtractionResponse.model_validate(
         {
-            "full_name": "John Doe",
+            "first_name": "John",
+            "last_name": "Doe",
             "date_of_birth": "1990-01-01",
             "nationality": "Sudanese",
             "document_number": "P123456",
@@ -88,18 +94,21 @@ def test_document_extraction_response_accepts_ai_json():
         }
     )
 
-    assert result.full_name == "John Doe"
+    assert result.first_name == "John"
+    assert result.last_name == "Doe"
     assert result.date_of_birth == date(1990, 1, 1)
     assert result.expiry_date == date(2030, 1, 1)
 
 
 def test_document_extraction_response_allows_missing_fields():
     result = DocumentExtractionResponse(
-        full_name="John Doe",
+        first_name="John",
+        last_name="Doe",
         document_number="P123456",
     )
 
-    assert result.full_name == "John Doe"
+    assert result.first_name == "John"
+    assert result.last_name == "Doe"
     assert result.document_number == "P123456"
     assert result.date_of_birth is None
     assert result.nationality is None
@@ -111,7 +120,8 @@ def test_document_extraction_response_rejects_invalid_date():
     with pytest.raises(ValidationError):
         DocumentExtractionResponse.model_validate(
             {
-                "full_name": "John Doe",
+                "first_name": "John",
+                "last_name": "Doe",
                 "date_of_birth": "not-a-date",
             }
         )
@@ -121,7 +131,8 @@ def test_document_extraction_response_rejects_unexpected_fields():
     with pytest.raises(ValidationError):
         DocumentExtractionResponse.model_validate(
             {
-                "full_name": "John Doe",
+                "first_name": "John",
+                "last_name": "Doe",
                 "document_number": "P123456",
                 "passport_color": "blue",
             }
@@ -137,7 +148,8 @@ def test_mock_extraction_provider_returns_configured_response():
     document_id = uuid4()
 
     expected = DocumentExtractionResponse(
-        full_name="John Doe",
+        first_name="John",
+        last_name="Doe",
         date_of_birth=date(1990, 1, 1),
         nationality="Sudanese",
         document_number="P123456",
@@ -160,7 +172,8 @@ def test_mock_extraction_provider_receives_ocr_text():
     ocr_text = "John Doe\nPassport Number: P123456"
 
     expected = DocumentExtractionResponse(
-        full_name="John Doe",
+        first_name="John",
+        last_name="Doe",
         document_number="P123456",
     )
 
@@ -288,11 +301,12 @@ def create_ocr_result(
 
 
 def create_extraction_response(
-    full_name: str | None = "John Doe",
     document_number: str | None = "P123456",
 ) -> DocumentExtractionResponse:
     return DocumentExtractionResponse(
-        full_name=full_name,
+        first_name="John",
+        middle_name=None,
+        last_name="Doe",
         date_of_birth=date(1990, 1, 1),
         nationality="Sudanese",
         document_number=document_number,
@@ -324,7 +338,7 @@ def test_extract_document_sends_ocr_text_to_provider(
     create_test_user,
     cleanup_test_customers,
 ):
-    _, admin = create_test_user(
+    admin = create_test_user(
         role=UserRole.ADMINISTRATOR,
         email="extraction-admin@example.com",
     )
@@ -352,7 +366,7 @@ def test_extract_document_stores_extracted_fields(
     create_test_user,
     cleanup_test_customers,
 ):
-    _, admin = create_test_user(
+    admin = create_test_user(
         role=UserRole.ADMINISTRATOR,
         email="extraction-fields@example.com",
     )
@@ -370,7 +384,9 @@ def test_extract_document_stores_extracted_fields(
         requested_by=admin.id,
     )
 
-    assert result.full_name == "John Doe"
+    assert result.first_name == "John"
+    assert result.middle_name is None
+    assert result.last_name == "Doe"
     assert result.date_of_birth == date(1990, 1, 1)
     assert result.nationality == "Sudanese"
     assert result.document_number == "P123456"
@@ -383,7 +399,7 @@ def test_extract_document_stores_provider_name(
     create_test_user,
     cleanup_test_customers,
 ):
-    _, admin = create_test_user(
+    admin = create_test_user(
         role=UserRole.ADMINISTRATOR,
         email="extraction-provider-name@example.com",
     )
@@ -410,7 +426,7 @@ def test_extract_document_sets_processing_status_before_provider_call(
     create_test_user,
     cleanup_test_customers,
 ):
-    _, admin = create_test_user(
+    admin = create_test_user(
         role=UserRole.ADMINISTRATOR,
         email="extraction-processing@example.com",
     )
@@ -437,7 +453,7 @@ def test_extract_document_creates_extraction_record(
     create_test_user,
     cleanup_test_customers,
 ):
-    _, admin = create_test_user(
+    admin = create_test_user(
         role=UserRole.ADMINISTRATOR,
         email="extraction-record@example.com",
     )
@@ -462,7 +478,9 @@ def test_extract_document_creates_extraction_record(
     assert isinstance(created_extraction, DocumentExtraction)
     assert created_extraction.document_id == document.id
     assert created_extraction.status == ExtractionStatus.COMPLETED
-    assert created_extraction.full_name == result.full_name
+    assert created_extraction.review_status == (ExtractionReviewStatus.PENDING_REVIEW)
+    assert created_extraction.first_name == result.first_name
+    assert created_extraction.last_name == result.last_name
 
 
 def test_extract_document_handles_provider_error(
@@ -470,7 +488,7 @@ def test_extract_document_handles_provider_error(
     create_test_user,
     cleanup_test_customers,
 ):
-    _, admin = create_test_user(
+    admin = create_test_user(
         role=UserRole.ADMINISTRATOR,
         email="extraction-provider-error@example.com",
     )
@@ -505,7 +523,7 @@ def test_extract_document_handles_unexpected_provider_error(
     create_test_user,
     cleanup_test_customers,
 ):
-    _, admin = create_test_user(
+    admin = create_test_user(
         role=UserRole.ADMINISTRATOR,
         email="extraction-unexpected-error@example.com",
     )
@@ -538,7 +556,7 @@ def test_extract_document_handles_empty_provider_response(
     create_test_user,
     cleanup_test_customers,
 ):
-    _, admin = create_test_user(
+    admin = create_test_user(
         role=UserRole.ADMINISTRATOR,
         email="extraction-empty-response@example.com",
     )
@@ -576,7 +594,7 @@ def test_extract_document_by_id_raises_for_missing_document(
     create_test_user,
     cleanup_test_customers,
 ):
-    _, admin = create_test_user(
+    admin = create_test_user(
         role=UserRole.ADMINISTRATOR,
         email="extraction-missing-document@example.com",
     )
@@ -611,7 +629,7 @@ def test_extract_document_by_id_raises_when_no_completed_ocr_result(
     create_test_user,
     cleanup_test_customers,
 ):
-    _, admin = create_test_user(
+    admin = create_test_user(
         role=UserRole.ADMINISTRATOR,
         email="extraction-no-ocr@example.com",
     )
@@ -651,7 +669,7 @@ def test_extract_document_by_id_commits_successfully(
     create_test_user,
     cleanup_test_customers,
 ):
-    _, admin = create_test_user(
+    admin = create_test_user(
         role=UserRole.ADMINISTRATOR,
         email="extraction-commit@example.com",
     )
@@ -688,7 +706,7 @@ def test_extract_document_by_id_commits_failed_result(
     create_test_user,
     cleanup_test_customers,
 ):
-    _, admin = create_test_user(
+    admin = create_test_user(
         role=UserRole.ADMINISTRATOR,
         email="extraction-commit-failed@example.com",
     )
@@ -733,11 +751,6 @@ def test_get_latest_result(
     create_test_user,
     cleanup_test_customers,
 ):
-    _, admin = create_test_user(
-        role=UserRole.ADMINISTRATOR,
-        email="extraction-get-latest@example.com",
-    )
-
     document_id = uuid.uuid4()
 
     provider = MockExtractionProvider()
@@ -766,11 +779,6 @@ def test_get_latest_result_returns_none_when_not_found(
     create_test_user,
     cleanup_test_customers,
 ):
-    _, admin = create_test_user(
-        role=UserRole.ADMINISTRATOR,
-        email="extraction-get-latest-none@example.com",
-    )
-
     document_id = uuid.uuid4()
 
     provider = MockExtractionProvider()
@@ -800,7 +808,7 @@ def test_extract_document_api_success(
     db_session,
     extraction_service_override,
 ):
-    _, admin = create_test_user(
+    admin = create_test_user(
         role=UserRole.ADMINISTRATOR,
         email="extraction-api-admin@example.com",
     )
@@ -868,8 +876,11 @@ def test_extract_document_api_success(
     assert body["success"] is True
     assert body["data"]["document_id"] == str(document_id)
     assert body["data"]["ocr_result_id"] == str(ocr_result.id)
-    assert body["data"]["status"] == ExtractionStatus.COMPLETED.value
-    assert body["data"]["full_name"] == "John Doe"
+    assert body["data"]["extraction_status"] == ExtractionStatus.COMPLETED.value
+    assert body["data"]["review_status"] == ExtractionReviewStatus.PENDING_REVIEW.value
+    assert body["data"]["first_name"] == "John"
+    assert body["data"]["middle_name"] is None
+    assert body["data"]["last_name"] == "Doe"
     assert body["data"]["document_number"] == "P123456"
 
     stored_extraction = (
@@ -903,7 +914,7 @@ def test_extract_document_api_persists_failed_result(
     db_session,
     extraction_service_override,
 ):
-    _, admin = create_test_user(
+    admin = create_test_user(
         role=UserRole.ADMINISTRATOR,
         email="extraction-api-failure@example.com",
     )
@@ -987,7 +998,7 @@ def test_extract_document_api_returns_400_when_no_completed_ocr_result(
     db_session,
     extraction_service_override,
 ):
-    _, admin = create_test_user(
+    admin = create_test_user(
         role=UserRole.ADMINISTRATOR,
         email="extraction-api-no-ocr@example.com",
     )
@@ -1045,7 +1056,7 @@ def test_extract_document_api_returns_404_for_missing_document(
     cleanup_test_customers,
     extraction_service_override,
 ):
-    _, admin = create_test_user(
+    admin = create_test_user(
         role=UserRole.ADMINISTRATOR,
         email="extraction-api-missing@example.com",
     )
@@ -1083,7 +1094,7 @@ def test_extract_document_api_rejects_non_admin_non_compliance(
     create_test_user,
     cleanup_test_customers,
 ):
-    _, auditor = create_test_user(
+    auditor = create_test_user(
         role=UserRole.AUDITOR,
         email="extraction-api-auditor@example.com",
     )
@@ -1105,7 +1116,7 @@ def test_get_document_extraction_api_returns_latest_result(
     cleanup_test_customers,
     db_session,
 ):
-    _, admin = create_test_user(
+    admin = create_test_user(
         role=UserRole.ADMINISTRATOR,
         email="extraction-api-get@example.com",
     )
@@ -1163,7 +1174,8 @@ def test_get_document_extraction_api_returns_latest_result(
         ocr_result_id=ocr_result.id,
         provider_name="fake",
         status=ExtractionStatus.COMPLETED,
-        full_name="John Doe",
+        first_name="John",
+        last_name="Doe",
         document_number="P123456",
     )
 
@@ -1182,8 +1194,9 @@ def test_get_document_extraction_api_returns_latest_result(
     assert body["success"] is True
     assert body["data"]["id"] == str(extraction.id)
     assert body["data"]["document_id"] == str(document_id)
-    assert body["data"]["full_name"] == "John Doe"
-    assert body["data"]["status"] == ExtractionStatus.COMPLETED.value
+    assert body["data"]["first_name"] == "John"
+    assert body["data"]["last_name"] == "Doe"
+    assert body["data"]["extraction_status"] == ExtractionStatus.COMPLETED.value
 
 
 def test_get_document_extraction_api_returns_404_when_no_result_exists(
@@ -1192,7 +1205,7 @@ def test_get_document_extraction_api_returns_404_when_no_result_exists(
     cleanup_test_customers,
     db_session,
 ):
-    _, admin = create_test_user(
+    admin = create_test_user(
         role=UserRole.ADMINISTRATOR,
         email="extraction-api-get-none@example.com",
     )

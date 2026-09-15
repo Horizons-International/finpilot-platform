@@ -12,7 +12,12 @@ from app.repositories.document_extraction_repository import (
     DocumentExtractionRepository,
 )
 from app.services.audit_service import AuditService
-from app.utils.enums import AuditEventType, ExtractionStatus, OCRProcessingStatus
+from app.utils.enums import (
+    AuditEventType,
+    ExtractionReviewStatus,
+    ExtractionStatus,
+    OCRProcessingStatus,
+)
 from app.utils.errors import bad_request, not_found
 
 logger = get_logger(__name__)
@@ -47,6 +52,7 @@ class DocumentExtractionService:
             ocr_result_id=ocr_result.id,
             provider_name=self.provider.__class__.__name__,
             status=ExtractionStatus.SUBMITTED,
+            review_status=ExtractionReviewStatus.PENDING_REVIEW,
         )
 
         self.repository.create(extraction)
@@ -74,7 +80,9 @@ class DocumentExtractionService:
 
             if not any(
                 (
-                    response.full_name,
+                    response.first_name,
+                    response.middle_name,
+                    response.last_name,
                     response.date_of_birth,
                     response.nationality,
                     response.document_number,
@@ -86,13 +94,16 @@ class DocumentExtractionService:
                     "Extraction provider returned no usable fields."
                 )
 
-            extraction.full_name = response.full_name
+            extraction.first_name = response.first_name
+            extraction.middle_name = response.middle_name
+            extraction.last_name = response.last_name
             extraction.date_of_birth = response.date_of_birth
             extraction.nationality = response.nationality
             extraction.document_number = response.document_number
             extraction.expiry_date = response.expiry_date
             extraction.address = response.address
             extraction.status = ExtractionStatus.COMPLETED
+            extraction.review_status = ExtractionReviewStatus.PENDING_REVIEW
             extraction.error_message = None
 
             self.db.flush()

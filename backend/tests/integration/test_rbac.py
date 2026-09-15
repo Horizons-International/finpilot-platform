@@ -7,7 +7,7 @@ client = TestClient(app)
 
 
 def test_administrator_can_access_admin_endpoint(client, create_test_user):
-    _, user = create_test_user(
+    user = create_test_user(
         role="Administrator",
         email="admin-rbac@example.com",
     )
@@ -31,7 +31,7 @@ def test_administrator_can_access_admin_endpoint(client, create_test_user):
 
 
 def test_reviewer_cannot_access_admin_endpoint(client, create_test_user):
-    _, user = create_test_user(
+    user = create_test_user(
         role="Reviewer",
         email="reviewer-rbac@example.com",
     )
@@ -58,7 +58,7 @@ def test_compliance_officer_cannot_access_admin_endpoint(
     client,
     create_test_user,
 ):
-    _, user = create_test_user(
+    user = create_test_user(
         role="Compliance Officer",
         email="compliance-rbac@example.com",
     )
@@ -82,7 +82,7 @@ def test_compliance_officer_cannot_access_admin_endpoint(
 
 
 def test_auditor_cannot_access_admin_endpoint(client, create_test_user):
-    _, user = create_test_user(
+    user = create_test_user(
         role="Auditor",
         email="auditor-rbac@example.com",
     )

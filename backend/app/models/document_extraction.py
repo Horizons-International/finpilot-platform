@@ -7,7 +7,7 @@ from sqlalchemy.dialects.postgresql import UUID as PostgreSQLUUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.database import Base
-from app.utils.enums import ExtractionStatus
+from app.utils.enums import ExtractionReviewStatus, ExtractionStatus
 
 
 class DocumentExtraction(Base):
@@ -53,13 +53,52 @@ class DocumentExtraction(Base):
         default=ExtractionStatus.SUBMITTED,
     )
 
+    review_status: Mapped[ExtractionReviewStatus] = mapped_column(
+        SQLEnum(
+            ExtractionReviewStatus,
+            name="extraction_review_status",
+        ),
+        nullable=False,
+        default=ExtractionReviewStatus.PENDING_REVIEW,
+    )
+
+    reviewed_by: Mapped[UUID | None] = mapped_column(
+        PostgreSQLUUID(as_uuid=True),
+        ForeignKey(
+            "users.id",
+            ondelete="SET NULL",
+        ),
+        nullable=True,
+        index=True,
+    )
+
+    reviewed_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+    )
+
+    rejection_reason: Mapped[str | None] = mapped_column(
+        Text,
+        nullable=True,
+    )
+
     error_message: Mapped[str | None] = mapped_column(
         Text,
         nullable=True,
     )
 
-    full_name: Mapped[str | None] = mapped_column(
-        String(255),
+    first_name: Mapped[str | None] = mapped_column(
+        String(100),
+        nullable=True,
+    )
+
+    middle_name: Mapped[str | None] = mapped_column(
+        String(100),
+        nullable=True,
+    )
+
+    last_name: Mapped[str | None] = mapped_column(
+        String(100),
         nullable=True,
     )
 

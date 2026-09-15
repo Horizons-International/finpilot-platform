@@ -11,10 +11,13 @@ from app.models.audit_log import AuditLog  # noqa: F401
 from app.models.customer import Customer  # noqa: F401
 from app.models.customer_address import CustomerAddress  # noqa: F401
 from app.models.customer_status_history import CustomerStatusHistory  # noqa: F401
+from app.models.document_extraction import DocumentExtraction  # noqa: F401
+from app.models.document_extraction_review_log import (
+    DocumentExtractionReviewLog,  # noqa: F401
+)
 from app.models.file import File  # noqa: F401
 from app.models.ocr_result import OCRResult  # noqa: F401
 from app.models.user import User  # noqa: F401
-from app.models.verification_document_type import VerificationDocumentType  # noqa: F401
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.

@@ -127,6 +127,8 @@ class CustomerService:
         customer_id: UUID,
         customer_data: CustomerUpdate,
         updated_by: UUID,
+        *,
+        commit: bool = True,
     ) -> Customer:
         customer = self.get_customer(customer_id)
 
@@ -187,7 +189,9 @@ class CustomerService:
             resource_id=customer.id,
         )
 
-        self.db.commit()
+        if commit:
+            self.db.commit()
+
         self.db.refresh(customer)
 
         return customer

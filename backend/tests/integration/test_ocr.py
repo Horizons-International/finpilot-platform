@@ -1,8 +1,11 @@
 import uuid
+from pathlib import Path
+from shutil import rmtree
 from unittest.mock import MagicMock
 
 import pytest
 
+from app.core.config import settings
 from app.models.audit_log import AuditLog
 from app.models.document import CustomerDocument
 from app.models.ocr_result import OCRResult
@@ -25,6 +28,27 @@ from tests.helpers import (
     get_passport_document_type,
     upload_document,
 )
+
+
+@pytest.fixture(autouse=True)
+def cleanup_extraction_storage():
+    verification_root = Path(settings.STORAGE_PATH) / "verification"
+
+    existing_folders = set()
+
+    if verification_root.exists():
+        existing_folders = {
+            folder for folder in verification_root.iterdir() if folder.is_dir()
+        }
+
+    yield
+
+    if not verification_root.exists():
+        return
+
+    for folder in verification_root.iterdir():
+        if folder.is_dir() and folder not in existing_folders:
+            rmtree(folder, ignore_errors=True)
 
 
 class FakeOCRProvider(OCRProvider):
@@ -107,7 +131,7 @@ def test_process_document_sends_request_to_provider(
     create_test_user,
     cleanup_test_customers,
 ):
-    _, admin = create_test_user(
+    admin = create_test_user(
         role=UserRole.ADMINISTRATOR,
         email="admin@example.com",
     )
@@ -141,7 +165,7 @@ def test_process_document_returns_extracted_text(
     create_test_user,
     cleanup_test_customers,
 ):
-    _, admin = create_test_user(
+    admin = create_test_user(
         role=UserRole.ADMINISTRATOR,
         email="admin@example.com",
     )
@@ -171,7 +195,7 @@ def test_process_document_stores_provider_information(
     create_test_user,
     cleanup_test_customers,
 ):
-    _, admin = create_test_user(
+    admin = create_test_user(
         role=UserRole.ADMINISTRATOR,
         email="admin@example.com",
     )
@@ -204,7 +228,7 @@ def test_process_document_sets_processing_status_before_provider_call(
     create_test_user,
     cleanup_test_customers,
 ):
-    _, admin = create_test_user(
+    admin = create_test_user(
         role=UserRole.ADMINISTRATOR,
         email="admin@example.com",
     )
@@ -230,7 +254,7 @@ def test_process_document_creates_ocr_result(
     create_test_user,
     cleanup_test_customers,
 ):
-    _, admin = create_test_user(
+    admin = create_test_user(
         role=UserRole.ADMINISTRATOR,
         email="admin@example.com",
     )
@@ -262,7 +286,7 @@ def test_process_document_handles_provider_error(
     create_test_user,
     cleanup_test_customers,
 ):
-    _, admin = create_test_user(
+    admin = create_test_user(
         role=UserRole.ADMINISTRATOR,
         email="admin@example.com",
     )
@@ -295,7 +319,7 @@ def test_process_document_handles_unexpected_provider_error(
     create_test_user,
     cleanup_test_customers,
 ):
-    _, admin = create_test_user(
+    admin = create_test_user(
         role=UserRole.ADMINISTRATOR,
         email="admin@example.com",
     )
@@ -326,7 +350,7 @@ def test_process_document_handles_empty_extracted_text(
     create_test_user,
     cleanup_test_customers,
 ):
-    _, admin = create_test_user(
+    admin = create_test_user(
         role=UserRole.ADMINISTRATOR,
         email="admin@example.com",
     )
@@ -362,7 +386,7 @@ def test_process_document_handles_incomplete_provider_status(
     create_test_user,
     cleanup_test_customers,
 ):
-    _, admin = create_test_user(
+    admin = create_test_user(
         role=UserRole.ADMINISTRATOR,
         email="admin@example.com",
     )
@@ -398,7 +422,7 @@ def test_process_document_rejects_provider_response_for_wrong_document(
     create_test_user,
     cleanup_test_customers,
 ):
-    _, admin = create_test_user(
+    admin = create_test_user(
         role=UserRole.ADMINISTRATOR,
         email="admin@example.com",
     )
@@ -437,7 +461,7 @@ def test_process_document_by_id_raises_for_missing_document(
     create_test_user,
     cleanup_test_customers,
 ):
-    _, admin = create_test_user(
+    admin = create_test_user(
         role=UserRole.ADMINISTRATOR,
         email="admin@example.com",
     )
@@ -472,7 +496,7 @@ def test_process_document_by_id_commits_successfully(
     create_test_user,
     cleanup_test_customers,
 ):
-    _, admin = create_test_user(
+    admin = create_test_user(
         role=UserRole.ADMINISTRATOR,
         email="admin@example.com",
     )
@@ -505,7 +529,7 @@ def test_process_document_by_id_commits_failed_result(
     create_test_user,
     cleanup_test_customers,
 ):
-    _, admin = create_test_user(
+    admin = create_test_user(
         role=UserRole.ADMINISTRATOR,
         email="admin@example.com",
     )
@@ -544,11 +568,6 @@ def test_get_latest_result(
     create_test_user,
     cleanup_test_customers,
 ):
-    _, admin = create_test_user(
-        role=UserRole.ADMINISTRATOR,
-        email="admin@example.com",
-    )
-
     document_id = uuid.uuid4()
 
     provider = MockOCRProvider()
@@ -577,11 +596,6 @@ def test_get_latest_result_returns_none_when_not_found(
     create_test_user,
     cleanup_test_customers,
 ):
-    _, admin = create_test_user(
-        role=UserRole.ADMINISTRATOR,
-        email="admin@example.com",
-    )
-
     document_id = uuid.uuid4()
 
     provider = MockOCRProvider()
@@ -670,7 +684,7 @@ def test_process_document_ocr_api_success(
     db_session,
     ocr_service_override,
 ):
-    _, admin = create_test_user(
+    admin = create_test_user(
         role=UserRole.ADMINISTRATOR,
         email="ocr-admin@example.com",
     )
@@ -748,7 +762,7 @@ def test_process_document_ocr_api_uses_authenticated_requester(
     db_session,
     ocr_service_override,
 ):
-    _, admin = create_test_user(
+    admin = create_test_user(
         role=UserRole.ADMINISTRATOR,
         email="ocr-requester@example.com",
     )
@@ -839,7 +853,7 @@ def test_process_document_ocr_api_persists_failed_result(
     db_session,
     ocr_service_override,
 ):
-    _, admin = create_test_user(
+    admin = create_test_user(
         role=UserRole.ADMINISTRATOR,
         email="ocr-failure@example.com",
     )
@@ -912,7 +926,7 @@ def test_process_document_ocr_api_returns_404_for_missing_document(
     cleanup_test_customers,
     ocr_service_override,
 ):
-    _, admin = create_test_user(
+    admin = create_test_user(
         role=UserRole.ADMINISTRATOR,
         email="ocr-missing@example.com",
     )
@@ -952,7 +966,7 @@ def test_process_document_ocr_api_rejects_non_admin(
     create_test_user,
     cleanup_test_customers,
 ):
-    _, auditor = create_test_user(
+    auditor = create_test_user(
         role=UserRole.AUDITOR,
         email="ocr-auditor@example.com",
     )
@@ -974,7 +988,7 @@ def test_get_document_ocr_api_returns_latest_result(
     cleanup_test_customers,
     db_session,
 ):
-    _, admin = create_test_user(
+    admin = create_test_user(
         role=UserRole.ADMINISTRATOR,
         email="ocr-get@example.com",
     )
@@ -1048,7 +1062,7 @@ def test_get_document_ocr_api_returns_404_when_no_result_exists(
     cleanup_test_customers,
     db_session,
 ):
-    _, admin = create_test_user(
+    admin = create_test_user(
         role=UserRole.ADMINISTRATOR,
         email="ocr-no-result@example.com",
     )
