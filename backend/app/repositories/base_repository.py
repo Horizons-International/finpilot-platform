@@ -1,4 +1,5 @@
 from typing import Generic, TypeVar
+from uuid import UUID
 
 from sqlalchemy.orm import Session
 
@@ -15,6 +16,12 @@ class BaseRepository(Generic[ModelType]):
     ) -> None:
         self.db = db
         self.model = model
+
+    def get_by_id(
+        self,
+        entity_id: UUID,
+    ) -> ModelType | None:
+        return self.db.get(self.model, entity_id)
 
     def get_all(self) -> list[ModelType]:
         return self.db.query(self.model).all()

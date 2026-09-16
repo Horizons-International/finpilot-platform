@@ -14,6 +14,7 @@ from app.extraction.providers.base import ExtractionProvider
 from app.extraction.services.dependencies import get_document_extraction_service
 from app.extraction.services.extraction_service import DocumentExtractionService
 from app.main import app
+from app.models.ai_prompt_assignment import AIPromptAssignment
 from app.models.audit_log import AuditLog
 from app.models.customer import Customer
 from app.models.customer_audit_log import CustomerAuditLog
@@ -27,6 +28,7 @@ from app.models.verification_document_type import VerificationDocumentType
 from app.ocr.providers.base import OCRProvider
 from app.ocr.services.dependencies import get_ocr_service
 from app.ocr.services.ocr_service import OCRService
+from app.repositories.ai_prompt_repository import AIPromptRepository
 from app.repositories.customer_repository import CustomerRepository
 from app.storages.local_storage import LocalStorage
 from app.utils.enums import CustomerStatus, UserStatus
@@ -241,6 +243,34 @@ def cleanup_test_customers():
             ).delete(synchronize_session=False)
 
             repository.delete(customer)
+
+    db.commit()
+    db.close()
+
+
+@pytest.fixture
+def cleanup_ai_prompts():
+    setup_db = TestSessionLocal()
+    repository = AIPromptRepository(setup_db)
+
+    existing_prompts = {prompt.id for prompt in repository.get_all()}
+
+    setup_db.close()
+
+    yield
+
+    db = TestSessionLocal()
+    repository = AIPromptRepository(db)
+
+    current_prompts = repository.get_all()
+
+    for prompt in current_prompts:
+        if prompt.id not in existing_prompts:
+            db.query(AIPromptAssignment).filter(
+                AIPromptAssignment.prompt_id == prompt.id
+            ).delete(synchronize_session=False)
+
+            repository.delete(prompt)
 
     db.commit()
     db.close()

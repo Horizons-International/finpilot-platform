@@ -104,6 +104,35 @@ AIResponse(
 )
 ```
 
+## AI Prompt Management
+
+The platform provides centralized management of AI prompts.
+
+AI prompts are versioned and stored as immutable records. A prompt version
+must be explicitly activated before it can be used.
+
+Supported AI functions include:
+
+- Document extraction
+- Compliance review
+- Risk analysis
+- Customer support
+
+Prompt versions can be:
+
+- Created
+- Activated
+- Deactivated
+- Assigned to an AI function
+
+Only active prompt versions are eligible for AI processing.
+
+Prompt changes and assignments are recorded through the audit logging
+framework.
+
+AI consumers should retrieve prompts through the AI prompt loader rather
+than querying prompt records directly.
+
 ## Providers
 
 Providers implement the `AIProvider` interface.
