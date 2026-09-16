@@ -5,6 +5,7 @@ from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.exceptions import RequestValidationError
 from sqlalchemy.exc import SQLAlchemyError
 
+from app.api.ai_prompts import router as ai_prompts_router
 from app.api.auth import router as auth_router
 from app.api.customer_addresses import router as customer_addresses_router
 from app.api.customer_audit_logs import router as customer_audit_logs_router
@@ -84,6 +85,7 @@ app.include_router(verification_router)
 app.include_router(verification_cases_router)
 app.include_router(verification_reviews_router)
 app.include_router(verification_document_type_router)
+app.include_router(ai_prompts_router)
 app.include_router(documents_router)
 app.include_router(reports_router)
 app.include_router(ocr_router)
