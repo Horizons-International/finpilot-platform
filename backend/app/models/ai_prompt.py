@@ -4,7 +4,15 @@ from uuid import UUID, uuid4
 
 if TYPE_CHECKING:
     from app.models.user import User
-from sqlalchemy import DateTime, ForeignKey, Integer, String, Text
+from sqlalchemy import (
+    DateTime,
+    ForeignKey,
+    Index,
+    Integer,
+    String,
+    Text,
+    UniqueConstraint,
+)
 from sqlalchemy import Enum as SQLEnum
 from sqlalchemy.dialects.postgresql import UUID as PostgreSQLUUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -65,6 +73,20 @@ class AIPrompt(Base):
         DateTime(timezone=True),
         nullable=False,
         server_default="now()",
+    )
+
+    __table_args__ = (
+        Index(
+            "uq_ai_prompts_active_name",
+            "name",
+            unique=True,
+            postgresql_where="status = 'ACTIVE'",
+        ),
+        UniqueConstraint(
+            "name",
+            "version",
+            name="uq_ai_prompts_name_version",
+        ),
     )
 
     # Relationships

@@ -14,6 +14,7 @@ from app.extraction.providers.base import ExtractionProvider
 from app.extraction.services.dependencies import get_document_extraction_service
 from app.extraction.services.extraction_service import DocumentExtractionService
 from app.main import app
+from app.models.ai_interaction import AIInteraction
 from app.models.ai_prompt_assignment import AIPromptAssignment
 from app.models.audit_log import AuditLog
 from app.models.customer import Customer
@@ -250,10 +251,21 @@ def cleanup_test_customers():
 
 @pytest.fixture
 def cleanup_ai_prompts():
+    permanent_prompt_names = {
+        "case-summary",
+        "customer-summary",
+        "document-review-summary",
+        "compliance-notes",
+    }
+
     setup_db = TestSessionLocal()
     repository = AIPromptRepository(setup_db)
 
-    existing_prompts = {prompt.id for prompt in repository.get_all()}
+    existing_prompts = {
+        prompt.id
+        for prompt in repository.get_all()
+        if prompt.name not in permanent_prompt_names
+    }
 
     setup_db.close()
 
@@ -265,12 +277,42 @@ def cleanup_ai_prompts():
     current_prompts = repository.get_all()
 
     for prompt in current_prompts:
+        if prompt.name in permanent_prompt_names:
+            continue
+
         if prompt.id not in existing_prompts:
             db.query(AIPromptAssignment).filter(
                 AIPromptAssignment.prompt_id == prompt.id
             ).delete(synchronize_session=False)
 
             repository.delete(prompt)
+
+    db.commit()
+    db.close()
+
+
+@pytest.fixture
+def cleanup_ai_interactions():
+    setup_db = TestSessionLocal()
+
+    existing_interactions = {
+        interaction.id for interaction in setup_db.query(AIInteraction).all()
+    }
+
+    setup_db.close()
+
+    yield
+
+    db = TestSessionLocal()
+
+    current_interactions = (
+        db.query(AIInteraction)
+        .filter(~AIInteraction.id.in_(existing_interactions))
+        .all()
+    )
+
+    for interaction in current_interactions:
+        db.delete(interaction)
 
     db.commit()
     db.close()

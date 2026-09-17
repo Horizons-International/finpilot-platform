@@ -6,6 +6,7 @@ from uuid import UUID
 class AIRequestType(str, Enum):
     TEXT = "text"
     DOCUMENT_ANALYSIS = "document_analysis"
+    COMPLIANCE_ASSISTANT = "compliance_assistant"
 
 
 @dataclass(frozen=True)

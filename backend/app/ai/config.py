@@ -10,4 +10,5 @@ def get_ai_config() -> AIConfig:
         max_tokens=settings.AI_MAX_TOKENS,
         temperature=settings.AI_TEMPERATURE,
         timeout=settings.AI_TIMEOUT,
+        max_context_characters=settings.AI_MAX_CONTEXT_CHARACTERS,
     )

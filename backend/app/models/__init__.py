@@ -1,3 +1,4 @@
+from app.models.ai_interaction import AIInteraction  # noqa: F401
 from app.models.ai_prompt import AIPrompt  # noqa: F401
 from app.models.ai_prompt_assignment import AIPromptAssignment  # noqa: F401
 from app.models.customer import Customer  # noqa: F401

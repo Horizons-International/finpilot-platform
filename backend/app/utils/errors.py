@@ -39,3 +39,12 @@ def forbidden(
         status_code=status.HTTP_403_FORBIDDEN,
         detail=message,
     )
+
+
+def service_unavailable(
+    message: str = "Service temporarily unavailable",
+) -> HTTPException:
+    return HTTPException(
+        status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+        detail=message,
+    )
