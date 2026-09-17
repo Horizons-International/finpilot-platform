@@ -14,6 +14,7 @@ from app.extraction.providers.base import ExtractionProvider
 from app.extraction.services.dependencies import get_document_extraction_service
 from app.extraction.services.extraction_service import DocumentExtractionService
 from app.main import app
+from app.models.ai_interaction import AIInteraction
 from app.models.ai_prompt_assignment import AIPromptAssignment
 from app.models.audit_log import AuditLog
 from app.models.customer import Customer
@@ -271,6 +272,33 @@ def cleanup_ai_prompts():
             ).delete(synchronize_session=False)
 
             repository.delete(prompt)
+
+    db.commit()
+    db.close()
+
+
+@pytest.fixture
+def cleanup_ai_interactions():
+    setup_db = TestSessionLocal()
+
+    existing_interactions = {
+        interaction.id for interaction in setup_db.query(AIInteraction).all()
+    }
+
+    setup_db.close()
+
+    yield
+
+    db = TestSessionLocal()
+
+    current_interactions = (
+        db.query(AIInteraction)
+        .filter(~AIInteraction.id.in_(existing_interactions))
+        .all()
+    )
+
+    for interaction in current_interactions:
+        db.delete(interaction)
 
     db.commit()
     db.close()

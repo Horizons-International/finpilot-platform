@@ -53,6 +53,7 @@ class Settings(BaseSettings):
     AI_MAX_TOKENS: int = 1000
     AI_TEMPERATURE: float = 0.0
     AI_TIMEOUT: int = 30
+    AI_MAX_CONTEXT_CHARACTERS: int = 30000
 
 
 settings = Settings()  # type: ignore[call-arg]

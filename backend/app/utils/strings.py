@@ -14,3 +14,16 @@ def normalize_email(email: str) -> str:
 def is_blank(value: str | None) -> bool:
     """Return True when a string is empty or contains only whitespace."""
     return value is None or not value.strip()
+
+
+def truncate_text(
+    value: str | None,
+    max_length: int,
+) -> str | None:
+    if value is None:
+        return None
+
+    if len(value) <= max_length:
+        return value
+
+    return value[:max_length] + "\n[TRUNCATED]"

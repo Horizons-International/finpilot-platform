@@ -39,4 +39,20 @@ class MockAIProvider(AIProvider):
                 request_id=uuid.uuid4(),
             )
 
+        if request.request_type == AIRequestType.COMPLIANCE_ASSISTANT:
+            return AIResponse(
+                provider_name=self.config.provider,
+                request_type=request.request_type.value,
+                content="Mock compliance assistant response.",
+                structured_data={
+                    "summary": "Mock compliance summary.",
+                    "customer_status": "Pending",
+                    "missing_documents": [],
+                    "findings": [],
+                    "recommendation": "Review the available compliance information.",
+                    "confidence": 0.0,
+                },
+                request_id=uuid.uuid4(),
+            )
+
         raise AIProviderError(f"Unsupported AI request type: {request.request_type}")
