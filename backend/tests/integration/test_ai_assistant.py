@@ -57,6 +57,83 @@ def create_prompt_assignment(
     return assignment
 
 
+def test_create_prompts(
+    client,
+    create_test_user,
+    cleanup_ai_prompts,
+):
+    admin = create_test_user(
+        email="officer-send@example.com",
+        role=UserRole.ADMINISTRATOR,
+    )
+
+    authenticate_client(client, admin)
+
+    response = client.get("/api/v1/ai-prompts")
+
+    if response.json()["data"][0]["id"] is None:
+        response = client.post(
+            "/api/v1/ai-prompts",
+            json={
+                "name": "case-summary",
+                "purpose": "Summarize a customer's compliance and verification case",
+                "prompt_text": """You are a compliance assistant. Summarize the 
+                customer's verification case using only the information provided 
+                in the context. Identify the current verification status, relevant 
+                verification information, missing documents or information, important 
+                findings, and any required follow-up actions. Do not invent facts. 
+                Return a concise structured summary.""",
+            },
+        )
+
+        prompt_id = response.json()["data"]["id"]
+
+        client.patch(
+            f"/api/v1/ai-prompts/{prompt_id}/status", json={"status": "ACTIVE"}
+        )
+
+        client.post(
+            "/api/v1/ai-prompts/assignments",
+            json={
+                "ai_function": "CASE_SUMMARY",
+                "primpt_id": prompt_id,
+            },
+        )
+
+        response = client.post(
+            "/api/v1/ai-prompts",
+            json={
+                "name": "customer-summary",
+                "purpose": """Summarize customer information 
+                relevant to compliance review""",
+                "prompt_text": """You are a compliance assistant. 
+                Summarize the customer's information using only 
+                the information provided in the context. 
+                Include relevant identity information, 
+                contact information, nationality, country 
+                of residence, customer status, and other 
+                compliance-relevant information available 
+                in the context. Do not invent or infer 
+                facts that are not explicitly provided. 
+                Return a concise structured summary.""",
+            },
+        )
+
+        prompt_id = response.json()["data"]["id"]
+
+        client.patch(
+            f"/api/v1/ai-prompts/{prompt_id}/status", json={"status": "ACTIVE"}
+        )
+
+        client.post(
+            "/api/v1/ai-prompts/assignments",
+            json={
+                "ai_function": "CUSTOMER_SUMMARY",
+                "primpt_id": prompt_id,
+            },
+        )
+
+
 def test_compliance_officer_can_send_ai_request(
     client,
     create_test_user,

@@ -154,6 +154,82 @@ The mock provider is intended for development and testing.
 
 Future providers can be added without changing the `AIService`.
 
+## Compliance AI Assistant
+
+The platform provides an AI assistant for compliance users.
+
+The assistant retrieves platform data before sending a request to an AI provider.
+
+### Architecture
+
+```text
+Compliance User
+      ↓
+AI Assistant API
+      ↓
+AI Compliance Service
+      ↓
+Compliance Context Service
+      ↓
+Platform Database
+      ↓
+AI Prompt Loader
+      ↓
+AIService
+      ↓
+AIProvider
+      ↓
+LLM
+```
+### Supported capabilities
+- Case summary
+- Customer summary
+- Document review summary
+- Compliance notes
+### AI Functions
+- CASE_SUMMARY
+- CUSTOMER_SUMMARY
+- DOCUMENT_REVIEW_SUMMARY
+- COMPLIANCE_NOTES
+### Interaction storage
+
+Every AI assistant request is stored in `ai_interactions`.
+
+Stored information includes:
+
+- User
+- AI function
+- Prompt version
+- Resource
+- User question
+- AI context
+- AI response
+- Provider
+- Model
+- Provider request ID
+- Status
+- Error information
+- Timestamps
+
+### Context rules
+The AI assistant only supplies platform information retrieved for the
+requested customer, verification case, or document.
+
+The assistant must not invent missing customer information, document
+requirements, compliance policies, or regulatory conclusions.
+
+### Provider
+
+The AI provider is selected using:
+```test
+AI_PROVIDER=mock
+```
+The mock provider is used during automated tests.
+
+Production deployments may configure a real provider through environment
+configuration.
+
+
 ## Provider Configuration
 
 The active provider is selected through configuration:
