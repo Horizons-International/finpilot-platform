@@ -71,7 +71,7 @@ def test_create_prompts(
 
     response = client.get("/api/v1/ai-prompts")
 
-    if response.json()["data"][0]["id"] is None:
+    if response.json()["data"] == []:
         response = client.post(
             "/api/v1/ai-prompts",
             json={
