@@ -59,11 +59,12 @@ def create_prompt_assignment(
 
 def test_create_prompts(
     client,
+    db_session,
     create_test_user,
     cleanup_ai_prompts,
 ):
     admin = create_test_user(
-        email="officer-send@example.com",
+        email="always-admin@example.com",
         role=UserRole.ADMINISTRATOR,
     )
 
@@ -72,41 +73,30 @@ def test_create_prompts(
     response = client.get("/api/v1/ai-prompts")
 
     if response.json()["data"] == []:
-        response = client.post(
-            "/api/v1/ai-prompts",
-            json={
-                "name": "case-summary",
-                "purpose": "Summarize a customer's compliance and verification case",
-                "prompt_text": """You are a compliance assistant. Summarize the 
+        prompt = create_active_prompt(
+            db_session,
+            name="case-summary",
+            purpose="Summarize a customer's compliance and verification case",
+            prompt_text="""You are a compliance assistant. Summarize the 
                 customer's verification case using only the information provided 
                 in the context. Identify the current verification status, relevant 
                 verification information, missing documents or information, important 
                 findings, and any required follow-up actions. Do not invent facts. 
                 Return a concise structured summary.""",
-            },
+            created_by=admin.id,
+        )
+        create_prompt_assignment(
+            db_session,
+            ai_function=AIFunction.CASE_SUMMARY,
+            prompt_id=prompt.id,
         )
 
-        prompt_id = response.json()["data"]["id"]
-
-        client.patch(
-            f"/api/v1/ai-prompts/{prompt_id}/status", json={"status": "ACTIVE"}
-        )
-
-        client.post(
-            "/api/v1/ai-prompts/assignments",
-            json={
-                "ai_function": "CASE_SUMMARY",
-                "primpt_id": prompt_id,
-            },
-        )
-
-        response = client.post(
-            "/api/v1/ai-prompts",
-            json={
-                "name": "customer-summary",
-                "purpose": """Summarize customer information 
+        prompt = create_active_prompt(
+            db_session,
+            name="customer-summary",
+            purpose="""Summarize customer information 
                 relevant to compliance review""",
-                "prompt_text": """You are a compliance assistant. 
+            prompt_text="""You are a compliance assistant. 
                 Summarize the customer's information using only 
                 the information provided in the context. 
                 Include relevant identity information, 
@@ -116,21 +106,13 @@ def test_create_prompts(
                 in the context. Do not invent or infer 
                 facts that are not explicitly provided. 
                 Return a concise structured summary.""",
-            },
+            created_by=admin.id,
         )
 
-        prompt_id = response.json()["data"]["id"]
-
-        client.patch(
-            f"/api/v1/ai-prompts/{prompt_id}/status", json={"status": "ACTIVE"}
-        )
-
-        client.post(
-            "/api/v1/ai-prompts/assignments",
-            json={
-                "ai_function": "CUSTOMER_SUMMARY",
-                "primpt_id": prompt_id,
-            },
+        create_prompt_assignment(
+            db_session,
+            ai_function=AIFunction.CUSTOMER_SUMMARY,
+            prompt_id=prompt.id,
         )
 
 
