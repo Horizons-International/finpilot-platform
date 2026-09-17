@@ -139,3 +139,14 @@ def seed_ai_prompts(db: Session) -> None:
             assignment.prompt_id = prompt.id
 
     db.commit()
+
+
+if __name__ == "__main__":
+    from app.core.database import SessionLocal
+
+    db = SessionLocal()
+
+    try:
+        seed_ai_prompts(db)
+    finally:
+        db.close()

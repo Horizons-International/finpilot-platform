@@ -23,6 +23,7 @@ from app.models.customer_contact import CustomerContact
 from app.models.customer_status_history import CustomerStatusHistory
 from app.models.document import CustomerDocument
 from app.models.file import File
+from app.models.knowledge_document import KnowledgeDocument
 from app.models.user import User
 from app.models.verification_case import IdentityVerificationCase
 from app.models.verification_document_type import VerificationDocumentType
@@ -415,3 +416,20 @@ def extraction_service_override(db_session):
     yield apply
 
     app.dependency_overrides.pop(get_document_extraction_service, None)
+
+
+@pytest.fixture
+def cleanup_knowledge_documents(db_session):
+    existing_documents = {
+        document.id for document in db_session.query(KnowledgeDocument).all()
+    }
+
+    yield
+
+    current_documents = db_session.query(KnowledgeDocument).all()
+
+    for document in current_documents:
+        if document.id not in existing_documents:
+            db_session.delete(document)
+
+    db_session.commit()

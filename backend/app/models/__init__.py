@@ -7,6 +7,7 @@ from app.models.customer_audit_log import CustomerAuditLog  # noqa: F401
 from app.models.customer_contact import CustomerContact  # noqa: F401
 from app.models.document import CustomerDocument  # noqa: F401
 from app.models.document_extraction import DocumentExtraction  # noqa: F401
+from app.models.knowledge_document import KnowledgeDocument  # noqa: F401
 from app.models.verification_case import IdentityVerificationCase  # noqa: F401
 from app.models.verification_document_type import VerificationDocumentType  # noqa: F401
 from app.models.verification_review import VerificationReview  # noqa: F401

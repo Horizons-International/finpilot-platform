@@ -9,6 +9,9 @@ from app.core.security import decode_access_token
 from app.models.user import User
 from app.services.document_service import DocumentService
 from app.services.file_service import FileService
+from app.services.knowledge_document_service import (
+    KnowledgeDocumentService,
+)
 from app.services.verification_review_service import VerificationReviewService
 from app.services.verification_service import VerificationService
 from app.storages.base_storage import BaseStorage
@@ -83,3 +86,13 @@ def get_verification_review_service(
     db: Session = Depends(get_db),
 ) -> VerificationReviewService:
     return VerificationReviewService(db)
+
+
+def get_knowledge_document_service(
+    db: Session = Depends(get_db),
+    file_service: FileService = Depends(get_file_service),
+) -> KnowledgeDocumentService:
+    return KnowledgeDocumentService(
+        db=db,
+        file_service=file_service,
+    )
