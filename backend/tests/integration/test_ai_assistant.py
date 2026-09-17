@@ -83,7 +83,7 @@ def test_create_prompts(
                 verification information, missing documents or information, important 
                 findings, and any required follow-up actions. Do not invent facts. 
                 Return a concise structured summary.""",
-            created_by=admin.id,
+            created_by="00000000-0000-0000-0000-000000000001",
         )
         create_prompt_assignment(
             db_session,
@@ -106,7 +106,7 @@ def test_create_prompts(
                 in the context. Do not invent or infer 
                 facts that are not explicitly provided. 
                 Return a concise structured summary.""",
-            created_by=admin.id,
+            created_by="00000000-0000-0000-0000-000000000001",
         )
 
         create_prompt_assignment(
