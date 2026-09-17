@@ -17,6 +17,9 @@ from app.api.documents import router as documents_router
 from app.api.extraction import router as extraction_router
 from app.api.files import router as files_router
 from app.api.health import router as health_router
+from app.api.knowledge_documents import (
+    router as knowledge_documents_router,
+)
 from app.api.ocr import router as ocr_router
 from app.api.profile import router as profile_router
 from app.api.reports import router as reports_router
@@ -89,6 +92,7 @@ app.include_router(verification_document_type_router)
 app.include_router(ai_prompts_router)
 app.include_router(ai_assistant_router)
 app.include_router(documents_router)
+app.include_router(knowledge_documents_router)
 app.include_router(reports_router)
 app.include_router(ocr_router)
 app.include_router(extraction_router)
