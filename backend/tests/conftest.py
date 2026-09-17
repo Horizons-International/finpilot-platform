@@ -251,21 +251,10 @@ def cleanup_test_customers():
 
 @pytest.fixture
 def cleanup_ai_prompts():
-    permanent_prompt_names = {
-        "case-summary",
-        "customer-summary",
-        "document-review-summary",
-        "compliance-notes",
-    }
-
     setup_db = TestSessionLocal()
     repository = AIPromptRepository(setup_db)
 
-    existing_prompts = {
-        prompt.id
-        for prompt in repository.get_all()
-        if prompt.name not in permanent_prompt_names
-    }
+    existing_prompts = {prompt.id for prompt in repository.get_all()}
 
     setup_db.close()
 
@@ -277,9 +266,6 @@ def cleanup_ai_prompts():
     current_prompts = repository.get_all()
 
     for prompt in current_prompts:
-        if prompt.name in permanent_prompt_names:
-            continue
-
         if prompt.id not in existing_prompts:
             db.query(AIPromptAssignment).filter(
                 AIPromptAssignment.prompt_id == prompt.id

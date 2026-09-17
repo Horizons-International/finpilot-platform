@@ -8,11 +8,23 @@ from app.utils.enums import (
     AIPromptStatus,
     UserRole,
 )
+from tests.conftest import TestSessionLocal
 from tests.helpers import (
     authenticate_client,
     create_customer_with_data,
     create_verification_case,
 )
+from tests.seed import seed_ai_prompts
+
+
+@pytest.fixture(autouse=True)
+def seed_ai_assistant_data():
+    db = TestSessionLocal()
+
+    try:
+        seed_ai_prompts(db)
+    finally:
+        db.close()
 
 
 def create_active_prompt(
@@ -55,65 +67,6 @@ def create_prompt_assignment(
     db_session.refresh(assignment)
 
     return assignment
-
-
-def test_create_prompts(
-    client,
-    db_session,
-    create_test_user,
-    cleanup_ai_prompts,
-):
-    admin = create_test_user(
-        email="always-admin@example.com",
-        role=UserRole.ADMINISTRATOR,
-    )
-
-    authenticate_client(client, admin)
-
-    response = client.get("/api/v1/ai-prompts")
-
-    if response.json()["data"] == []:
-        prompt = create_active_prompt(
-            db_session,
-            name="case-summary",
-            purpose="Summarize a customer's compliance and verification case",
-            prompt_text="""You are a compliance assistant. Summarize the 
-                customer's verification case using only the information provided 
-                in the context. Identify the current verification status, relevant 
-                verification information, missing documents or information, important 
-                findings, and any required follow-up actions. Do not invent facts. 
-                Return a concise structured summary.""",
-            created_by="00000000-0000-0000-0000-000000000001",
-        )
-        create_prompt_assignment(
-            db_session,
-            ai_function=AIFunction.CASE_SUMMARY,
-            prompt_id=prompt.id,
-        )
-
-        prompt = create_active_prompt(
-            db_session,
-            name="customer-summary",
-            purpose="""Summarize customer information 
-                relevant to compliance review""",
-            prompt_text="""You are a compliance assistant. 
-                Summarize the customer's information using only 
-                the information provided in the context. 
-                Include relevant identity information, 
-                contact information, nationality, country 
-                of residence, customer status, and other 
-                compliance-relevant information available 
-                in the context. Do not invent or infer 
-                facts that are not explicitly provided. 
-                Return a concise structured summary.""",
-            created_by="00000000-0000-0000-0000-000000000001",
-        )
-
-        create_prompt_assignment(
-            db_session,
-            ai_function=AIFunction.CUSTOMER_SUMMARY,
-            prompt_id=prompt.id,
-        )
 
 
 def test_compliance_officer_can_send_ai_request(
