@@ -22,6 +22,7 @@ from app.api.knowledge_documents import (
 )
 from app.api.ocr import router as ocr_router
 from app.api.profile import router as profile_router
+from app.api.rag import router as rag_router
 from app.api.reports import router as reports_router
 from app.api.users import router as users_router
 from app.api.verification_cases import (
@@ -97,6 +98,7 @@ app.include_router(reports_router)
 app.include_router(ocr_router)
 app.include_router(extraction_router)
 app.include_router(document_review_router)
+app.include_router(rag_router)
 
 app.add_exception_handler(
     HTTPException,

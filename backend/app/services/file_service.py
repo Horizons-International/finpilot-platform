@@ -120,26 +120,17 @@ class FileService:
         user_id: UUID,
         email: str,
     ) -> tuple[bytes, str, str]:
-        file_record = self.file_repository.get_by_id(file_id)
-
-        if not file_record:
-            raise not_found("File")
-
-        if not self.storage.exists(file_record.storage_path):
-            raise not_found("Stored file")
-
-        content = self.storage.read(
-            file_record.storage_path,
+        content, filename, content_type = self.read_file(
+            file_id=file_id,
         )
 
         try:
-            # Record successful download
             self.audit_service.log_event(
                 event_type=AuditEventType.FILE_DOWNLOAD,
                 user_id=user_id,
                 email=email,
                 resource_type="file",
-                resource_id=file_record.id,
+                resource_id=file_id,
             )
 
             self.db.commit()
@@ -150,8 +141,8 @@ class FileService:
 
         return (
             content,
-            file_record.original_filename,
-            file_record.content_type,
+            filename,
+            content_type,
         )
 
     def delete_file(
@@ -189,3 +180,25 @@ class FileService:
         except Exception:
             self.db.rollback()
             raise
+
+    def read_file(
+        self,
+        file_id: UUID,
+    ) -> tuple[bytes, str, str]:
+        file_record = self.file_repository.get_by_id(file_id)
+
+        if not file_record:
+            raise not_found("File")
+
+        if not self.storage.exists(file_record.storage_path):
+            raise not_found("Stored file")
+
+        content = self.storage.read(
+            file_record.storage_path,
+        )
+
+        return (
+            content,
+            file_record.original_filename,
+            file_record.content_type,
+        )

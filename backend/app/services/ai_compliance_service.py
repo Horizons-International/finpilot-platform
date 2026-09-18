@@ -5,9 +5,13 @@ from sqlalchemy.orm import Session
 from app.ai.prompts.compliance import build_compliance_prompt
 from app.ai.prompts.loader import AIPromptLoader
 from app.ai.providers.factory import get_ai_provider
-from app.ai.schemas.requests import AIRequest, AIRequestType
+from app.ai.schemas.requests import (
+    AIRequest,
+    AIRequestType,
+)
 from app.ai.services.ai_service import AIService
 from app.models.ai_interaction import AIInteraction
+from app.rag.retrieval import RetrievalService
 from app.repositories.ai_interaction_repository import (
     AIInteractionRepository,
 )
@@ -16,21 +20,29 @@ from app.schemas.ai_assistant import (
     AIComplianceResponse,
     AIComplianceResult,
 )
-from app.services.compliance_context_service import (
-    ComplianceContextService,
-)
+from app.services.ai_context_service import AIContextService
 from app.utils.date_time import utc_now
 from app.utils.enums import AIInteractionStatus
 from app.utils.errors import bad_request, not_found
 
 
 class AIComplianceService:
-    def __init__(self, db: Session) -> None:
+    def __init__(
+        self,
+        db: Session,
+        retrieval_service: RetrievalService | None = None,
+    ) -> None:
         self.db = db
 
         self.interaction_repository = AIInteractionRepository(db)
-        self.context_service = ComplianceContextService(db)
+
+        self.context_service = AIContextService(
+            db=db,
+            retrieval_service=retrieval_service,
+        )
+
         self.prompt_loader = AIPromptLoader(db)
+        self.retrieval_service = retrieval_service
 
         self.ai_service = AIService(
             provider=get_ai_provider(),
@@ -42,12 +54,33 @@ class AIComplianceService:
         *,
         user_id: UUID,
     ) -> AIComplianceResponse:
-        context, resource_type, resource_id = self.context_service.build_context(
+        (
+            context,
+            resource_type,
+            resource_id,
+        ) = self.context_service.build_context(
             request.ai_function,
+            question=request.question,
             customer_id=request.customer_id,
             verification_case_id=request.verification_case_id,
             document_id=request.document_id,
+            knowledge_category=request.knowledge_category,
+            retrieval_limit=request.retrieval_limit,
         )
+
+        if self.retrieval_service is None:
+            raise bad_request("Retrieval service is not configured.")
+
+        knowledge_results = self.retrieval_service.retrieve(
+            query=request.question,
+            limit=request.retrieval_limit,
+            category=request.knowledge_category,
+        )
+
+        context["knowledge_base"] = {
+            "query": request.question,
+            "results": [result.model_dump(mode="json") for result in knowledge_results],
+        }
 
         prompt = self.prompt_loader.get_prompt(
             request.ai_function,
@@ -84,19 +117,27 @@ class AIComplianceService:
         )
 
         try:
-            response = self.ai_service.generate(ai_request)
+            response = self.ai_service.generate(
+                ai_request,
+            )
 
             if response.structured_data is None:
                 raise bad_request("AI provider did not return structured data.")
 
             interaction.status = AIInteractionStatus.COMPLETED
+
             interaction.response_text = response.content
+
             interaction.response_data = response.structured_data
+
             interaction.provider_name = response.provider_name
+
             interaction.model = self._get_model_name()
+
             interaction.provider_request_id = (
                 str(response.request_id) if response.request_id else None
             )
+
             interaction.completed_at = utc_now()
 
             self.interaction_repository.update(interaction)
@@ -122,11 +163,15 @@ class AIComplianceService:
         except Exception as exc:
             self.db.rollback()
 
-            failed_interaction = self.interaction_repository.get_by_id(interaction.id)
+            failed_interaction = self.interaction_repository.get_by_id(
+                interaction.id,
+            )
 
             if failed_interaction is not None:
                 failed_interaction.status = AIInteractionStatus.FAILED
+
                 failed_interaction.error_message = str(exc)
+
                 failed_interaction.completed_at = utc_now()
 
                 self.interaction_repository.update(failed_interaction)
@@ -141,7 +186,9 @@ class AIComplianceService:
         *,
         user_id: UUID,
     ) -> AIInteraction:
-        interaction = self.interaction_repository.get_by_id(interaction_id)
+        interaction = self.interaction_repository.get_by_id(
+            interaction_id,
+        )
 
         if interaction is None:
             raise not_found("AI interaction")

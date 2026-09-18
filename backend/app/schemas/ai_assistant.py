@@ -6,6 +6,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from app.utils.enums import (
     AIFunction,
     AIInteractionStatus,
+    KnowledgeDocumentCategory,
 )
 
 
@@ -20,6 +21,14 @@ class AIComplianceRequest(BaseModel):
     customer_id: UUID | None = None
     verification_case_id: UUID | None = None
     document_id: UUID | None = None
+
+    knowledge_category: KnowledgeDocumentCategory | None = None
+
+    retrieval_limit: int = Field(
+        default=5,
+        ge=1,
+        le=20,
+    )
 
 
 class AIComplianceResult(BaseModel):
