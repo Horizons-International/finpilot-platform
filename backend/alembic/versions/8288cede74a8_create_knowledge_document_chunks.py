@@ -1,4 +1,5 @@
 # mypy: ignore-errors
+# fmt: off
 
 """create knowledge document chunks
 
@@ -20,14 +21,12 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
-    op.execute(
-        """
+    op.execute("""
         CREATE INDEX IF NOT EXISTS
         ix_knowledge_document_chunks_embedding_hnsw
         ON knowledge_document_chunks
         USING hnsw (embedding vector_cosine_ops)
-        """
-    )
+        """)
 
     op.drop_index(
         op.f("ix_knowledge_document_chunks_embedding_hnsw"),
@@ -43,12 +42,10 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
-    op.execute(
-        """
+    op.execute("""
         DROP INDEX IF EXISTS
         ix_knowledge_document_chunks_embedding_hnsw
-        """
-    )
+        """)
 
     op.drop_constraint(
         "uq_knowledge_document_chunks_document_index",

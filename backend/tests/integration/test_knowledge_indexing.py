@@ -1,3 +1,5 @@
+# fmt: off
+
 import io
 from uuid import UUID
 
@@ -128,8 +130,7 @@ async def test_index_active_knowledge_document(
     )
 
     upload = UploadFile(
-        file=io.BytesIO(
-            b"""
+        file=io.BytesIO(b"""
             Anti-money laundering policy requires customer
             identity verification before account activation.
 
@@ -137,8 +138,7 @@ async def test_index_active_knowledge_document(
 
             Suspicious transactions must be reported according
             to the applicable regulatory procedure.
-            """
-        ),
+            """),
         filename="aml-policy.txt",
         headers={"content-type": "text/plain"},
     )
