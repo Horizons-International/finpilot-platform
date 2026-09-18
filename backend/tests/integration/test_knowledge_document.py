@@ -35,6 +35,8 @@ def test_create_knowledge_document(
 
     data = response.json()["data"]
 
+    cleanup_test_files(data["id"])
+
     assert data["name"] == "AML Policy"
     assert data["category"] == "COMPLIANCE_POLICY"
     assert data["version"] == 1

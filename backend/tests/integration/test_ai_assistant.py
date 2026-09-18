@@ -1,17 +1,27 @@
+from unittest.mock import patch
+from uuid import uuid4
+
 import pytest
 
+from app.ai.prompts.compliance import (
+    build_compliance_prompt,
+)
 from app.models.ai_interaction import AIInteraction
 from app.models.ai_prompt import AIPrompt
 from app.models.ai_prompt_assignment import AIPromptAssignment
+from app.schemas.rag import RetrievalResult
 from app.utils.enums import (
     AIFunction,
     AIPromptStatus,
+    KnowledgeDocumentCategory,
     UserRole,
 )
 from tests.conftest import TestSessionLocal
 from tests.helpers import (
+    FakeRetrievalService,
     authenticate_client,
     create_customer_with_data,
+    create_fake_retrieval_result,
     create_verification_case,
 )
 from tests.seed import seed_ai_prompts
@@ -100,15 +110,23 @@ def test_compliance_officer_can_send_ai_request(
 
     authenticate_client(client, compliance_officer)
 
-    response = client.post(
-        "/api/v1/ai-assistant/ask",
-        json={
-            "ai_function": "CASE_SUMMARY",
-            "question": "Summarize this compliance case.",
-            "customer_id": customer_id,
-            "verification_case_id": case_id,
-        },
+    fake_retrieval_service = FakeRetrievalService(
+        results=[],
     )
+
+    with patch(
+        "app.services.ai_compliance_dependencies.RetrievalService",
+        return_value=fake_retrieval_service,
+    ):
+        response = client.post(
+            "/api/v1/ai-assistant/ask",
+            json={
+                "ai_function": "CASE_SUMMARY",
+                "question": "Summarize this compliance case.",
+                "customer_id": customer_id,
+                "verification_case_id": case_id,
+            },
+        )
 
     assert response.status_code == 200
 
@@ -154,15 +172,23 @@ def test_ai_request_returns_structured_response(
 
     authenticate_client(client, compliance_officer)
 
-    response = client.post(
-        "/api/v1/ai-assistant/ask",
-        json={
-            "ai_function": "CASE_SUMMARY",
-            "question": "Summarize this customer's verification status.",
-            "verification_case_id": case_id,
-            "document_id": customer_id,
-        },
+    fake_retrieval_service = FakeRetrievalService(
+        results=[],
     )
+
+    with patch(
+        "app.services.ai_compliance_dependencies.RetrievalService",
+        return_value=fake_retrieval_service,
+    ):
+        response = client.post(
+            "/api/v1/ai-assistant/ask",
+            json={
+                "ai_function": "CASE_SUMMARY",
+                "question": "Summarize this customer's verification status.",
+                "verification_case_id": case_id,
+                "document_id": customer_id,
+            },
+        )
 
     assert response.status_code == 200
 
@@ -219,15 +245,23 @@ def test_ai_request_is_logged(
 
     authenticate_client(client, compliance_officer)
 
-    response = client.post(
-        "/api/v1/ai-assistant/ask",
-        json={
-            "ai_function": "CASE_SUMMARY",
-            "question": "Summarize this compliance case.",
-            "verification_case_id": case_id,
-            "document_id": customer_id,
-        },
+    fake_retrieval_service = FakeRetrievalService(
+        results=[],
     )
+
+    with patch(
+        "app.services.ai_compliance_dependencies.RetrievalService",
+        return_value=fake_retrieval_service,
+    ):
+        response = client.post(
+            "/api/v1/ai-assistant/ask",
+            json={
+                "ai_function": "CASE_SUMMARY",
+                "question": "Summarize this compliance case.",
+                "verification_case_id": case_id,
+                "document_id": customer_id,
+            },
+        )
 
     assert response.status_code == 200
 
@@ -281,15 +315,23 @@ def test_ai_request_uses_assigned_prompt(
 
     authenticate_client(client, compliance_officer)
 
-    response = client.post(
-        "/api/v1/ai-assistant/ask",
-        json={
-            "ai_function": "CASE_SUMMARY",
-            "question": "Summarize this case.",
-            "verification_case_id": case_id,
-            "customer_id": customer_id,
-        },
+    fake_retrieval_service = FakeRetrievalService(
+        results=[],
     )
+
+    with patch(
+        "app.services.ai_compliance_dependencies.RetrievalService",
+        return_value=fake_retrieval_service,
+    ):
+        response = client.post(
+            "/api/v1/ai-assistant/ask",
+            json={
+                "ai_function": "CASE_SUMMARY",
+                "question": "Summarize this case.",
+                "verification_case_id": case_id,
+                "customer_id": customer_id,
+            },
+        )
 
     assert response.status_code == 200
 
@@ -360,15 +402,23 @@ def test_ai_request_allowed_roles(
 
     authenticate_client(client, user)
 
-    response = client.post(
-        "/api/v1/ai-assistant/ask",
-        json={
-            "ai_function": "CASE_SUMMARY",
-            "question": "Summarize this compliance case.",
-            "verification_case_id": case_id,
-            "customer_id": customer_id,
-        },
+    fake_retrieval_service = FakeRetrievalService(
+        results=[],
     )
+
+    with patch(
+        "app.services.ai_compliance_dependencies.RetrievalService",
+        return_value=fake_retrieval_service,
+    ):
+        response = client.post(
+            "/api/v1/ai-assistant/ask",
+            json={
+                "ai_function": "CASE_SUMMARY",
+                "question": "Summarize this compliance case.",
+                "verification_case_id": case_id,
+                "customer_id": customer_id,
+            },
+        )
 
     assert response.status_code == 200
 
@@ -447,23 +497,39 @@ def test_ai_interaction_can_be_retrieved(
 
     authenticate_client(client, compliance_officer)
 
-    create_response = client.post(
-        "/api/v1/ai-assistant/ask",
-        json={
-            "ai_function": "CASE_SUMMARY",
-            "question": "Summarize this compliance case.",
-            "verification_case_id": case_id,
-            "customer_id": customer_id,
-        },
+    fake_retrieval_service = FakeRetrievalService(
+        results=[],
     )
+
+    with patch(
+        "app.services.ai_compliance_dependencies.RetrievalService",
+        return_value=fake_retrieval_service,
+    ):
+        create_response = client.post(
+            "/api/v1/ai-assistant/ask",
+            json={
+                "ai_function": "CASE_SUMMARY",
+                "question": "Summarize this compliance case.",
+                "verification_case_id": case_id,
+                "customer_id": customer_id,
+            },
+        )
 
     assert create_response.status_code == 200
 
     interaction_id = create_response.json()["data"]["interaction_id"]
 
-    response = client.get(
-        f"/api/v1/ai-assistant/interactions/{interaction_id}",
+    fake_retrieval_service = FakeRetrievalService(
+        results=[],
     )
+
+    with patch(
+        "app.services.ai_compliance_dependencies.RetrievalService",
+        return_value=fake_retrieval_service,
+    ):
+        response = client.get(
+            f"/api/v1/ai-assistant/interactions/{interaction_id}",
+        )
 
     assert response.status_code == 200
 
@@ -512,15 +578,23 @@ def test_ai_interaction_belongs_to_requesting_user(
 
     authenticate_client(client, first_user)
 
-    create_response = client.post(
-        "/api/v1/ai-assistant/ask",
-        json={
-            "ai_function": "CASE_SUMMARY",
-            "question": "Summarize this compliance case.",
-            "verification_case_id": case_id,
-            "customer_id": customer_id,
-        },
+    fake_retrieval_service = FakeRetrievalService(
+        results=[],
     )
+
+    with patch(
+        "app.services.ai_compliance_dependencies.RetrievalService",
+        return_value=fake_retrieval_service,
+    ):
+        create_response = client.post(
+            "/api/v1/ai-assistant/ask",
+            json={
+                "ai_function": "CASE_SUMMARY",
+                "question": "Summarize this compliance case.",
+                "verification_case_id": case_id,
+                "customer_id": customer_id,
+            },
+        )
 
     assert create_response.status_code == 200
 
@@ -530,9 +604,17 @@ def test_ai_interaction_belongs_to_requesting_user(
 
     authenticate_client(client, second_user)
 
-    response = client.get(
-        f"/api/v1/ai-assistant/interactions/{interaction_id}",
+    fake_retrieval_service = FakeRetrievalService(
+        results=[],
     )
+
+    with patch(
+        "app.services.ai_compliance_dependencies.RetrievalService",
+        return_value=fake_retrieval_service,
+    ):
+        response = client.get(
+            f"/api/v1/ai-assistant/interactions/{interaction_id}",
+        )
 
     assert response.status_code == 400
 
@@ -569,14 +651,22 @@ def test_ai_request_with_customer_context(
 
     authenticate_client(client, compliance_officer)
 
-    response = client.post(
-        "/api/v1/ai-assistant/ask",
-        json={
-            "ai_function": "CUSTOMER_SUMMARY",
-            "question": "Summarize this customer.",
-            "customer_id": customer_id,
-        },
+    fake_retrieval_service = FakeRetrievalService(
+        results=[],
     )
+
+    with patch(
+        "app.services.ai_compliance_dependencies.RetrievalService",
+        return_value=fake_retrieval_service,
+    ):
+        response = client.post(
+            "/api/v1/ai-assistant/ask",
+            json={
+                "ai_function": "CUSTOMER_SUMMARY",
+                "question": "Summarize this customer.",
+                "customer_id": customer_id,
+            },
+        )
 
     assert response.status_code == 200
 
@@ -624,15 +714,23 @@ def test_ai_request_with_case_context(
 
     authenticate_client(client, compliance_officer)
 
-    response = client.post(
-        "/api/v1/ai-assistant/ask",
-        json={
-            "ai_function": "CASE_SUMMARY",
-            "question": "Summarize this verification case.",
-            "customer_id": customer_id,
-            "verification_case_id": case["id"],
-        },
+    fake_retrieval_service = FakeRetrievalService(
+        results=[],
     )
+
+    with patch(
+        "app.services.ai_compliance_dependencies.RetrievalService",
+        return_value=fake_retrieval_service,
+    ):
+        response = client.post(
+            "/api/v1/ai-assistant/ask",
+            json={
+                "ai_function": "CASE_SUMMARY",
+                "question": "Summarize this verification case.",
+                "customer_id": customer_id,
+                "verification_case_id": case["id"],
+            },
+        )
 
     assert response.status_code == 200
 
@@ -641,3 +739,253 @@ def test_ai_request_with_case_context(
     assert data["ai_function"] == "CASE_SUMMARY"
     assert data["interaction_id"] is not None
     assert data["result"] is not None
+
+
+def test_ai_request_includes_retrieved_knowledge_in_context(
+    client,
+    create_test_user,
+    cleanup_test_customers,
+    cleanup_ai_prompts,
+    cleanup_ai_interactions,
+    db_session,
+):
+    admin = create_test_user(
+        email="rag-ai-admin@example.com",
+        role=UserRole.ADMINISTRATOR,
+    )
+
+    authenticate_client(
+        client,
+        admin,
+    )
+
+    customer_response = create_customer_with_data(
+        client,
+        email="rag-ai-customer@example.com",
+    )
+
+    assert customer_response.status_code == 201
+
+    customer_id = customer_response.json()["data"]["id"]
+
+    case = create_verification_case(
+        client,
+        customer_id,
+    )
+
+    retrieval_result = RetrievalResult(
+        chunk_id=uuid4(),
+        document_id=uuid4(),
+        document_name=("Customer Verification Policy"),
+        category=(KnowledgeDocumentCategory.COMPLIANCE_POLICY),
+        version=2,
+        content=(
+            "Customers must provide a valid government-issued "
+            "identity document before verification."
+        ),
+        similarity=0.94,
+    )
+
+    fake_retrieval_service = FakeRetrievalService(
+        results=[retrieval_result],
+    )
+
+    with patch(
+        "app.services.ai_compliance_dependencies.RetrievalService",
+        return_value=fake_retrieval_service,
+    ):
+        response = client.post(
+            "/api/v1/ai-assistant/ask",
+            json={
+                "ai_function": "CASE_SUMMARY",
+                "question": ("What identity document is required?"),
+                "customer_id": customer_id,
+                "verification_case_id": case["id"],
+                "retrieval_limit": 5,
+            },
+        )
+
+    assert response.status_code == 200
+
+    interaction_id = response.json()["data"]["interaction_id"]
+
+    interaction = db_session.get(
+        AIInteraction,
+        interaction_id,
+    )
+
+    assert interaction is not None
+
+    assert "knowledge_base" in interaction.context
+
+    knowledge_base = interaction.context["knowledge_base"]
+
+    assert knowledge_base["query"] == ("What identity document is required?")
+
+    assert len(knowledge_base["results"]) == 1
+
+    result = knowledge_base["results"][0]
+
+    assert result["document_name"] == ("Customer Verification Policy")
+
+    assert result["version"] == 2
+
+    assert result["similarity"] == 0.94
+
+    assert "government-issued" in result["content"]
+
+
+def test_ai_request_passes_rag_options(
+    client,
+    create_test_user,
+    cleanup_test_customers,
+    cleanup_ai_prompts,
+    cleanup_ai_interactions,
+):
+    admin = create_test_user(
+        email="rag-options@example.com",
+        role=UserRole.ADMINISTRATOR,
+    )
+    user = create_test_user(
+        email="rag-options2@example.com",
+        role=UserRole.COMPLIANCE_OFFICER,
+    )
+
+    authenticate_client(
+        client,
+        admin,
+    )
+
+    create_response = create_customer_with_data(client, name="edward")
+
+    customer_id = create_response.json()["data"]["id"]
+
+    retrieval_result = create_fake_retrieval_result()
+
+    fake_retrieval_service = FakeRetrievalService(
+        results=[retrieval_result],
+    )
+
+    authenticate_client(
+        client,
+        user,
+    )
+
+    with patch(
+        "app.services.ai_compliance_dependencies.RetrievalService",
+        return_value=fake_retrieval_service,
+    ):
+        response = client.post(
+            "/api/v1/ai-assistant/ask",
+            json={
+                "ai_function": "CUSTOMER_SUMMARY",
+                "question": "What does our policy say?",
+                "customer_id": customer_id,
+                "knowledge_category": ("COMPLIANCE_POLICY"),
+                "retrieval_limit": 7,
+            },
+        )
+
+    assert response.status_code in {
+        200,
+        404,
+    }
+
+    assert fake_retrieval_service.last_query == ("What does our policy say?")
+
+    assert fake_retrieval_service.last_limit == 7
+
+    assert (
+        fake_retrieval_service.last_category
+        == KnowledgeDocumentCategory.COMPLIANCE_POLICY
+    )
+
+
+def test_compliance_prompt_contains_knowledge_context():
+    context = {
+        "customer": {
+            "status": "pending_verification",
+        },
+        "knowledge_base": {
+            "query": "What identity document is required?",
+            "results": [
+                {
+                    "document_name": ("Customer Verification Policy"),
+                    "category": ("COMPLIANCE_POLICY"),
+                    "version": 2,
+                    "content": ("A government-issued identity document is required."),
+                    "similarity": 0.94,
+                }
+            ],
+        },
+    }
+
+    prompt = build_compliance_prompt(
+        system_prompt="You are a compliance assistant.",
+        question=("What identity document is required?"),
+        context=context,
+    )
+
+    assert "Customer Verification Policy" in prompt
+
+    assert "government-issued identity document" in prompt
+
+    assert "COMPLIANCE_POLICY" in prompt
+
+    assert "version" in prompt
+
+    assert "0.94" in prompt
+
+
+def test_ai_request_works_when_no_knowledge_is_retrieved(
+    client,
+    create_test_user,
+    cleanup_test_customers,
+    cleanup_ai_prompts,
+    cleanup_ai_interactions,
+):
+    admin = create_test_user(
+        email="rag-empty@example.com",
+        role=UserRole.ADMINISTRATOR,
+    )
+
+    user = create_test_user(
+        email="rag-empty2@example.com",
+        role=UserRole.COMPLIANCE_OFFICER,
+    )
+
+    authenticate_client(client, admin)
+
+    customer_response = create_customer_with_data(
+        client,
+        email="rag-empty-customer@example.com",
+    )
+
+    assert customer_response.status_code == 201
+
+    customer_id = customer_response.json()["data"]["id"]
+
+    fake_retrieval_service = FakeRetrievalService(
+        results=[],
+    )
+
+    authenticate_client(client, user)
+
+    with patch(
+        "app.services.ai_compliance_dependencies.RetrievalService",
+        return_value=fake_retrieval_service,
+    ):
+        response = client.post(
+            "/api/v1/ai-assistant/ask",
+            json={
+                "ai_function": "CUSTOMER_SUMMARY",
+                "question": ("Summarize this customer."),
+                "customer_id": customer_id,
+            },
+        )
+
+    assert response.status_code == 200
+
+    data = response.json()["data"]
+
+    assert data["status"] == "COMPLETED"

@@ -7,11 +7,14 @@ from app.core.config import settings
 from app.core.database import get_db
 from app.core.security import decode_access_token
 from app.models.user import User
+from app.rag.embeddings import EmbeddingService
+from app.rag.retrieval import RetrievalService
 from app.services.document_service import DocumentService
 from app.services.file_service import FileService
 from app.services.knowledge_document_service import (
     KnowledgeDocumentService,
 )
+from app.services.knowledge_indexing_service import KnowledgeIndexingService
 from app.services.verification_review_service import VerificationReviewService
 from app.services.verification_service import VerificationService
 from app.storages.base_storage import BaseStorage
@@ -96,3 +99,20 @@ def get_knowledge_document_service(
         db=db,
         file_service=file_service,
     )
+
+
+def get_knowledge_indexing_service(
+    db: Session = Depends(get_db),
+    file_service: FileService = Depends(get_file_service),
+) -> KnowledgeIndexingService:
+    return KnowledgeIndexingService(
+        db=db,
+        file_service=file_service,
+        embedding_service=EmbeddingService(),
+    )
+
+
+def get_retrieval_service(
+    db: Session = Depends(get_db),
+) -> RetrievalService:
+    return RetrievalService(db)

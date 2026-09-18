@@ -1,4 +1,8 @@
 from io import BytesIO
+from uuid import uuid4
+
+from app.schemas.rag import RetrievalResult
+from app.utils.enums import KnowledgeDocumentCategory
 
 
 def authenticate_client(client, user) -> None:
@@ -124,4 +128,46 @@ def upload_document(
                 content_type,
             ),
         },
+    )
+
+
+class FakeRetrievalService:
+    def __init__(
+        self,
+        results: list[RetrievalResult] | None = None,
+    ) -> None:
+        self.results = results or []
+
+        self.last_query: str | None = None
+        self.last_limit: int | None = None
+        self.last_category = None
+
+    def retrieve(
+        self,
+        query: str,
+        limit: int = 5,
+        category=None,
+    ) -> list[RetrievalResult]:
+        self.last_query = query
+        self.last_limit = limit
+        self.last_category = category
+
+        return self.results
+
+
+def create_fake_retrieval_result(
+    *,
+    content: str = (
+        "Customers must provide a valid identity document for verification."
+    ),
+    similarity: float = 0.92,
+) -> RetrievalResult:
+    return RetrievalResult(
+        chunk_id=uuid4(),
+        document_id=uuid4(),
+        document_name="Customer Verification Policy",
+        category=KnowledgeDocumentCategory.COMPLIANCE_POLICY,
+        version=1,
+        content=content,
+        similarity=similarity,
     )
