@@ -10,6 +10,7 @@ from app.models.user import User
 from app.rag.embeddings import EmbeddingService
 from app.rag.retrieval import RetrievalService
 from app.services.ai_usage_service import AIUsageService
+from app.services.compliance_service import ComplianceService
 from app.services.document_service import DocumentService
 from app.services.file_service import FileService
 from app.services.knowledge_document_service import (
@@ -123,3 +124,9 @@ def get_ai_usage_service(
     db: Session = Depends(get_db),
 ) -> AIUsageService:
     return AIUsageService(db)
+
+
+def get_compliance_service(
+    db: Session = Depends(get_db),
+) -> ComplianceService:
+    return ComplianceService(db)

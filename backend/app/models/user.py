@@ -86,3 +86,9 @@ class User(Base):
         foreign_keys="IdentityVerificationCase.assigned_to",
         back_populates="assigned_reviewer",
     )
+
+    assigned_compliance_cases = relationship(
+        "ComplianceCase",
+        foreign_keys="ComplianceCase.assigned_to",
+        back_populates="assigned_user",
+    )
