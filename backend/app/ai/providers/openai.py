@@ -104,10 +104,14 @@ class OpenAIProvider(AIProvider):
                 "OpenAI provider returned invalid structured data."
             ) from exc
 
+        usage = response.usage
+
         return AIResponse(
             provider_name="openai",
             request_type=request.request_type.value,
             content=content,
             structured_data=structured_data,
             request_id=None,
+            input_tokens=usage.input_tokens if usage else 0,
+            output_tokens=usage.output_tokens if usage else 0,
         )

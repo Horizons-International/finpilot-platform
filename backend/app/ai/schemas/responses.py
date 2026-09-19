@@ -10,3 +10,5 @@ class AIResponse:
     content: str
     structured_data: dict[str, Any] | None = None
     request_id: UUID | None = None
+    input_tokens: int = 0
+    output_tokens: int = 0

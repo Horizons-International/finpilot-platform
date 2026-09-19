@@ -21,6 +21,8 @@ class MockAIProvider(AIProvider):
                 request_type=request.request_type.value,
                 content=f"Mock AI response for: {request.prompt}",
                 request_id=uuid.uuid4(),
+                input_tokens=0,
+                output_tokens=0,
             )
 
         if request.request_type == AIRequestType.DOCUMENT_ANALYSIS:
@@ -37,6 +39,8 @@ class MockAIProvider(AIProvider):
                     "confidence": 0.0,
                 },
                 request_id=uuid.uuid4(),
+                input_tokens=0,
+                output_tokens=0,
             )
 
         if request.request_type == AIRequestType.COMPLIANCE_ASSISTANT:
@@ -53,6 +57,8 @@ class MockAIProvider(AIProvider):
                     "confidence": 0.0,
                 },
                 request_id=uuid.uuid4(),
+                input_tokens=0,
+                output_tokens=0,
             )
 
         raise AIProviderError(f"Unsupported AI request type: {request.request_type}")

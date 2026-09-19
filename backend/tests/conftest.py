@@ -16,6 +16,7 @@ from app.extraction.services.extraction_service import DocumentExtractionService
 from app.main import app
 from app.models.ai_interaction import AIInteraction
 from app.models.ai_prompt_assignment import AIPromptAssignment
+from app.models.ai_usage_log import AIUsageLog
 from app.models.audit_log import AuditLog
 from app.models.customer import Customer
 from app.models.customer_audit_log import CustomerAuditLog
@@ -279,12 +280,14 @@ def cleanup_ai_prompts():
 
 
 @pytest.fixture
-def cleanup_ai_interactions():
+def cleanup_ai_data():
     setup_db = TestSessionLocal()
 
     existing_interactions = {
         interaction.id for interaction in setup_db.query(AIInteraction).all()
     }
+
+    existing_usage_log = {usage_log.id for usage_log in setup_db.query(AuditLog).all()}
 
     setup_db.close()
 
@@ -298,8 +301,15 @@ def cleanup_ai_interactions():
         .all()
     )
 
+    current_usage_log = (
+        db.query(AIUsageLog).filter(~AIUsageLog.id.in_(existing_usage_log)).all()
+    )
+
     for interaction in current_interactions:
         db.delete(interaction)
+
+    for usage_log in current_usage_log:
+        db.delete(usage_log)
 
     db.commit()
     db.close()

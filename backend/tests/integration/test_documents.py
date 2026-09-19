@@ -43,6 +43,7 @@ def test_upload_customer_document_success(
     db_session,
     create_test_user,
     cleanup_test_customers,
+    cleanup_test_files,
 ):
     admin = create_test_user(
         email="document-admin@example.com",
@@ -78,6 +79,8 @@ def test_upload_customer_document_success(
         document_type.id,
     )
 
+    cleanup_test_files(response.json()["data"]["file_reference"])
+
     assert response.status_code == 201
 
     data = response.json()["data"]
@@ -100,6 +103,7 @@ def test_customer_document_metadata_is_stored(
     db_session,
     create_test_user,
     cleanup_test_customers,
+    cleanup_test_files,
 ):
     admin = create_test_user(
         email="document-metadata-admin@example.com",
@@ -138,6 +142,8 @@ def test_customer_document_metadata_is_stored(
         content=b"%PDF-1.4 identity document",
     )
 
+    cleanup_test_files(response.json()["data"]["file_reference"])
+
     assert response.status_code == 201
 
     data = response.json()["data"]
@@ -167,6 +173,7 @@ def test_customer_document_links_to_file_record(
     db_session,
     create_test_user,
     cleanup_test_customers,
+    cleanup_test_files,
 ):
     admin = create_test_user(
         email="document-file-admin@example.com",
@@ -199,6 +206,8 @@ def test_customer_document_links_to_file_record(
         verification_case_id,
         document_type.id,
     )
+
+    cleanup_test_files(response.json()["data"]["file_reference"])
 
     assert response.status_code == 201
 
@@ -233,6 +242,7 @@ def test_upload_jpeg_document(
     db_session,
     create_test_user,
     cleanup_test_customers,
+    cleanup_test_files,
 ):
     admin = create_test_user(
         email="document-jpeg-admin@example.com",
@@ -269,6 +279,8 @@ def test_upload_jpeg_document(
         content=b"\xff\xd8\xff\xe0 test jpeg",
     )
 
+    cleanup_test_files(response.json()["data"]["file_reference"])
+
     assert response.status_code == 201
     assert response.json()["data"]["file_type"] == "image/jpeg"
 
@@ -278,6 +290,7 @@ def test_upload_png_document(
     db_session,
     create_test_user,
     cleanup_test_customers,
+    cleanup_test_files,
 ):
     admin = create_test_user(
         email="document-png-admin@example.com",
@@ -313,6 +326,8 @@ def test_upload_png_document(
         content_type="image/png",
         content=b"\x89PNG\r\n\x1a\n test png",
     )
+
+    cleanup_test_files(response.json()["data"]["file_reference"])
 
     assert response.status_code == 201
     assert response.json()["data"]["file_type"] == "image/png"
@@ -473,6 +488,7 @@ def test_get_customer_documents(
     db_session,
     create_test_user,
     cleanup_test_customers,
+    cleanup_test_files,
 ):
     admin = create_test_user(
         email="document-list-admin@example.com",
@@ -515,6 +531,9 @@ def test_get_customer_documents(
         filename="passport-2.pdf",
     )
 
+    cleanup_test_files(first_upload.json()["data"]["file_reference"])
+    cleanup_test_files(second_upload.json()["data"]["file_reference"])
+
     assert first_upload.status_code == 201
     assert second_upload.status_code == 201
 
@@ -539,6 +558,7 @@ def test_get_customer_document_by_id(
     db_session,
     create_test_user,
     cleanup_test_customers,
+    cleanup_test_files,
 ):
     admin = create_test_user(
         email="document-get-admin@example.com",
@@ -571,6 +591,8 @@ def test_get_customer_document_by_id(
         verification_case_id,
         document_type.id,
     )
+
+    cleanup_test_files(upload_response.json()["data"]["file_reference"])
 
     assert upload_response.status_code == 201
 
@@ -646,6 +668,7 @@ def test_reviewer_can_retrieve_customer_documents(
     db_session,
     create_test_user,
     cleanup_test_customers,
+    cleanup_test_files,
 ):
     admin = create_test_user(
         email="document-reviewer-admin@example.com",
@@ -678,6 +701,8 @@ def test_reviewer_can_retrieve_customer_documents(
         verification_case_id,
         document_type.id,
     )
+
+    cleanup_test_files(upload_response.json()["data"]["file_reference"])
 
     assert upload_response.status_code == 201
 

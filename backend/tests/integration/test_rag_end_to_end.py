@@ -25,9 +25,10 @@ async def test_complete_rag_pipeline(
     client,
     create_test_user,
     cleanup_ai_prompts,
-    cleanup_ai_interactions,
+    cleanup_ai_data,
     cleanup_test_customers,
     cleanup_knowledge_documents,
+    cleanup_test_files,
     tmp_path,
 ):
     admin = create_test_user(
@@ -59,6 +60,8 @@ async def test_complete_rag_pipeline(
             "category": "COMPLIANCE_POLICY",
         },
     )
+
+    cleanup_test_files(upload_response.json()["data"]["file_reference"])
 
     assert upload_response.status_code == 201
 

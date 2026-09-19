@@ -111,8 +111,6 @@ class KnowledgeDocumentService:
         email: str,
         data: KnowledgeDocumentVersionCreate,
     ):
-        from app.models.knowledge_document import KnowledgeDocument
-
         latest_document = self.repository.get_by_id(document_id)
 
         if latest_document is None:
