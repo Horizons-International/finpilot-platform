@@ -107,3 +107,9 @@ class Customer(Base):
         back_populates="customer",
         cascade="all, delete-orphan",
     )
+
+    compliance_cases = relationship(
+        "ComplianceCase",
+        back_populates="customer",
+        cascade="all, delete-orphan",
+    )

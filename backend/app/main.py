@@ -9,6 +9,7 @@ from app.api.ai_assistant import router as ai_assistant_router
 from app.api.ai_prompts import router as ai_prompts_router
 from app.api.ai_usage import router as ai_usage_router
 from app.api.auth import router as auth_router
+from app.api.compliance_cases import router as compliance_cases_router
 from app.api.customer_addresses import router as customer_addresses_router
 from app.api.customer_audit_logs import router as customer_audit_logs_router
 from app.api.customer_contacts import router as customer_contacts_router
@@ -82,6 +83,7 @@ app.include_router(auth_router)
 app.include_router(health_router)
 app.include_router(profile_router)
 app.include_router(users_router)
+app.include_router(compliance_cases_router)
 app.include_router(files_router)
 app.include_router(customer_router)
 app.include_router(customer_contacts_router)

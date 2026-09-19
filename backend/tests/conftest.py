@@ -18,6 +18,7 @@ from app.models.ai_interaction import AIInteraction
 from app.models.ai_prompt_assignment import AIPromptAssignment
 from app.models.ai_usage_log import AIUsageLog
 from app.models.audit_log import AuditLog
+from app.models.compliance_case import ComplianceCase
 from app.models.customer import Customer
 from app.models.customer_audit_log import CustomerAuditLog
 from app.models.customer_contact import CustomerContact
@@ -441,5 +442,24 @@ def cleanup_knowledge_documents(db_session):
     for document in current_documents:
         if document.id not in existing_documents:
             db_session.delete(document)
+
+    db_session.commit()
+
+
+@pytest.fixture
+def cleanup_compliance_cases(db_session):
+    """
+    Remove compliance cases created during a test while preserving
+    compliance cases that existed before the test.
+    """
+    existing_case_ids = {case.id for case in db_session.query(ComplianceCase).all()}
+
+    yield
+
+    current_cases = db_session.query(ComplianceCase).all()
+
+    for case in current_cases:
+        if case.id not in existing_case_ids:
+            db_session.delete(case)
 
     db_session.commit()
