@@ -35,7 +35,7 @@ def test_create_knowledge_document(
 
     data = response.json()["data"]
 
-    cleanup_test_files(data["id"])
+    cleanup_test_files(data["file_reference"])
 
     assert data["name"] == "AML Policy"
     assert data["category"] == "COMPLIANCE_POLICY"
@@ -120,6 +120,9 @@ def test_create_knowledge_document_version(
         },
     )
 
+    cleanup_test_files(create_response.json()["data"]["file_reference"])
+    cleanup_test_files(response.json()["data"]["file_reference"])
+
     assert response.status_code == 201
 
     data = response.json()["data"]
@@ -173,6 +176,9 @@ def test_list_knowledge_document_versions(
         },
     )
 
+    cleanup_test_files(create_response.json()["data"]["file_reference"])
+    cleanup_test_files(version_response.json()["data"]["file_reference"])
+
     assert version_response.status_code == 201
 
     response = client.get(
@@ -220,6 +226,8 @@ def test_activate_knowledge_document(
 
     document_id = create_response.json()["data"]["id"]
 
+    cleanup_test_files(create_response.json()["data"]["file_reference"])
+
     response = client.patch(
         f"/api/v1/knowledge-documents/{document_id}/status",
         json={
@@ -263,6 +271,8 @@ def test_deactivate_knowledge_document(
     )
 
     document_id = create_response.json()["data"]["id"]
+
+    cleanup_test_files(create_response.json()["data"]["file_reference"])
 
     activate_response = client.patch(
         f"/api/v1/knowledge-documents/{document_id}/status",
@@ -315,6 +325,8 @@ def test_only_one_active_version_per_document_name(
         },
     )
 
+    cleanup_test_files(create_response.json()["data"]["file_reference"])
+
     document_id = create_response.json()["data"]["id"]
 
     activate_response = client.patch(
@@ -336,6 +348,8 @@ def test_only_one_active_version_per_document_name(
             ),
         },
     )
+
+    cleanup_test_files(version_response.json()["data"]["file_reference"])
 
     assert version_response.status_code == 201
 
@@ -381,6 +395,8 @@ def test_knowledge_document_creation_is_audited(
     )
 
     assert response.status_code == 201
+
+    cleanup_test_files(response.json()["data"]["file_reference"])
 
     document_id = response.json()["data"]["id"]
 

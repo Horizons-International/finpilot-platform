@@ -7,6 +7,7 @@ from sqlalchemy.exc import SQLAlchemyError
 
 from app.api.ai_assistant import router as ai_assistant_router
 from app.api.ai_prompts import router as ai_prompts_router
+from app.api.ai_usage import router as ai_usage_router
 from app.api.auth import router as auth_router
 from app.api.customer_addresses import router as customer_addresses_router
 from app.api.customer_audit_logs import router as customer_audit_logs_router
@@ -92,6 +93,7 @@ app.include_router(verification_reviews_router)
 app.include_router(verification_document_type_router)
 app.include_router(ai_prompts_router)
 app.include_router(ai_assistant_router)
+app.include_router(ai_usage_router)
 app.include_router(documents_router)
 app.include_router(knowledge_documents_router)
 app.include_router(reports_router)

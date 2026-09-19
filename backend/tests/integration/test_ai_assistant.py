@@ -9,6 +9,7 @@ from app.ai.prompts.compliance import (
 from app.models.ai_interaction import AIInteraction
 from app.models.ai_prompt import AIPrompt
 from app.models.ai_prompt_assignment import AIPromptAssignment
+from app.models.ai_usage_log import AIUsageLog
 from app.schemas.rag import RetrievalResult
 from app.utils.enums import (
     AIFunction,
@@ -84,7 +85,7 @@ def test_compliance_officer_can_send_ai_request(
     create_test_user,
     cleanup_test_customers,
     cleanup_ai_prompts,
-    cleanup_ai_interactions,
+    cleanup_ai_data,
 ):
     admin = create_test_user(
         email="officer-send@example.com",
@@ -146,7 +147,7 @@ def test_ai_request_returns_structured_response(
     create_test_user,
     cleanup_test_customers,
     cleanup_ai_prompts,
-    cleanup_ai_interactions,
+    cleanup_ai_data,
 ):
     admin = create_test_user(
         email="officer-send@example.com",
@@ -218,7 +219,7 @@ def test_ai_request_is_logged(
     create_test_user,
     cleanup_test_customers,
     cleanup_ai_prompts,
-    cleanup_ai_interactions,
+    cleanup_ai_data,
     db_session,
 ):
     admin = create_test_user(
@@ -288,7 +289,7 @@ def test_ai_request_uses_assigned_prompt(
     create_test_user,
     cleanup_test_customers,
     cleanup_ai_prompts,
-    cleanup_ai_interactions,
+    cleanup_ai_data,
     db_session,
 ):
     admin = create_test_user(
@@ -375,7 +376,7 @@ def test_ai_request_allowed_roles(
     create_test_user,
     cleanup_test_customers,
     cleanup_ai_prompts,
-    cleanup_ai_interactions,
+    cleanup_ai_data,
     role,
 ):
     admin = create_test_user(
@@ -471,7 +472,7 @@ def test_ai_interaction_can_be_retrieved(
     create_test_user,
     cleanup_test_customers,
     cleanup_ai_prompts,
-    cleanup_ai_interactions,
+    cleanup_ai_data,
 ):
     admin = create_test_user(
         email="officer-send@example.com",
@@ -547,7 +548,7 @@ def test_ai_interaction_belongs_to_requesting_user(
     create_test_user,
     cleanup_test_customers,
     cleanup_ai_prompts,
-    cleanup_ai_interactions,
+    cleanup_ai_data,
 ):
     admin = create_test_user(
         email="officer-send@example.com",
@@ -624,7 +625,7 @@ def test_ai_request_with_customer_context(
     create_test_user,
     cleanup_test_customers,
     cleanup_ai_prompts,
-    cleanup_ai_interactions,
+    cleanup_ai_data,
 ):
     compliance_officer = create_test_user(
         email="ai-customer-context@example.com",
@@ -682,7 +683,7 @@ def test_ai_request_with_case_context(
     create_test_user,
     cleanup_test_customers,
     cleanup_ai_prompts,
-    cleanup_ai_interactions,
+    cleanup_ai_data,
 ):
     compliance_officer = create_test_user(
         email="ai-case-context@example.com",
@@ -746,7 +747,7 @@ def test_ai_request_includes_retrieved_knowledge_in_context(
     create_test_user,
     cleanup_test_customers,
     cleanup_ai_prompts,
-    cleanup_ai_interactions,
+    cleanup_ai_data,
     db_session,
 ):
     admin = create_test_user(
@@ -840,7 +841,7 @@ def test_ai_request_passes_rag_options(
     create_test_user,
     cleanup_test_customers,
     cleanup_ai_prompts,
-    cleanup_ai_interactions,
+    cleanup_ai_data,
 ):
     admin = create_test_user(
         email="rag-options@example.com",
@@ -942,7 +943,7 @@ def test_ai_request_works_when_no_knowledge_is_retrieved(
     create_test_user,
     cleanup_test_customers,
     cleanup_ai_prompts,
-    cleanup_ai_interactions,
+    cleanup_ai_data,
 ):
     admin = create_test_user(
         email="rag-empty@example.com",
@@ -989,3 +990,196 @@ def test_ai_request_works_when_no_knowledge_is_retrieved(
     data = response.json()["data"]
 
     assert data["status"] == "COMPLETED"
+
+
+def test_ai_request_creates_usage_log(
+    client,
+    create_test_user,
+    cleanup_test_customers,
+    cleanup_ai_prompts,
+    cleanup_ai_data,
+    db_session,
+):
+    admin = create_test_user(
+        email="usage-admin@example.com",
+        role=UserRole.ADMINISTRATOR,
+    )
+
+    authenticate_client(client, admin)
+
+    customer_response = create_customer_with_data(
+        client,
+        name="usage-customer",
+    )
+
+    assert customer_response.status_code == 201
+
+    customer_id = customer_response.json()["data"]["id"]
+
+    case = create_verification_case(client, customer_id)
+    case_id = case["id"]
+
+    fake_retrieval_service = FakeRetrievalService(
+        results=[],
+    )
+
+    with patch(
+        "app.services.ai_compliance_dependencies.RetrievalService",
+        return_value=fake_retrieval_service,
+    ):
+        response = client.post(
+            "/api/v1/ai-assistant/ask",
+            json={
+                "ai_function": "CUSTOMER_SUMMARY",
+                "question": "Summarize this customer.",
+                "customer_id": customer_id,
+                "verification_case_id": case_id,
+            },
+        )
+
+    assert response.status_code == 200
+
+    usage_log = (
+        db_session.query(AIUsageLog)
+        .filter(
+            AIUsageLog.user_id == admin.id,
+            AIUsageLog.feature == "CUSTOMER_SUMMARY",
+        )
+        .order_by(AIUsageLog.created_at.desc())
+        .first()
+    )
+
+    assert usage_log is not None
+    assert usage_log.input_tokens >= 0
+    assert usage_log.output_tokens >= 0
+    assert usage_log.response_time >= 0
+    assert usage_log.error_message is None
+
+
+def test_ai_request_creates_one_usage_log(
+    client,
+    create_test_user,
+    cleanup_test_customers,
+    cleanup_ai_prompts,
+    cleanup_ai_data,
+    db_session,
+):
+    admin = create_test_user(
+        email="usage-single@example.com",
+        role=UserRole.ADMINISTRATOR,
+    )
+
+    authenticate_client(client, admin)
+
+    customer_response = create_customer_with_data(
+        client,
+        name="usage-single-customer",
+    )
+
+    assert customer_response.status_code == 201
+
+    customer_id = customer_response.json()["data"]["id"]
+
+    case = create_verification_case(client, customer_id)
+    case_id = case["id"]
+
+    fake_retrieval_service = FakeRetrievalService(
+        results=[],
+    )
+
+    with patch(
+        "app.services.ai_compliance_dependencies.RetrievalService",
+        return_value=fake_retrieval_service,
+    ):
+        response = client.post(
+            "/api/v1/ai-assistant/ask",
+            json={
+                "ai_function": "CUSTOMER_SUMMARY",
+                "question": "Summarize this customer.",
+                "customer_id": customer_id,
+                "verification_case_id": case_id,
+            },
+        )
+
+    assert response.status_code == 200
+
+    usage_logs = (
+        db_session.query(AIUsageLog)
+        .filter(
+            AIUsageLog.user_id == admin.id,
+            AIUsageLog.feature == "CUSTOMER_SUMMARY",
+        )
+        .all()
+    )
+
+    assert len(usage_logs) == 1
+
+
+def test_failed_ai_request_creates_usage_log(
+    client,
+    create_test_user,
+    cleanup_test_customers,
+    cleanup_ai_prompts,
+    cleanup_ai_data,
+    db_session,
+):
+    admin = create_test_user(
+        email="usage-failure@example.com",
+        role=UserRole.ADMINISTRATOR,
+    )
+
+    authenticate_client(client, admin)
+
+    customer_response = create_customer_with_data(
+        client,
+        name="usage-failure-customer",
+    )
+
+    assert customer_response.status_code == 201
+
+    customer_id = customer_response.json()["data"]["id"]
+
+    case = create_verification_case(client, customer_id)
+    case_id = case["id"]
+
+    fake_retrieval_service = FakeRetrievalService(
+        results=[],
+    )
+
+    with (
+        patch(
+            "app.services.ai_compliance_dependencies.RetrievalService",
+            return_value=fake_retrieval_service,
+        ),
+        patch(
+            "app.services.ai_compliance_service.AIService.generate",
+            side_effect=RuntimeError("AI provider failed."),
+        ),
+    ):
+        with pytest.raises(RuntimeError, match="AI provider failed."):
+            client.post(
+                "/api/v1/ai-assistant/ask",
+                json={
+                    "ai_function": "CUSTOMER_SUMMARY",
+                    "question": "Summarize this customer.",
+                    "customer_id": customer_id,
+                    "verification_case_id": case_id,
+                },
+            )
+
+    usage_log = (
+        db_session.query(AIUsageLog)
+        .filter(
+            AIUsageLog.user_id == admin.id,
+            AIUsageLog.feature == "CUSTOMER_SUMMARY",
+        )
+        .order_by(AIUsageLog.created_at.desc())
+        .first()
+    )
+
+    assert usage_log is not None
+    assert usage_log.input_tokens == 0
+    assert usage_log.output_tokens == 0
+    assert usage_log.response_time >= 0
+    assert usage_log.error_message is not None
+    assert "AI provider failed." in usage_log.error_message

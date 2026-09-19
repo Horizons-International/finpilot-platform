@@ -807,6 +807,7 @@ def test_extract_document_api_success(
     cleanup_test_customers,
     db_session,
     extraction_service_override,
+    cleanup_test_files,
 ):
     admin = create_test_user(
         role=UserRole.ADMINISTRATOR,
@@ -844,6 +845,8 @@ def test_extract_document_api_success(
         content_type="application/pdf",
         content=b"%PDF-1.4 identity document",
     )
+
+    cleanup_test_files(upload_response.json()["data"]["file_reference"])
 
     assert upload_response.status_code == 201
 
@@ -913,6 +916,7 @@ def test_extract_document_api_persists_failed_result(
     cleanup_test_customers,
     db_session,
     extraction_service_override,
+    cleanup_test_files,
 ):
     admin = create_test_user(
         role=UserRole.ADMINISTRATOR,
@@ -950,6 +954,8 @@ def test_extract_document_api_persists_failed_result(
         content_type="application/pdf",
         content=b"%PDF-1.4 identity document",
     )
+
+    cleanup_test_files(upload_response.json()["data"]["file_reference"])
 
     assert upload_response.status_code == 201
 
@@ -997,6 +1003,7 @@ def test_extract_document_api_returns_400_when_no_completed_ocr_result(
     cleanup_test_customers,
     db_session,
     extraction_service_override,
+    cleanup_test_files,
 ):
     admin = create_test_user(
         role=UserRole.ADMINISTRATOR,
@@ -1034,6 +1041,8 @@ def test_extract_document_api_returns_400_when_no_completed_ocr_result(
         content_type="application/pdf",
         content=b"%PDF-1.4 identity document",
     )
+
+    cleanup_test_files(upload_response.json()["data"]["file_reference"])
 
     assert upload_response.status_code == 201
 
@@ -1115,6 +1124,7 @@ def test_get_document_extraction_api_returns_latest_result(
     create_test_user,
     cleanup_test_customers,
     db_session,
+    cleanup_test_files,
 ):
     admin = create_test_user(
         role=UserRole.ADMINISTRATOR,
@@ -1152,6 +1162,8 @@ def test_get_document_extraction_api_returns_latest_result(
         content_type="application/pdf",
         content=b"%PDF-1.4 identity document",
     )
+
+    cleanup_test_files(upload_response.json()["data"]["file_reference"])
 
     assert upload_response.status_code == 201
 
@@ -1204,6 +1216,7 @@ def test_get_document_extraction_api_returns_404_when_no_result_exists(
     create_test_user,
     cleanup_test_customers,
     db_session,
+    cleanup_test_files,
 ):
     admin = create_test_user(
         role=UserRole.ADMINISTRATOR,
@@ -1241,6 +1254,8 @@ def test_get_document_extraction_api_returns_404_when_no_result_exists(
         content_type="application/pdf",
         content=b"%PDF-1.4 identity document",
     )
+
+    cleanup_test_files(upload_response.json()["data"]["file_reference"])
 
     assert upload_response.status_code == 201
 

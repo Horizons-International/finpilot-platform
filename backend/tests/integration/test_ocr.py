@@ -683,6 +683,7 @@ def test_process_document_ocr_api_success(
     cleanup_test_customers,
     db_session,
     ocr_service_override,
+    cleanup_test_files,
 ):
     admin = create_test_user(
         role=UserRole.ADMINISTRATOR,
@@ -720,6 +721,8 @@ def test_process_document_ocr_api_success(
         content_type="application/pdf",
         content=b"%PDF-1.4 identity document",
     )
+
+    cleanup_test_files(response.json()["data"]["file_reference"])
 
     assert response.status_code == 201
 
@@ -761,6 +764,7 @@ def test_process_document_ocr_api_uses_authenticated_requester(
     cleanup_test_customers,
     db_session,
     ocr_service_override,
+    cleanup_test_files,
 ):
     admin = create_test_user(
         role=UserRole.ADMINISTRATOR,
@@ -798,6 +802,8 @@ def test_process_document_ocr_api_uses_authenticated_requester(
         content_type="application/pdf",
         content=b"%PDF-1.4 identity document",
     )
+
+    cleanup_test_files(upload_response.json()["data"]["file_reference"])
 
     assert upload_response.status_code == 201
 
@@ -852,6 +858,7 @@ def test_process_document_ocr_api_persists_failed_result(
     cleanup_test_customers,
     db_session,
     ocr_service_override,
+    cleanup_test_files,
 ):
     admin = create_test_user(
         role=UserRole.ADMINISTRATOR,
@@ -889,6 +896,8 @@ def test_process_document_ocr_api_persists_failed_result(
         content_type="application/pdf",
         content=b"%PDF-1.4 identity document",
     )
+
+    cleanup_test_files(response.json()["data"]["file_reference"])
 
     assert response.status_code == 201
 
@@ -987,6 +996,7 @@ def test_get_document_ocr_api_returns_latest_result(
     create_test_user,
     cleanup_test_customers,
     db_session,
+    cleanup_test_files,
 ):
     admin = create_test_user(
         role=UserRole.ADMINISTRATOR,
@@ -1025,6 +1035,8 @@ def test_get_document_ocr_api_returns_latest_result(
         content=b"%PDF-1.4 identity document",
     )
 
+    cleanup_test_files(response.json()["data"]["file_reference"])
+
     assert response.status_code == 201
 
     document_id = response.json()["data"]["id"]
@@ -1061,6 +1073,7 @@ def test_get_document_ocr_api_returns_404_when_no_result_exists(
     create_test_user,
     cleanup_test_customers,
     db_session,
+    cleanup_test_files,
 ):
     admin = create_test_user(
         role=UserRole.ADMINISTRATOR,
@@ -1098,6 +1111,8 @@ def test_get_document_ocr_api_returns_404_when_no_result_exists(
         content_type="application/pdf",
         content=b"%PDF-1.4 identity document",
     )
+
+    cleanup_test_files(response.json()["data"]["file_reference"])
 
     assert response.status_code == 201
 

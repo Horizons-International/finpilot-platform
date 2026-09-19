@@ -131,6 +131,8 @@ def create_review_document(
         upload_response.json()["data"]["id"],
     )
 
+    file_id = upload_response.json()["data"]["file_reference"]
+
     ocr_result = OCRResult(
         document_id=document_id,
         provider_name="mock",
@@ -176,6 +178,7 @@ def create_review_document(
         document_id,
         ocr_result,
         extraction,
+        file_id,
     )
 
 
@@ -202,6 +205,7 @@ def test_get_document_review_returns_comparison_data(
     cleanup_test_customers,
     db_session,
     extraction_service_override,
+    cleanup_test_files,
 ):
     admin = create_test_user(
         role=UserRole.ADMINISTRATOR,
@@ -218,6 +222,7 @@ def test_get_document_review_returns_comparison_data(
         document_id,
         ocr_result,
         extraction,
+        file_id,
     ) = create_review_document(
         client,
         db_session,
@@ -230,6 +235,8 @@ def test_get_document_review_returns_comparison_data(
     response = client.get(
         f"/api/v1/documents/{document_id}/review",
     )
+
+    cleanup_test_files(file_id)
 
     assert response.status_code == 200
 
@@ -270,6 +277,7 @@ def test_get_document_review_requires_authentication(
     cleanup_test_customers,
     db_session,
     extraction_service_override,
+    cleanup_test_files,
 ):
     admin = create_test_user(
         role=UserRole.ADMINISTRATOR,
@@ -281,6 +289,7 @@ def test_get_document_review_requires_authentication(
         document_id,
         _ocr_result,
         _extraction,
+        file_id,
     ) = create_review_document(
         client,
         db_session,
@@ -294,6 +303,8 @@ def test_get_document_review_requires_authentication(
         f"/api/v1/documents/{document_id}/review",
     )
 
+    cleanup_test_files(file_id)
+
     assert response.status_code == 401
 
 
@@ -303,6 +314,7 @@ def test_get_document_review_allows_compliance_officer(
     cleanup_test_customers,
     db_session,
     extraction_service_override,
+    cleanup_test_files,
 ):
     admin = create_test_user(
         role=UserRole.ADMINISTRATOR,
@@ -319,6 +331,7 @@ def test_get_document_review_allows_compliance_officer(
         document_id,
         _ocr_result,
         _extraction,
+        file_id,
     ) = create_review_document(
         client,
         db_session,
@@ -332,6 +345,8 @@ def test_get_document_review_allows_compliance_officer(
         f"/api/v1/documents/{document_id}/review",
     )
 
+    cleanup_test_files(file_id)
+
     assert response.status_code == 200
 
 
@@ -341,27 +356,27 @@ def test_get_document_review_allows_administrator(
     cleanup_test_customers,
     db_session,
     extraction_service_override,
+    cleanup_test_files,
 ):
     admin = create_test_user(
         role=UserRole.ADMINISTRATOR,
         email="review-administrator@example.com",
     )
 
-    (
-        _customer_id,
-        document_id,
-        _ocr_result,
-        _extraction,
-    ) = create_review_document(
-        client,
-        db_session,
-        setup_user=admin,
-        extraction_service_override=extraction_service_override,
+    _customer_id, document_id, _ocr_result, _extraction, file_id = (
+        create_review_document(
+            client,
+            db_session,
+            setup_user=admin,
+            extraction_service_override=extraction_service_override,
+        )
     )
 
     response = client.get(
         f"/api/v1/documents/{document_id}/review",
     )
+
+    cleanup_test_files(file_id)
 
     assert response.status_code == 200
 
@@ -372,6 +387,7 @@ def test_get_document_review_rejects_auditor(
     cleanup_test_customers,
     db_session,
     extraction_service_override,
+    cleanup_test_files,
 ):
     admin = create_test_user(
         role=UserRole.ADMINISTRATOR,
@@ -383,6 +399,7 @@ def test_get_document_review_rejects_auditor(
         document_id,
         _ocr_result,
         _extraction,
+        file_id,
     ) = create_review_document(
         client,
         db_session,
@@ -396,6 +413,8 @@ def test_get_document_review_rejects_auditor(
     )
 
     authenticate_client(client, auditor)
+
+    cleanup_test_files(file_id)
 
     response = client.get(
         f"/api/v1/documents/{document_id}/review",
@@ -415,6 +434,7 @@ def test_update_document_review_updates_extraction_only(
     cleanup_test_customers,
     db_session,
     extraction_service_override,
+    cleanup_test_files,
 ):
     admin = create_test_user(
         role=UserRole.ADMINISTRATOR,
@@ -431,6 +451,7 @@ def test_update_document_review_updates_extraction_only(
         document_id,
         _ocr_result,
         extraction,
+        file_id,
     ) = create_review_document(
         client,
         db_session,
@@ -447,6 +468,8 @@ def test_update_document_review_updates_extraction_only(
             "document_number": "P999999",
         },
     )
+
+    cleanup_test_files(file_id)
 
     assert response.status_code == 200
 
@@ -487,6 +510,7 @@ def test_update_document_review_records_field_changes(
     cleanup_test_customers,
     db_session,
     extraction_service_override,
+    cleanup_test_files,
 ):
     admin = create_test_user(
         role=UserRole.ADMINISTRATOR,
@@ -503,6 +527,7 @@ def test_update_document_review_records_field_changes(
         document_id,
         _ocr_result,
         extraction,
+        file_id,
     ) = create_review_document(
         client,
         db_session,
@@ -519,6 +544,8 @@ def test_update_document_review_records_field_changes(
             "document_number": "P999999",
         },
     )
+
+    cleanup_test_files(file_id)
 
     assert response.status_code == 200
 
@@ -545,6 +572,7 @@ def test_update_document_review_does_not_record_unchanged_fields(
     cleanup_test_customers,
     db_session,
     extraction_service_override,
+    cleanup_test_files,
 ):
     admin = create_test_user(
         role=UserRole.ADMINISTRATOR,
@@ -561,6 +589,7 @@ def test_update_document_review_does_not_record_unchanged_fields(
         document_id,
         _ocr_result,
         extraction,
+        file_id,
     ) = create_review_document(
         client,
         db_session,
@@ -576,6 +605,8 @@ def test_update_document_review_does_not_record_unchanged_fields(
             "first_name": "John",
         },
     )
+
+    cleanup_test_files(file_id)
 
     assert response.status_code == 200
 
@@ -596,6 +627,7 @@ def test_update_document_review_requires_fields(
     cleanup_test_customers,
     db_session,
     extraction_service_override,
+    cleanup_test_files,
 ):
     admin = create_test_user(
         role=UserRole.ADMINISTRATOR,
@@ -612,6 +644,7 @@ def test_update_document_review_requires_fields(
         document_id,
         _ocr_result,
         _extraction,
+        file_id,
     ) = create_review_document(
         client,
         db_session,
@@ -625,6 +658,8 @@ def test_update_document_review_requires_fields(
         f"/api/v1/documents/{document_id}/review",
         json={},
     )
+
+    cleanup_test_files(file_id)
 
     assert response.status_code == 400
 
@@ -644,6 +679,7 @@ def test_approve_document_review_updates_customer(
     cleanup_test_customers,
     db_session,
     extraction_service_override,
+    cleanup_test_files,
 ):
     admin = create_test_user(
         role=UserRole.ADMINISTRATOR,
@@ -660,6 +696,7 @@ def test_approve_document_review_updates_customer(
         document_id,
         _ocr_result,
         extraction,
+        file_id,
     ) = create_review_document(
         client,
         db_session,
@@ -672,6 +709,8 @@ def test_approve_document_review_updates_customer(
     response = client.post(
         f"/api/v1/documents/{document_id}/review/approve",
     )
+
+    cleanup_test_files(file_id)
 
     assert response.status_code == 200
 
@@ -703,6 +742,7 @@ def test_approve_document_review_preserves_customer_fields_missing_from_extracti
     create_test_user,
     cleanup_test_customers,
     db_session,
+    cleanup_test_files,
 ):
     admin = create_test_user(
         role=UserRole.ADMINISTRATOR,
@@ -788,6 +828,8 @@ def test_approve_document_review_preserves_customer_fields_missing_from_extracti
         f"/api/v1/documents/{document_id}/review/approve",
     )
 
+    cleanup_test_files(upload_response.json()["data"]["file_reference"])
+
     assert response.status_code == 200
 
     db_session.expire_all()
@@ -810,6 +852,7 @@ def test_approve_document_review_is_immutable(
     cleanup_test_customers,
     db_session,
     extraction_service_override,
+    cleanup_test_files,
 ):
     admin = create_test_user(
         role=UserRole.ADMINISTRATOR,
@@ -826,6 +869,7 @@ def test_approve_document_review_is_immutable(
         document_id,
         _ocr_result,
         _extraction,
+        file_id,
     ) = create_review_document(
         client,
         db_session,
@@ -847,6 +891,8 @@ def test_approve_document_review_is_immutable(
             "first_name": "ChangedAfterApproval",
         },
     )
+
+    cleanup_test_files(file_id)
 
     assert patch_response.status_code == 400
     assert patch_response.json()["message"] == (
@@ -874,6 +920,7 @@ def test_reject_document_review_stores_reason(
     cleanup_test_customers,
     db_session,
     extraction_service_override,
+    cleanup_test_files,
 ):
     admin = create_test_user(
         role=UserRole.ADMINISTRATOR,
@@ -890,6 +937,7 @@ def test_reject_document_review_stores_reason(
         document_id,
         _ocr_result,
         extraction,
+        file_id,
     ) = create_review_document(
         client,
         db_session,
@@ -907,6 +955,8 @@ def test_reject_document_review_stores_reason(
             "reason": reason,
         },
     )
+
+    cleanup_test_files(file_id)
 
     assert response.status_code == 200
 
@@ -926,6 +976,7 @@ def test_reject_document_review_does_not_update_customer(
     cleanup_test_customers,
     db_session,
     extraction_service_override,
+    cleanup_test_files,
 ):
     admin = create_test_user(
         role=UserRole.ADMINISTRATOR,
@@ -942,6 +993,7 @@ def test_reject_document_review_does_not_update_customer(
         document_id,
         _ocr_result,
         _extraction,
+        file_id,
     ) = create_review_document(
         client,
         db_session,
@@ -957,6 +1009,8 @@ def test_reject_document_review_does_not_update_customer(
             "reason": "Incorrect identity information.",
         },
     )
+
+    cleanup_test_files(file_id)
 
     assert response.status_code == 200
 
@@ -978,6 +1032,7 @@ def test_reject_document_review_requires_reason(
     cleanup_test_customers,
     db_session,
     extraction_service_override,
+    cleanup_test_files,
 ):
     admin = create_test_user(
         role=UserRole.ADMINISTRATOR,
@@ -994,6 +1049,7 @@ def test_reject_document_review_requires_reason(
         document_id,
         _ocr_result,
         _extraction,
+        file_id,
     ) = create_review_document(
         client,
         db_session,
@@ -1010,6 +1066,8 @@ def test_reject_document_review_requires_reason(
         },
     )
 
+    cleanup_test_files(file_id)
+
     assert response.status_code == 400
 
 
@@ -1019,6 +1077,7 @@ def test_reject_document_review_is_immutable(
     cleanup_test_customers,
     db_session,
     extraction_service_override,
+    cleanup_test_files,
 ):
     admin = create_test_user(
         role=UserRole.ADMINISTRATOR,
@@ -1035,6 +1094,7 @@ def test_reject_document_review_is_immutable(
         document_id,
         _ocr_result,
         _extraction,
+        file_id,
     ) = create_review_document(
         client,
         db_session,
@@ -1050,6 +1110,8 @@ def test_reject_document_review_is_immutable(
             "reason": "Rejected by compliance review.",
         },
     )
+
+    cleanup_test_files(file_id)
 
     assert reject_response.status_code == 200
 
@@ -1085,6 +1147,7 @@ def test_get_review_fails_without_completed_ocr(
     create_test_user,
     cleanup_test_customers,
     db_session,
+    cleanup_test_files,
 ):
     admin = create_test_user(
         role=UserRole.ADMINISTRATOR,
@@ -1128,6 +1191,8 @@ def test_get_review_fails_without_completed_ocr(
         f"/api/v1/documents/{document_id}/review",
     )
 
+    cleanup_test_files(upload_response.json()["data"]["file_reference"])
+
     assert response.status_code == 400
 
     assert response.json()["message"] == (
@@ -1140,6 +1205,7 @@ def test_get_review_fails_without_extraction(
     create_test_user,
     cleanup_test_customers,
     db_session,
+    cleanup_test_files,
 ):
     admin = create_test_user(
         role=UserRole.ADMINISTRATOR,
@@ -1194,6 +1260,8 @@ def test_get_review_fails_without_extraction(
         f"/api/v1/documents/{document_id}/review",
     )
 
+    cleanup_test_files(upload_response.json()["data"]["file_reference"])
+
     assert response.status_code == 400
 
     assert response.json()["message"] == (
@@ -1207,6 +1275,7 @@ def test_update_review_cannot_modify_approved_extraction(
     cleanup_test_customers,
     db_session,
     extraction_service_override,
+    cleanup_test_files,
 ):
     admin = create_test_user(
         role=UserRole.ADMINISTRATOR,
@@ -1223,6 +1292,7 @@ def test_update_review_cannot_modify_approved_extraction(
         document_id,
         _ocr_result,
         _extraction,
+        file_id,
     ) = create_review_document(
         client,
         db_session,
@@ -1245,6 +1315,8 @@ def test_update_review_cannot_modify_approved_extraction(
         },
     )
 
+    cleanup_test_files(file_id)
+
     assert response.status_code == 400
 
 
@@ -1259,6 +1331,7 @@ def test_review_update_creates_audit_event(
     cleanup_test_customers,
     db_session,
     extraction_service_override,
+    cleanup_test_files,
 ):
     admin = create_test_user(
         role=UserRole.ADMINISTRATOR,
@@ -1275,6 +1348,7 @@ def test_review_update_creates_audit_event(
         document_id,
         _ocr_result,
         extraction,
+        file_id,
     ) = create_review_document(
         client,
         db_session,
@@ -1290,6 +1364,8 @@ def test_review_update_creates_audit_event(
             "first_name": "Jonathan",
         },
     )
+
+    cleanup_test_files(file_id)
 
     assert response.status_code == 200
 
@@ -1312,6 +1388,7 @@ def test_review_approval_creates_audit_event(
     cleanup_test_customers,
     db_session,
     extraction_service_override,
+    cleanup_test_files,
 ):
     admin = create_test_user(
         role=UserRole.ADMINISTRATOR,
@@ -1328,6 +1405,7 @@ def test_review_approval_creates_audit_event(
         document_id,
         _ocr_result,
         extraction,
+        file_id,
     ) = create_review_document(
         client,
         db_session,
@@ -1340,6 +1418,8 @@ def test_review_approval_creates_audit_event(
     response = client.post(
         f"/api/v1/documents/{document_id}/review/approve",
     )
+
+    cleanup_test_files(file_id)
 
     assert response.status_code == 200
 
@@ -1362,6 +1442,7 @@ def test_review_rejection_creates_audit_event(
     cleanup_test_customers,
     db_session,
     extraction_service_override,
+    cleanup_test_files,
 ):
     admin = create_test_user(
         role=UserRole.ADMINISTRATOR,
@@ -1378,6 +1459,7 @@ def test_review_rejection_creates_audit_event(
         document_id,
         _ocr_result,
         extraction,
+        file_id,
     ) = create_review_document(
         client,
         db_session,
@@ -1393,6 +1475,8 @@ def test_review_rejection_creates_audit_event(
             "reason": "Rejected during compliance review.",
         },
     )
+
+    cleanup_test_files(file_id)
 
     assert response.status_code == 200
 

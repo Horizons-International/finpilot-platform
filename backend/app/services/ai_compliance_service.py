@@ -1,3 +1,4 @@
+from time import monotonic
 from uuid import UUID
 
 from sqlalchemy.orm import Session
@@ -21,6 +22,7 @@ from app.schemas.ai_assistant import (
     AIComplianceResult,
 )
 from app.services.ai_context_service import AIContextService
+from app.services.ai_usage_service import AIUsageService
 from app.utils.date_time import utc_now
 from app.utils.enums import AIInteractionStatus
 from app.utils.errors import bad_request, not_found
@@ -43,6 +45,7 @@ class AIComplianceService:
 
         self.prompt_loader = AIPromptLoader(db)
         self.retrieval_service = retrieval_service
+        self.usage_service = AIUsageService(db)
 
         self.ai_service = AIService(
             provider=get_ai_provider(),
@@ -117,9 +120,13 @@ class AIComplianceService:
         )
 
         try:
+            started_at = monotonic()
+
             response = self.ai_service.generate(
                 ai_request,
             )
+
+            response_time = int((monotonic() - started_at) * 1000)
 
             if response.structured_data is None:
                 raise bad_request("AI provider did not return structured data.")
@@ -145,6 +152,15 @@ class AIComplianceService:
             self.db.commit()
             self.db.refresh(interaction)
 
+            self.usage_service.record(
+                user_id=user_id,
+                feature=request.ai_function.value,
+                model=interaction.model or "",
+                input_tokens=response.input_tokens,
+                output_tokens=response.output_tokens,
+                response_time=response_time,
+            )
+
             result = AIComplianceResult(
                 **response.structured_data,
             )
@@ -161,6 +177,8 @@ class AIComplianceService:
             )
 
         except Exception as exc:
+            response_time = int((monotonic() - started_at) * 1000)
+
             self.db.rollback()
 
             failed_interaction = self.interaction_repository.get_by_id(
@@ -177,6 +195,16 @@ class AIComplianceService:
                 self.interaction_repository.update(failed_interaction)
 
                 self.db.commit()
+
+            self.usage_service.record(
+                user_id=user_id,
+                feature=request.ai_function.value,
+                model=self._get_model_name() or "",
+                input_tokens=0,
+                output_tokens=0,
+                response_time=response_time,
+                error_message=str(exc),
+            )
 
             raise
 

@@ -9,6 +9,7 @@ from app.core.security import decode_access_token
 from app.models.user import User
 from app.rag.embeddings import EmbeddingService
 from app.rag.retrieval import RetrievalService
+from app.services.ai_usage_service import AIUsageService
 from app.services.document_service import DocumentService
 from app.services.file_service import FileService
 from app.services.knowledge_document_service import (
@@ -116,3 +117,9 @@ def get_retrieval_service(
     db: Session = Depends(get_db),
 ) -> RetrievalService:
     return RetrievalService(db)
+
+
+def get_ai_usage_service(
+    db: Session = Depends(get_db),
+) -> AIUsageService:
+    return AIUsageService(db)

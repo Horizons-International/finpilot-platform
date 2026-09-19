@@ -126,6 +126,8 @@ def test_new_document_version_starts_inactive(
         },
     )
 
+    cleanup_test_files(response.json()["data"]["file_reference"])
+
     assert response.status_code in {
         200,
         201,
@@ -184,6 +186,8 @@ def test_old_active_version_remains_active_until_explicitly_deactivated(
             "category": "COMPLIANCE_POLICY",
         },
     )
+
+    cleanup_test_files(response.json()["data"]["file_reference"])
 
     assert response.status_code in {
         200,
@@ -245,6 +249,8 @@ def test_only_one_active_version_is_allowed(
             "category": "COMPLIANCE_POLICY",
         },
     )
+
+    cleanup_test_files(response.json()["data"]["file_reference"])
 
     assert response.status_code in {
         200,
