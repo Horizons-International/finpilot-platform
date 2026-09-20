@@ -9,8 +9,11 @@ from app.core.dependencies import (
 from app.core.responses import APIResponse
 from app.core.security import require_roles
 from app.schemas.compliance_case import (
+    ComplianceCaseAssignment,
     ComplianceCaseCreate,
+    ComplianceCaseHistoryResponse,
     ComplianceCaseResponse,
+    ComplianceCaseStatusUpdate,
     ComplianceCaseUpdate,
 )
 from app.services.compliance_service import ComplianceService
@@ -195,4 +198,99 @@ def update_compliance_case(
         success=True,
         message="Compliance case updated successfully.",
         data=ComplianceCaseResponse.model_validate(case),
+    )
+
+
+@router.patch(
+    "/{case_id}/assignment",
+    response_model=APIResponse[ComplianceCaseResponse],
+    status_code=status.HTTP_200_OK,
+    summary="Assign compliance case",
+    description="Assign compliance case to a compliance officer",
+)
+def assign_compliance_case(
+    case_id: UUID,
+    assignment: ComplianceCaseAssignment,
+    service: ComplianceService = Depends(get_compliance_service),
+    current_user: dict[str, Any] = Depends(
+        require_roles(
+            UserRole.ADMINISTRATOR,
+            UserRole.COMPLIANCE_OFFICER,
+            resource_type="case",
+        )
+    ),
+) -> APIResponse[ComplianceCaseResponse]:
+    case = service.assign_case(
+        case_id,
+        assignment.assigned_to,
+        user_id=UUID(current_user["sub"]),
+        email=current_user["email"],
+    )
+
+    return APIResponse(
+        success=True,
+        message="Compliance case assigned successfully.",
+        data=ComplianceCaseResponse.model_validate(case),
+    )
+
+
+@router.patch(
+    "/{case_id}/status",
+    response_model=APIResponse[ComplianceCaseResponse],
+    status_code=status.HTTP_200_OK,
+    summary="Update compliance case status",
+    description="Update the status of compliance case.",
+)
+def update_compliance_case_status(
+    case_id: UUID,
+    status_data: ComplianceCaseStatusUpdate,
+    service: ComplianceService = Depends(get_compliance_service),
+    current_user: dict[str, Any] = Depends(
+        require_roles(
+            UserRole.ADMINISTRATOR,
+            UserRole.COMPLIANCE_OFFICER,
+            resource_type="case",
+        )
+    ),
+) -> APIResponse[ComplianceCaseResponse]:
+    case = service.update_case_status(
+        case_id,
+        status_data.status,
+        user_id=UUID(current_user["sub"]),
+        email=current_user["email"],
+        resolution_reason=status_data.resolution_reason,
+    )
+
+    return APIResponse(
+        success=True,
+        message="Compliance case status updated successfully.",
+        data=ComplianceCaseResponse.model_validate(case),
+    )
+
+
+@router.get(
+    "/{case_id}/history",
+    response_model=APIResponse[list[ComplianceCaseHistoryResponse]],
+    status_code=status.HTTP_200_OK,
+    summary="Get compliance case history",
+    description="Retrieve the history of a compliance case",
+)
+def get_compliance_case_history(
+    case_id: UUID,
+    service: ComplianceService = Depends(get_compliance_service),
+    _: dict[str, Any] = Depends(
+        require_roles(
+            UserRole.ADMINISTRATOR,
+            UserRole.COMPLIANCE_OFFICER,
+            UserRole.REVIEWER,
+            resource_type="case",
+        )
+    ),
+) -> APIResponse[list[ComplianceCaseHistoryResponse]]:
+    history = service.get_case_history(case_id)
+
+    return APIResponse(
+        success=True,
+        message="Compliance case history retrieved successfully.",
+        data=[ComplianceCaseHistoryResponse.model_validate(item) for item in history],
     )

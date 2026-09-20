@@ -92,3 +92,9 @@ class User(Base):
         foreign_keys="ComplianceCase.assigned_to",
         back_populates="assigned_user",
     )
+
+    compliance_case_history = relationship(
+        "ComplianceCaseHistory",
+        foreign_keys="ComplianceCaseHistory.changed_by",
+        back_populates="changed_by_user",
+    )
