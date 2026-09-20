@@ -113,3 +113,10 @@ class Customer(Base):
         back_populates="customer",
         cascade="all, delete-orphan",
     )
+
+    risk_profile = relationship(
+        "CustomerRiskProfile",
+        back_populates="customer",
+        uselist=False,
+        cascade="all, delete-orphan",
+    )

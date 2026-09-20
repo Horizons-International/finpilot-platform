@@ -13,6 +13,9 @@ from app.api.compliance_cases import router as compliance_cases_router
 from app.api.customer_addresses import router as customer_addresses_router
 from app.api.customer_audit_logs import router as customer_audit_logs_router
 from app.api.customer_contacts import router as customer_contacts_router
+from app.api.customer_risk_profiles import (
+    router as customer_risk_profiles_router,
+)
 from app.api.customers import router as customer_router
 from app.api.document_review import router as document_review_router
 from app.api.documents import router as documents_router
@@ -88,6 +91,7 @@ app.include_router(files_router)
 app.include_router(customer_router)
 app.include_router(customer_contacts_router)
 app.include_router(customer_addresses_router)
+app.include_router(customer_risk_profiles_router)
 app.include_router(customer_audit_logs_router)
 app.include_router(verification_router)
 app.include_router(verification_cases_router)
