@@ -76,6 +76,11 @@ class ComplianceCase(Base):
         nullable=True,
     )
 
+    resolution_reason: Mapped[str | None] = mapped_column(
+        Text,
+        nullable=True,
+    )
+
     closed_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True),
         nullable=True,
@@ -103,4 +108,11 @@ class ComplianceCase(Base):
         "User",
         foreign_keys=[assigned_to],
         back_populates="assigned_compliance_cases",
+    )
+
+    workflow_history = relationship(
+        "ComplianceCaseHistory",
+        back_populates="compliance_case",
+        cascade="all, delete-orphan",
+        order_by="ComplianceCaseHistory.created_at",
     )

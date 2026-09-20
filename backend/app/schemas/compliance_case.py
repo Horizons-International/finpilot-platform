@@ -24,12 +24,23 @@ class ComplianceCaseCreate(BaseModel):
 class ComplianceCaseUpdate(BaseModel):
     case_type: ComplianceCaseType | None = None
     priority: ComplianceCasePriority | None = None
-    status: ComplianceCaseStatus | None = None
     assigned_to: UUID | None = None
     description: str | None = Field(
         default=None,
         max_length=10000,
     )
+
+
+class ComplianceCaseStatusUpdate(BaseModel):
+    status: ComplianceCaseStatus
+    resolution_reason: str | None = Field(
+        default=None,
+        max_length=10000,
+    )
+
+
+class ComplianceCaseAssignment(BaseModel):
+    assigned_to: UUID
 
 
 class ComplianceCaseResponse(BaseModel):
@@ -44,6 +55,21 @@ class ComplianceCaseResponse(BaseModel):
     status: ComplianceCaseStatus
     assigned_to: UUID | None
     description: str | None
+    resolution_reason: str | None
     created_at: datetime
     updated_at: datetime
     closed_at: datetime | None
+
+
+class ComplianceCaseHistoryResponse(BaseModel):
+    model_config = ConfigDict(
+        from_attributes=True,
+    )
+
+    id: UUID
+    compliance_case_id: UUID
+    from_status: ComplianceCaseStatus | None
+    to_status: ComplianceCaseStatus
+    changed_by: UUID
+    reason: str | None
+    created_at: datetime

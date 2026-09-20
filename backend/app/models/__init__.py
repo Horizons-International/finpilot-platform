@@ -3,6 +3,7 @@ from app.models.ai_prompt import AIPrompt  # noqa: F401
 from app.models.ai_prompt_assignment import AIPromptAssignment  # noqa: F401
 from app.models.ai_usage_log import AIUsageLog  # noqa: F401
 from app.models.compliance_case import ComplianceCase  # noqa: F401
+from app.models.compliance_case_history import ComplianceCaseHistory  # noqa: F401
 from app.models.customer import Customer  # noqa: F401
 from app.models.customer_address import CustomerAddress  # noqa: F401
 from app.models.customer_audit_log import CustomerAuditLog  # noqa: F401
