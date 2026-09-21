@@ -21,6 +21,7 @@ from app.services.knowledge_document_service import (
     KnowledgeDocumentService,
 )
 from app.services.knowledge_indexing_service import KnowledgeIndexingService
+from app.services.risk_scoring_service import RiskScoringService
 from app.services.verification_review_service import VerificationReviewService
 from app.services.verification_service import VerificationService
 from app.storages.base_storage import BaseStorage
@@ -151,3 +152,9 @@ def get_ai_compliance_service(
         db,
         retrieval_service=retrieval_service,
     )
+
+
+def get_risk_scoring_service(
+    db: Session = Depends(get_db),
+) -> RiskScoringService:
+    return RiskScoringService(db)

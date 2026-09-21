@@ -27,6 +27,8 @@ from app.models.customer_status_history import CustomerStatusHistory
 from app.models.document import CustomerDocument
 from app.models.file import File
 from app.models.knowledge_document import KnowledgeDocument
+from app.models.risk_score_threshold import RiskScoreThreshold
+from app.models.risk_scoring_rule import RiskScoringRule
 from app.models.user import User
 from app.models.verification_case import IdentityVerificationCase
 from app.models.verification_document_type import VerificationDocumentType
@@ -466,5 +468,30 @@ def cleanup_compliance_cases(db_session):
     for case in current_cases:
         if case.id not in existing_case_ids:
             db_session.delete(case)
+
+    db_session.commit()
+
+
+@pytest.fixture
+def cleanup_risk_scoring_configuration(db_session):
+    existing_rule_ids = {rule.id for rule in db_session.query(RiskScoringRule).all()}
+
+    existing_threshold_ids = {
+        threshold.id for threshold in db_session.query(RiskScoreThreshold).all()
+    }
+
+    yield
+
+    current_rules = db_session.query(RiskScoringRule).all()
+
+    for rule in current_rules:
+        if rule.id not in existing_rule_ids:
+            db_session.delete(rule)
+
+    current_thresholds = db_session.query(RiskScoreThreshold).all()
+
+    for threshold in current_thresholds:
+        if threshold.id not in existing_threshold_ids:
+            db_session.delete(threshold)
 
     db_session.commit()

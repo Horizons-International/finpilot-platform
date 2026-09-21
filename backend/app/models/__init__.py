@@ -15,6 +15,8 @@ from app.models.knowledge_document import KnowledgeDocument  # noqa: F401
 from app.models.knowledge_document_chunk import (
     KnowledgeDocumentChunk,  # noqa: F401
 )
+from app.models.risk_score_threshold import RiskScoreThreshold  # noqa: F401
+from app.models.risk_scoring_rule import RiskScoringRule  # noqa: F401
 from app.models.verification_case import IdentityVerificationCase  # noqa: F401
 from app.models.verification_document_type import VerificationDocumentType  # noqa: F401
 from app.models.verification_review import VerificationReview  # noqa: F401
