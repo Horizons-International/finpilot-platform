@@ -31,6 +31,9 @@ class OCRService:
         self,
         document: CustomerDocument,
         requested_by: UUID,
+        email: str,
+        ip_address: str | None = None,
+        user_agent: str | None = None,
     ) -> OCRResult:
         logger.info(
             "OCR request started: provider=%s document_id=%s",
@@ -49,6 +52,9 @@ class OCRService:
         self.audit_service.log_event(
             user_id=requested_by,
             event_type=AuditEventType.OCR_REQUESTED,
+            email=email,
+            ip_address=ip_address,
+            user_agent=user_agent,
             resource_type="ocr_result",
             resource_id=result.id,
         )
@@ -88,6 +94,9 @@ class OCRService:
             self.audit_service.log_event(
                 user_id=requested_by,
                 event_type=AuditEventType.OCR_COMPLETED,
+                email=email,
+                ip_address=ip_address,
+                user_agent=user_agent,
                 resource_type="ocr_result",
                 resource_id=result.id,
             )
@@ -110,6 +119,9 @@ class OCRService:
             self.audit_service.log_event(
                 user_id=requested_by,
                 event_type=AuditEventType.OCR_FAILED,
+                email=email,
+                ip_address=ip_address,
+                user_agent=user_agent,
                 resource_type="ocr_result",
                 resource_id=result.id,
             )
@@ -130,6 +142,9 @@ class OCRService:
             self.audit_service.log_event(
                 user_id=requested_by,
                 event_type=AuditEventType.OCR_FAILED,
+                email=email,
+                ip_address=ip_address,
+                user_agent=user_agent,
                 resource_type="ocr_result",
                 resource_id=result.id,
             )
@@ -150,6 +165,9 @@ class OCRService:
             self.audit_service.log_event(
                 user_id=requested_by,
                 event_type=AuditEventType.OCR_FAILED,
+                email=email,
+                ip_address=ip_address,
+                user_agent=user_agent,
                 resource_type="ocr_result",
                 resource_id=result.id,
             )
@@ -165,6 +183,9 @@ class OCRService:
         self,
         document_id: UUID,
         requested_by: UUID,
+        email: str,
+        ip_address: str | None = None,
+        user_agent: str | None = None,
     ) -> OCRResult:
         document = (
             self.db.query(CustomerDocument)
@@ -176,7 +197,13 @@ class OCRService:
             raise not_found("Document")
 
         try:
-            result = self.process_document(document, requested_by=requested_by)
+            result = self.process_document(
+                document,
+                requested_by=requested_by,
+                email=email,
+                ip_address=ip_address,
+                user_agent=user_agent,
+            )
             self.db.commit()
 
             return result

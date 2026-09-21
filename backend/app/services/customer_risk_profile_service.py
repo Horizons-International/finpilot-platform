@@ -30,7 +30,7 @@ class CustomerRiskProfileService:
         assessed_at,
         assessment_source: str,
         user_id: UUID,
-        user_email: str,
+        email: str,
         ip_address: str | None = None,
         user_agent: str | None = None,
     ) -> CustomerRiskProfile:
@@ -64,7 +64,7 @@ class CustomerRiskProfileService:
         self.audit_service.log_event(
             event_type=AuditEventType.CUSTOMER_RISK_PROFILE_CREATED,
             user_id=user_id,
-            email=user_email,
+            email=email,
             resource_type="customer_risk_profile",
             resource_id=profile.id,
             ip_address=ip_address,

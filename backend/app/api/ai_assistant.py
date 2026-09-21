@@ -1,8 +1,10 @@
+from typing import Any
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, status
 
 from app.ai.exceptions import AIProviderError
+from app.core.dependencies import get_ai_compliance_service
 from app.core.responses import APIResponse
 from app.core.security import require_roles
 from app.schemas.ai_assistant import (
@@ -10,7 +12,6 @@ from app.schemas.ai_assistant import (
     AIComplianceResponse,
     AIInteractionResponse,
 )
-from app.services.ai_compliance_dependencies import get_ai_compliance_service
 from app.services.ai_compliance_service import AIComplianceService
 from app.utils.enums import UserRole
 from app.utils.errors import service_unavailable
@@ -24,11 +25,13 @@ router = APIRouter(
 @router.post(
     "/ask",
     response_model=APIResponse[AIComplianceResponse],
-    status_code=status.HTTP_200_OK,
+    status_code=status.HTTP_201_CREATED,
+    summary="Post AI question",
+    description="Sends question to AI assistant.",
 )
 def ask_ai_assistant(
     request: AIComplianceRequest,
-    current_user: dict = Depends(
+    current_user: dict[str, Any] = Depends(
         require_roles(
             UserRole.ADMINISTRATOR,
             UserRole.COMPLIANCE_OFFICER,
@@ -57,10 +60,13 @@ def ask_ai_assistant(
 @router.get(
     "/interactions/{interaction_id}",
     response_model=APIResponse[AIInteractionResponse],
+    status_code=status.HTTP_200_OK,
+    summary="Get AI interaction",
+    description="Retrieves AI interaction by ID.",
 )
 def get_ai_interaction(
     interaction_id: UUID,
-    current_user: dict = Depends(
+    current_user: dict[str, Any] = Depends(
         require_roles(
             UserRole.ADMINISTRATOR,
             UserRole.COMPLIANCE_OFFICER,
@@ -86,9 +92,12 @@ def get_ai_interaction(
 @router.get(
     "/interactions",
     response_model=APIResponse[list[AIInteractionResponse]],
+    status_code=status.HTTP_200_OK,
+    summary="Get AI interactions",
+    description="Retrieves all AI interactions.",
 )
 def get_my_ai_interactions(
-    current_user: dict = Depends(
+    current_user: dict[str, Any] = Depends(
         require_roles(
             UserRole.ADMINISTRATOR,
             UserRole.COMPLIANCE_OFFICER,

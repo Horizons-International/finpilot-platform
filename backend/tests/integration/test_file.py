@@ -206,7 +206,12 @@ def test_delete_file_requires_admin(client, create_test_user, cleanup_test_files
         email="file-non-admin-delete@example.com",
     )
 
-    authenticate_client(client, user)
+    admin = create_test_user(
+        role=UserRole.ADMINISTRATOR,
+        email="file-admin-@example.com",
+    )
+
+    authenticate_client(client, admin)
 
     upload_response = client.post(
         "/api/v1/files",
@@ -222,6 +227,8 @@ def test_delete_file_requires_admin(client, create_test_user, cleanup_test_files
     assert upload_response.status_code == 201
 
     file_id = upload_response.json()["data"]["id"]
+
+    authenticate_client(client, user)
 
     response = client.delete(
         f"/api/v1/files/{file_id}",

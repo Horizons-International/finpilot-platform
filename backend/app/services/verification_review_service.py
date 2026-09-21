@@ -32,6 +32,8 @@ class VerificationReviewService:
         verification_case_id: UUID,
         reviewer_id: UUID,
         email: str,
+        ip_address: str | None = None,
+        user_agent: str | None = None,
     ) -> None:
         case = self.verification_case_repository.get_by_id_and_customer_and_reviewer(
             verification_case_id=verification_case_id,
@@ -58,6 +60,8 @@ class VerificationReviewService:
                 event_type=AuditEventType.VERIFICATION_CASE_STATUS_CHANGED,
                 user_id=reviewer_id,
                 email=email,
+                ip_address=ip_address,
+                user_agent=user_agent,
                 resource_type="verification_case",
                 resource_id=verification_case_id,
             )
@@ -91,6 +95,8 @@ class VerificationReviewService:
         email: str,
         decision: ReviewDecision,
         notes: str | None,
+        ip_address: str | None = None,
+        user_agent: str | None = None,
     ) -> VerificationReview:
         case = self.verification_case_repository.get_by_id_and_customer_and_reviewer(
             verification_case_id=verification_case_id,
@@ -144,6 +150,8 @@ class VerificationReviewService:
                 event_type=AuditEventType.VERIFICATION_CASE_STATUS_CHANGED,
                 user_id=reviewer_id,
                 email=email,
+                ip_address=ip_address,
+                user_agent=user_agent,
                 resource_type="verification_case",
                 resource_id=verification_case_id,
             )

@@ -1,6 +1,6 @@
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, status
 
 from app.core.dependencies import (
     get_ai_usage_service,
@@ -23,6 +23,9 @@ router = APIRouter(
 @router.get(
     "",
     response_model=APIResponse[AIUsageListResponse],
+    status_code=status.HTTP_200_OK,
+    summary="Get AI usage",
+    description="Retreive AI usage.",
 )
 def get_ai_usage(
     limit: int = Query(

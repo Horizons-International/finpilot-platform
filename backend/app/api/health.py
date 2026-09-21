@@ -19,6 +19,8 @@ logger = logging.getLogger(__name__)
 
 @router.get(
     "/health",
+    response_model=APIResponse[dict[str, str]],
+    status_code=status.HTTP_200_OK,
     summary="Health check",
     description="Check if the api endpoint is functional and ready to use.",
 )
@@ -36,6 +38,7 @@ def health_check():
 
 @router.get(
     "/ready",
+    status_code=status.HTTP_200_OK,
     summary="Readiness check",
     description="Check if the database is ready to be used.",
 )

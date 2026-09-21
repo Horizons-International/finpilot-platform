@@ -41,6 +41,8 @@ class DocumentService:
         file: UploadFile,
         user_id: UUID,
         email: str,
+        ip_address: str | None = None,
+        user_agent: str | None = None,
     ) -> CustomerDocument:
         # ---------------------------------------------------------
         # 1. Verify customer exists
@@ -98,6 +100,8 @@ class DocumentService:
             folder=str(customer_id),
             commit=False,
             allowed_file_types=DOCUMENT_ALLOWED_FILE_TYPES,
+            ip_address=ip_address,
+            user_agent=user_agent,
         )
 
         try:
@@ -149,6 +153,8 @@ class DocumentService:
                 event_type=AuditEventType.CUSTOMER_DOCUMENT_CREATED,
                 user_id=user_id,
                 email=email,
+                ip_address=ip_address,
+                user_agent=user_agent,
                 resource_type="customer_document",
                 resource_id=document.id,
             )

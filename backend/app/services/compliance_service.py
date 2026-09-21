@@ -48,6 +48,8 @@ class ComplianceService:
         *,
         user_id: UUID,
         email: str,
+        ip_address: str | None = None,
+        user_agent: str | None = None,
     ) -> ComplianceCase:
         customer = self.db.get(
             Customer,
@@ -83,6 +85,8 @@ class ComplianceService:
             event_type=AuditEventType.COMPLIANCE_CASE_CREATED,
             user_id=user_id,
             email=email,
+            ip_address=ip_address,
+            user_agent=user_agent,
             resource_type="compliance_case",
             resource_id=case.id,
         )
@@ -147,6 +151,8 @@ class ComplianceService:
         *,
         user_id: UUID,
         email: str,
+        ip_address: str | None = None,
+        user_agent: str | None = None,
     ) -> ComplianceCase:
         case = self.get_case(case_id)
 
@@ -174,6 +180,8 @@ class ComplianceService:
             event_type=AuditEventType.COMPLIANCE_CASE_UPDATED,
             user_id=user_id,
             email=email,
+            ip_address=ip_address,
+            user_agent=user_agent,
             resource_type="compliance_case",
             resource_id=case.id,
         )
@@ -194,6 +202,8 @@ class ComplianceService:
         *,
         user_id: UUID,
         email: str,
+        ip_address: str | None = None,
+        user_agent: str | None = None,
     ) -> ComplianceCase:
         case = self.get_case(case_id)
 
@@ -236,6 +246,8 @@ class ComplianceService:
             event_type=AuditEventType.COMPLIANCE_CASE_ASSIGNED,
             user_id=user_id,
             email=email,
+            ip_address=ip_address,
+            user_agent=user_agent,
             resource_type="compliance_case",
             resource_id=case.id,
         )
@@ -253,6 +265,8 @@ class ComplianceService:
         user_id: UUID,
         email: str,
         resolution_reason: str | None = None,
+        ip_address: str | None = None,
+        user_agent: str | None = None,
     ) -> ComplianceCase:
         case = self.get_case(case_id)
 
@@ -306,6 +320,8 @@ class ComplianceService:
             event_type=AuditEventType.COMPLIANCE_CASE_STATUS_CHANGED,
             user_id=user_id,
             email=email,
+            ip_address=ip_address,
+            user_agent=user_agent,
             resource_type="compliance_case",
             resource_id=case.id,
         )

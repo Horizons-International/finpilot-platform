@@ -146,6 +146,7 @@ def test_process_document_sends_request_to_provider(
     result = service.process_document(
         document,
         requested_by=admin.id,
+        email=admin.email,
     )
 
     assert len(provider.requests) == 1
@@ -184,6 +185,7 @@ def test_process_document_returns_extracted_text(
     result = service.process_document(
         document,
         requested_by=admin.id,
+        email=admin.email,
     )
 
     assert result.status == OCRProcessingStatus.COMPLETED
@@ -217,6 +219,7 @@ def test_process_document_stores_provider_information(
     result = service.process_document(
         document,
         requested_by=admin.id,
+        email=admin.email,
     )
 
     assert result.provider_name == "test-provider"
@@ -243,6 +246,7 @@ def test_process_document_sets_processing_status_before_provider_call(
     result = service.process_document(
         document,
         requested_by=admin.id,
+        email=admin.email,
     )
 
     assert result.status == OCRProcessingStatus.COMPLETED
@@ -269,6 +273,7 @@ def test_process_document_creates_ocr_result(
     result = service.process_document(
         document,
         requested_by=admin.id,
+        email=admin.email,
     )
 
     service.repository.create.assert_called_once()
@@ -304,6 +309,7 @@ def test_process_document_handles_provider_error(
         service.process_document(
             document,
             requested_by=admin.id,
+            email=admin.email,
         )
 
     service.db.flush.assert_called()
@@ -337,6 +343,7 @@ def test_process_document_handles_unexpected_provider_error(
         service.process_document(
             document,
             requested_by=admin.id,
+            email=admin.email,
         )
 
     created_result = service.repository.create.call_args.args[0]
@@ -373,6 +380,7 @@ def test_process_document_handles_empty_extracted_text(
         service.process_document(
             document,
             requested_by=admin.id,
+            email=admin.email,
         )
 
     created_result = service.repository.create.call_args.args[0]
@@ -409,6 +417,7 @@ def test_process_document_handles_incomplete_provider_status(
         service.process_document(
             document,
             requested_by=admin.id,
+            email=admin.email,
         )
 
     created_result = service.repository.create.call_args.args[0]
@@ -445,6 +454,7 @@ def test_process_document_rejects_provider_response_for_wrong_document(
         service.process_document(
             document,
             requested_by=admin.id,
+            email=admin.email,
         )
 
     created_result = service.repository.create.call_args.args[0]
@@ -488,6 +498,7 @@ def test_process_document_by_id_raises_for_missing_document(
         service.process_document_by_id(
             document_id,
             requested_by=admin.id,
+            email=admin.email,
         )
 
 
@@ -518,6 +529,7 @@ def test_process_document_by_id_commits_successfully(
     result = service.process_document_by_id(
         document.id,
         requested_by=admin.id,
+        email=admin.email,
     )
 
     assert result.status == OCRProcessingStatus.COMPLETED
@@ -553,6 +565,7 @@ def test_process_document_by_id_commits_failed_result(
         service.process_document_by_id(
             document.id,
             requested_by=admin.id,
+            email=admin.email,
         )
 
     db.commit.assert_called_once()

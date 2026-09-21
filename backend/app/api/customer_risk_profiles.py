@@ -42,7 +42,7 @@ def create_customer_risk_profile(
         require_roles(
             UserRole.ADMINISTRATOR,
             UserRole.COMPLIANCE_OFFICER,
-            resource_type="case",
+            resource_type="risk profiles",
         )
     ),
     service: CustomerRiskProfileService = Depends(get_customer_risk_profile_service),
@@ -55,7 +55,7 @@ def create_customer_risk_profile(
         assessed_at=payload.assessed_at,
         assessment_source=payload.assessment_source,
         user_id=current_user["sub"],
-        user_email=current_user["email"],
+        email=current_user["email"],
         ip_address=request.client.host if request.client else None,
         user_agent=request.headers.get("user-agent"),
     )
@@ -70,6 +70,7 @@ def create_customer_risk_profile(
 @router.get(
     "/customer/{customer_id}",
     response_model=APIResponse[CustomerRiskProfileResponse],
+    status_code=status.HTTP_200_OK,
     summary="Get customer risk profile",
     description="Retrieve risk profile for a customer.",
 )
@@ -97,6 +98,7 @@ def get_customer_risk_profile(
 @router.get(
     "/{profile_id}",
     response_model=APIResponse[CustomerRiskProfileResponse],
+    status_code=status.HTTP_200_OK,
     summary="Get customer risk profile",
     description="Retrieve risk profile by ID.",
 )
@@ -124,6 +126,7 @@ def get_customer_risk_profile_by_id(
 @router.get(
     "",
     response_model=APIResponse[list[CustomerRiskProfileResponse]],
+    status_code=status.HTTP_200_OK,
     summary="Get customer risk profiles",
     description="Retrieve all customer risk profiles",
 )

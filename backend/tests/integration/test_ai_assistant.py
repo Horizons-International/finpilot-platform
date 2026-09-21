@@ -116,7 +116,7 @@ def test_compliance_officer_can_send_ai_request(
     )
 
     with patch(
-        "app.services.ai_compliance_dependencies.RetrievalService",
+        "app.core.dependencies.RetrievalService",
         return_value=fake_retrieval_service,
     ):
         response = client.post(
@@ -129,7 +129,7 @@ def test_compliance_officer_can_send_ai_request(
             },
         )
 
-    assert response.status_code == 200
+    assert response.status_code == 201
 
     data = response.json()["data"]
 
@@ -178,7 +178,7 @@ def test_ai_request_returns_structured_response(
     )
 
     with patch(
-        "app.services.ai_compliance_dependencies.RetrievalService",
+        "app.core.dependencies.RetrievalService",
         return_value=fake_retrieval_service,
     ):
         response = client.post(
@@ -191,7 +191,7 @@ def test_ai_request_returns_structured_response(
             },
         )
 
-    assert response.status_code == 200
+    assert response.status_code == 201
 
     data = response.json()["data"]
 
@@ -251,7 +251,7 @@ def test_ai_request_is_logged(
     )
 
     with patch(
-        "app.services.ai_compliance_dependencies.RetrievalService",
+        "app.core.dependencies.RetrievalService",
         return_value=fake_retrieval_service,
     ):
         response = client.post(
@@ -264,7 +264,7 @@ def test_ai_request_is_logged(
             },
         )
 
-    assert response.status_code == 200
+    assert response.status_code == 201
 
     interaction_id = response.json()["data"]["interaction_id"]
 
@@ -321,7 +321,7 @@ def test_ai_request_uses_assigned_prompt(
     )
 
     with patch(
-        "app.services.ai_compliance_dependencies.RetrievalService",
+        "app.core.dependencies.RetrievalService",
         return_value=fake_retrieval_service,
     ):
         response = client.post(
@@ -334,7 +334,7 @@ def test_ai_request_uses_assigned_prompt(
             },
         )
 
-    assert response.status_code == 200
+    assert response.status_code == 201
 
     data = response.json()["data"]
 
@@ -408,7 +408,7 @@ def test_ai_request_allowed_roles(
     )
 
     with patch(
-        "app.services.ai_compliance_dependencies.RetrievalService",
+        "app.core.dependencies.RetrievalService",
         return_value=fake_retrieval_service,
     ):
         response = client.post(
@@ -421,7 +421,7 @@ def test_ai_request_allowed_roles(
             },
         )
 
-    assert response.status_code == 200
+    assert response.status_code == 201
 
 
 def test_auditor_cannot_send_ai_request(
@@ -503,7 +503,7 @@ def test_ai_interaction_can_be_retrieved(
     )
 
     with patch(
-        "app.services.ai_compliance_dependencies.RetrievalService",
+        "app.core.dependencies.RetrievalService",
         return_value=fake_retrieval_service,
     ):
         create_response = client.post(
@@ -516,7 +516,7 @@ def test_ai_interaction_can_be_retrieved(
             },
         )
 
-    assert create_response.status_code == 200
+    assert create_response.status_code == 201
 
     interaction_id = create_response.json()["data"]["interaction_id"]
 
@@ -525,7 +525,7 @@ def test_ai_interaction_can_be_retrieved(
     )
 
     with patch(
-        "app.services.ai_compliance_dependencies.RetrievalService",
+        "app.core.dependencies.RetrievalService",
         return_value=fake_retrieval_service,
     ):
         response = client.get(
@@ -584,7 +584,7 @@ def test_ai_interaction_belongs_to_requesting_user(
     )
 
     with patch(
-        "app.services.ai_compliance_dependencies.RetrievalService",
+        "app.core.dependencies.RetrievalService",
         return_value=fake_retrieval_service,
     ):
         create_response = client.post(
@@ -597,7 +597,7 @@ def test_ai_interaction_belongs_to_requesting_user(
             },
         )
 
-    assert create_response.status_code == 200
+    assert create_response.status_code == 201
 
     interaction_id = create_response.json()["data"]["interaction_id"]
 
@@ -610,7 +610,7 @@ def test_ai_interaction_belongs_to_requesting_user(
     )
 
     with patch(
-        "app.services.ai_compliance_dependencies.RetrievalService",
+        "app.core.dependencies.RetrievalService",
         return_value=fake_retrieval_service,
     ):
         response = client.get(
@@ -657,7 +657,7 @@ def test_ai_request_with_customer_context(
     )
 
     with patch(
-        "app.services.ai_compliance_dependencies.RetrievalService",
+        "app.core.dependencies.RetrievalService",
         return_value=fake_retrieval_service,
     ):
         response = client.post(
@@ -669,7 +669,7 @@ def test_ai_request_with_customer_context(
             },
         )
 
-    assert response.status_code == 200
+    assert response.status_code == 201
 
     data = response.json()["data"]
 
@@ -720,7 +720,7 @@ def test_ai_request_with_case_context(
     )
 
     with patch(
-        "app.services.ai_compliance_dependencies.RetrievalService",
+        "app.core.dependencies.RetrievalService",
         return_value=fake_retrieval_service,
     ):
         response = client.post(
@@ -733,7 +733,7 @@ def test_ai_request_with_case_context(
             },
         )
 
-    assert response.status_code == 200
+    assert response.status_code == 201
 
     data = response.json()["data"]
 
@@ -792,7 +792,7 @@ def test_ai_request_includes_retrieved_knowledge_in_context(
     )
 
     with patch(
-        "app.services.ai_compliance_dependencies.RetrievalService",
+        "app.core.dependencies.RetrievalService",
         return_value=fake_retrieval_service,
     ):
         response = client.post(
@@ -806,7 +806,7 @@ def test_ai_request_includes_retrieved_knowledge_in_context(
             },
         )
 
-    assert response.status_code == 200
+    assert response.status_code == 201
 
     interaction_id = response.json()["data"]["interaction_id"]
 
@@ -873,7 +873,7 @@ def test_ai_request_passes_rag_options(
     )
 
     with patch(
-        "app.services.ai_compliance_dependencies.RetrievalService",
+        "app.core.dependencies.RetrievalService",
         return_value=fake_retrieval_service,
     ):
         response = client.post(
@@ -888,7 +888,7 @@ def test_ai_request_passes_rag_options(
         )
 
     assert response.status_code in {
-        200,
+        201,
         404,
     }
 
@@ -973,7 +973,7 @@ def test_ai_request_works_when_no_knowledge_is_retrieved(
     authenticate_client(client, user)
 
     with patch(
-        "app.services.ai_compliance_dependencies.RetrievalService",
+        "app.core.dependencies.RetrievalService",
         return_value=fake_retrieval_service,
     ):
         response = client.post(
@@ -985,7 +985,7 @@ def test_ai_request_works_when_no_knowledge_is_retrieved(
             },
         )
 
-    assert response.status_code == 200
+    assert response.status_code == 201
 
     data = response.json()["data"]
 
@@ -1024,7 +1024,7 @@ def test_ai_request_creates_usage_log(
     )
 
     with patch(
-        "app.services.ai_compliance_dependencies.RetrievalService",
+        "app.core.dependencies.RetrievalService",
         return_value=fake_retrieval_service,
     ):
         response = client.post(
@@ -1037,7 +1037,7 @@ def test_ai_request_creates_usage_log(
             },
         )
 
-    assert response.status_code == 200
+    assert response.status_code == 201
 
     usage_log = (
         db_session.query(AIUsageLog)
@@ -1088,7 +1088,7 @@ def test_ai_request_creates_one_usage_log(
     )
 
     with patch(
-        "app.services.ai_compliance_dependencies.RetrievalService",
+        "app.core.dependencies.RetrievalService",
         return_value=fake_retrieval_service,
     ):
         response = client.post(
@@ -1101,7 +1101,7 @@ def test_ai_request_creates_one_usage_log(
             },
         )
 
-    assert response.status_code == 200
+    assert response.status_code == 201
 
     usage_logs = (
         db_session.query(AIUsageLog)
@@ -1148,7 +1148,7 @@ def test_failed_ai_request_creates_usage_log(
 
     with (
         patch(
-            "app.services.ai_compliance_dependencies.RetrievalService",
+            "app.core.dependencies.RetrievalService",
             return_value=fake_retrieval_service,
         ),
         patch(

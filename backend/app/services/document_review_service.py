@@ -109,6 +109,9 @@ class DocumentReviewService:
         document_id: UUID,
         reviewer_id: UUID,
         data: ExtractionReviewUpdate,
+        email: str,
+        ip_address: str | None = None,
+        user_agent: str | None = None,
     ) -> DocumentExtraction:
         (
             _document,
@@ -153,6 +156,9 @@ class DocumentReviewService:
 
         self.audit_service.log_event(
             user_id=reviewer_id,
+            email=email,
+            ip_address=ip_address,
+            user_agent=user_agent,
             event_type=AuditEventType.DOCUMENT_EXTRACTION_REVIEW_UPDATED,
             resource_type="document_extraction",
             resource_id=extraction.id,
@@ -168,6 +174,9 @@ class DocumentReviewService:
         *,
         document_id: UUID,
         reviewer_id: UUID,
+        email: str,
+        ip_address: str | None = None,
+        user_agent: str | None = None,
     ) -> DocumentExtraction:
         (
             _document,
@@ -212,6 +221,9 @@ class DocumentReviewService:
 
         self.audit_service.log_event(
             user_id=reviewer_id,
+            email=email,
+            ip_address=ip_address,
+            user_agent=user_agent,
             event_type=AuditEventType.DOCUMENT_EXTRACTION_REVIEW_APPROVED,
             resource_type="document_extraction",
             resource_id=extraction.id,
@@ -228,6 +240,9 @@ class DocumentReviewService:
         document_id: UUID,
         reviewer_id: UUID,
         reason: str,
+        email: str,
+        ip_address: str | None = None,
+        user_agent: str | None = None,
     ) -> DocumentExtraction:
         (
             _document,
@@ -252,6 +267,9 @@ class DocumentReviewService:
 
         self.audit_service.log_event(
             user_id=reviewer_id,
+            email=email,
+            ip_address=ip_address,
+            user_agent=user_agent,
             event_type=AuditEventType.DOCUMENT_EXTRACTION_REVIEW_REJECTED,
             resource_type="document_extraction",
             resource_id=extraction.id,

@@ -67,6 +67,8 @@ class VerificationService:
         case_data: VerificationCaseCreate,
         user_id: UUID,
         email: str,
+        ip_address: str | None = None,
+        user_agent: str | None = None,
     ) -> IdentityVerificationCase:
         customer = self.db.query(Customer).filter(Customer.id == customer_id).first()
 
@@ -85,6 +87,8 @@ class VerificationService:
             event_type=AuditEventType.VERIFICATION_CASE_CREATED,
             user_id=user_id,
             email=email,
+            ip_address=ip_address,
+            user_agent=user_agent,
             resource_type="verification_case",
             resource_id=case.id,
         )
@@ -126,6 +130,8 @@ class VerificationService:
         status_data: VerificationCaseStatusUpdate,
         user_id: UUID,
         email: str,
+        ip_address: str | None = None,
+        user_agent: str | None = None,
     ) -> IdentityVerificationCase:
         customer = self.db.query(Customer).filter(Customer.id == customer_id).first()
 
@@ -166,6 +172,8 @@ class VerificationService:
             event_type=AuditEventType.VERIFICATION_CASE_STATUS_CHANGED,
             user_id=user_id,
             email=email,
+            ip_address=ip_address,
+            user_agent=user_agent,
             resource_type="verification_case",
             resource_id=case.id,
         )
@@ -195,6 +203,8 @@ class VerificationService:
         verification_data: VerificationCaseInitiation,
         user_id: UUID,
         email: str,
+        ip_address: str | None = None,
+        user_agent: str | None = None,
     ) -> IdentityVerificationCase:
         customer = self.db.query(Customer).filter(Customer.id == customer_id).first()
 
@@ -224,6 +234,8 @@ class VerificationService:
                 event_type=AuditEventType.VERIFICATION_CASE_CREATED,
                 user_id=user_id,
                 email=email,
+                ip_address=ip_address,
+                user_agent=user_agent,
                 resource_type="verification_case",
                 resource_id=case.id,
             )
@@ -270,6 +282,8 @@ class VerificationService:
         email: str,
         customer_id: UUID,
         verification_case_id: UUID,
+        ip_address: str | None = None,
+        user_agent: str | None = None,
     ) -> VerificationResponse:
         case = self.repository.get_by_id_and_customer(
             verification_case_id=verification_case_id,
@@ -291,6 +305,8 @@ class VerificationService:
             event_type=AuditEventType.VERIFICATION_PROVIDER_REQUEST,
             user_id=user_id,
             email=email,
+            ip_address=ip_address,
+            user_agent=user_agent,
             resource_type="verification_case",
             resource_id=case.id,
         )

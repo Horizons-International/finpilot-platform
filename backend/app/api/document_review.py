@@ -1,8 +1,11 @@
 from typing import Any
 from uuid import UUID
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Request, status
 
+from app.core.dependencies import (
+    get_document_review_service,
+)
 from app.core.responses import APIResponse
 from app.core.security import require_roles
 from app.schemas.customer import CustomerResponse
@@ -16,9 +19,6 @@ from app.schemas.extraction_review import (
     ExtractionReviewResponse,
     ExtractionReviewUpdate,
 )
-from app.services.document_review_dependencies import (
-    get_document_review_service,
-)
 from app.services.document_review_service import DocumentReviewService
 from app.utils.enums import UserRole
 
@@ -31,6 +31,9 @@ router = APIRouter(
 @router.get(
     "/{document_id}/review",
     response_model=APIResponse[DocumentReviewResponse],
+    status_code=status.HTTP_200_OK,
+    summary="Get document review",
+    description="Retrieves document review by ID.",
 )
 def get_document_review(
     document_id: UUID,
@@ -76,8 +79,12 @@ def get_document_review(
 @router.patch(
     "/{document_id}/review",
     response_model=APIResponse[ExtractionReviewResponse],
+    status_code=status.HTTP_200_OK,
+    summary="Patch document review",
+    description="Updates document review.",
 )
 def update_document_review(
+    request: Request,
     document_id: UUID,
     data: ExtractionReviewUpdate,
     review_service: DocumentReviewService = Depends(
@@ -96,6 +103,9 @@ def update_document_review(
         document_id=document_id,
         reviewer_id=UUID(current_user["sub"]),
         data=data,
+        email=current_user["email"],
+        ip_address=(request.client.host if request.client else None),
+        user_agent=request.headers.get("user-agent"),
     )
 
     return APIResponse(
@@ -110,8 +120,12 @@ def update_document_review(
 @router.post(
     "/{document_id}/review/approve",
     response_model=APIResponse[ExtractionReviewResponse],
+    status_code=status.HTTP_200_OK,
+    summary="Approve document review",
+    description="Approves document review.",
 )
 def approve_document_review(
+    request: Request,
     document_id: UUID,
     review_service: DocumentReviewService = Depends(
         get_document_review_service,
@@ -128,6 +142,9 @@ def approve_document_review(
     extraction = review_service.approve(
         document_id=document_id,
         reviewer_id=UUID(current_user["sub"]),
+        email=current_user["email"],
+        ip_address=(request.client.host if request.client else None),
+        user_agent=request.headers.get("user-agent"),
     )
 
     return APIResponse(
@@ -142,8 +159,12 @@ def approve_document_review(
 @router.post(
     "/{document_id}/review/reject",
     response_model=APIResponse[ExtractionReviewResponse],
+    status_code=status.HTTP_200_OK,
+    summary="Reject document review",
+    description="Rejects document review.",
 )
 def reject_document_review(
+    request: Request,
     document_id: UUID,
     data: ExtractionReviewReject,
     review_service: DocumentReviewService = Depends(
@@ -162,6 +183,9 @@ def reject_document_review(
         document_id=document_id,
         reviewer_id=UUID(current_user["sub"]),
         reason=data.reason,
+        email=current_user["email"],
+        ip_address=(request.client.host if request.client else None),
+        user_agent=request.headers.get("user-agent"),
     )
 
     return APIResponse(

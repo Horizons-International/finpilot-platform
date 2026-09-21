@@ -33,6 +33,8 @@ class FileService:
         folder: str,
         commit: bool = True,
         allowed_file_types: set[str] | None = None,
+        ip_address: str | None = None,
+        user_agent: str | None = None,
     ) -> File:
         # Validate filename
         if not file.filename:
@@ -89,6 +91,8 @@ class FileService:
                 event_type=AuditEventType.FILE_UPLOAD,
                 user_id=uploaded_by,
                 email=email,
+                ip_address=ip_address,
+                user_agent=user_agent,
                 resource_type="file",
                 resource_id=file_record.id,
             )
@@ -119,6 +123,8 @@ class FileService:
         file_id: UUID,
         user_id: UUID,
         email: str,
+        ip_address: str | None = None,
+        user_agent: str | None = None,
     ) -> tuple[bytes, str, str]:
         content, filename, content_type = self.read_file(
             file_id=file_id,
@@ -129,6 +135,8 @@ class FileService:
                 event_type=AuditEventType.FILE_DOWNLOAD,
                 user_id=user_id,
                 email=email,
+                ip_address=ip_address,
+                user_agent=user_agent,
                 resource_type="file",
                 resource_id=file_id,
             )
@@ -150,6 +158,8 @@ class FileService:
         file_id: UUID,
         user_id: UUID,
         email: str,
+        ip_address: str | None = None,
+        user_agent: str | None = None,
     ) -> None:
         file_record = self.file_repository.get_by_id(file_id)
 
@@ -170,6 +180,8 @@ class FileService:
                 event_type=AuditEventType.FILE_DELETE,
                 user_id=user_id,
                 email=email,
+                ip_address=ip_address,
+                user_agent=user_agent,
                 resource_type="file",
                 resource_id=file_id,
             )

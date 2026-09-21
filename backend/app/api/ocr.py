@@ -1,7 +1,7 @@
 from typing import Any
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, Request, status
 
 from app.core.responses import APIResponse
 from app.core.security import require_roles
@@ -20,8 +20,11 @@ router = APIRouter(
     "/{document_id}/ocr",
     response_model=APIResponse[OCRResultResponse],
     status_code=status.HTTP_201_CREATED,
+    summary="Create OCR",
+    description="Creates an OCR for a document.",
 )
 def process_document_ocr(
+    request: Request,
     document_id: UUID,
     ocr_service: OCRService = Depends(get_ocr_service),
     current_user: dict[str, Any] = Depends(
@@ -34,6 +37,9 @@ def process_document_ocr(
     result = ocr_service.process_document_by_id(
         document_id=document_id,
         requested_by=UUID(current_user["sub"]),
+        email=current_user["email"],
+        ip_address=(request.client.host if request.client else None),
+        user_agent=request.headers.get("user-agent"),
     )
 
     return APIResponse(
@@ -46,6 +52,9 @@ def process_document_ocr(
 @router.get(
     "/{document_id}/ocr",
     response_model=APIResponse[OCRResultResponse],
+    status_code=status.HTTP_200_OK,
+    summary="Get OCR",
+    description="Retrieve an OCR by document id.",
 )
 def get_document_ocr(
     document_id: UUID,

@@ -1,7 +1,7 @@
 from typing import Any
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, Request, status
 
 from app.core.dependencies import get_verification_review_service
 from app.core.responses import APIResponse
@@ -28,8 +28,10 @@ router = APIRouter(
     response_model=APIResponse[None],
     status_code=status.HTTP_200_OK,
     summary="Start verification case review",
+    description="Starts verification case review.",
 )
 def start_review(
+    request: Request,
     customer_id: UUID,
     verification_case_id: UUID,
     current_user: dict[str, Any] = Depends(
@@ -47,6 +49,8 @@ def start_review(
         verification_case_id=verification_case_id,
         reviewer_id=reviewer_id,
         email=current_user["email"],
+        ip_address=(request.client.host if request.client else None),
+        user_agent=request.headers.get("user-agent"),
     )
 
     return APIResponse(
@@ -61,8 +65,10 @@ def start_review(
     response_model=APIResponse[VerificationReviewResponse],
     status_code=status.HTTP_201_CREATED,
     summary="Review a verification case",
+    description="Creates verfication case review",
 )
 def create_review(
+    request: Request,
     customer_id: UUID,
     verification_case_id: UUID,
     review_data: VerificationReviewCreate,
@@ -83,6 +89,8 @@ def create_review(
         email=current_user["email"],
         decision=review_data.decision,
         notes=review_data.notes,
+        ip_address=(request.client.host if request.client else None),
+        user_agent=request.headers.get("user-agent"),
     )
 
     return APIResponse(

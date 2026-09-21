@@ -1,7 +1,7 @@
 from typing import Any
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, Request, status
 
 from app.core.dependencies import get_verification_service
 from app.core.responses import APIResponse
@@ -35,6 +35,7 @@ verification_router = APIRouter(
     description="Create an identity verification case for a customer.",
 )
 def create_verification_case(
+    request: Request,
     customer_id: UUID,
     case_data: VerificationCaseCreate,
     current_user: dict[str, Any] = Depends(
@@ -51,6 +52,8 @@ def create_verification_case(
         case_data=case_data,
         user_id=UUID(current_user["sub"]),
         email=current_user["email"],
+        ip_address=(request.client.host if request.client else None),
+        user_agent=request.headers.get("user-agent"),
     )
 
     return APIResponse(
@@ -92,10 +95,13 @@ def get_verification_cases(
     "/{case_id}/status",
     response_model=APIResponse[VerificationCaseResponse],
     status_code=status.HTTP_200_OK,
+    summary="Patch verification case status",
+    description="Updates verification case status.",
 )
 def update_verification_case_status(
     customer_id: UUID,
     case_id: UUID,
+    request: Request,
     status_data: VerificationCaseStatusUpdate,
     current_user: dict[str, Any] = Depends(
         require_roles(
@@ -111,6 +117,8 @@ def update_verification_case_status(
         status_data=status_data,
         user_id=UUID(current_user["sub"]),
         email=current_user["email"],
+        ip_address=(request.client.host if request.client else None),
+        user_agent=request.headers.get("user-agent"),
     )
 
     return APIResponse(
@@ -124,8 +132,11 @@ def update_verification_case_status(
     "/verification",
     response_model=APIResponse[VerificationCaseResponse],
     status_code=status.HTTP_201_CREATED,
+    summary="Initiate verification case",
+    description="Initiate verification case by ID.",
 )
 def initiate_verification(
+    request: Request,
     customer_id: UUID,
     verification_data: VerificationCaseInitiation,
     current_user: dict[str, Any] = Depends(
@@ -141,6 +152,8 @@ def initiate_verification(
         verification_data=verification_data,
         user_id=UUID(current_user["sub"]),
         email=current_user["email"],
+        ip_address=(request.client.host if request.client else None),
+        user_agent=request.headers.get("user-agent"),
     )
 
     return APIResponse(
@@ -153,8 +166,12 @@ def initiate_verification(
 @router.post(
     "/{verification_case_id}/provider-verification",
     response_model=APIResponse[VerificationResponse],
+    status_code=status.HTTP_201_CREATED,
+    summary="Submit verification case",
+    description="Submits verification case to provider.",
 )
 def submit_provider_verification(
+    request: Request,
     customer_id: UUID,
     verification_case_id: UUID,
     current_user: dict[str, Any] = Depends(
@@ -170,6 +187,8 @@ def submit_provider_verification(
         email=current_user["email"],
         customer_id=customer_id,
         verification_case_id=verification_case_id,
+        ip_address=(request.client.host if request.client else None),
+        user_agent=request.headers.get("user-agent"),
     )
 
     return APIResponse(

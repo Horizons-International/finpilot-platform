@@ -24,7 +24,12 @@ class UserService:
         self.repository = UserRepository(db)
         self.audit_service = AuditService(db)
 
-    def create_user(self, user_data: UserCreate) -> User:
+    def create_user(
+        self,
+        user_data: UserCreate,
+        ip_address: str | None = None,
+        user_agent: str | None = None,
+    ) -> User:
         existing_user = self.repository.get_by_email(
             user_data.email,
         )
@@ -51,6 +56,8 @@ class UserService:
             event_type=AuditEventType.USER_CREATED,
             user_id=user.id,
             email=user.email,
+            ip_address=ip_address,
+            user_agent=user_agent,
             resource_type="user",
             resource_id=user.id,
         )
@@ -72,6 +79,8 @@ class UserService:
         self,
         user_id: UUID,
         user_data: UserUpdate,
+        ip_address: str | None = None,
+        user_agent: str | None = None,
     ) -> User:
         user = self.get_user(user_id)
 
@@ -118,6 +127,8 @@ class UserService:
             event_type=AuditEventType.USER_UPDATED,
             user_id=user.id,
             email=user.email,
+            ip_address=ip_address,
+            user_agent=user_agent,
             resource_type="user",
             resource_id=user.id,
         )
@@ -131,6 +142,8 @@ class UserService:
         self,
         user_id: UUID,
         status_data: UserStatusUpdate,
+        ip_address: str | None = None,
+        user_agent: str | None = None,
     ) -> User:
         user = self.get_user(user_id)
 
@@ -149,6 +162,8 @@ class UserService:
             event_type=AuditEventType.USER_STATUS_CHANGED,
             user_id=user.id,
             email=user.email,
+            ip_address=ip_address,
+            user_agent=user_agent,
             resource_type="user",
             resource_id=user.id,
         )
@@ -158,7 +173,12 @@ class UserService:
 
         return user
 
-    def delete_user(self, user_id: UUID) -> User:
+    def delete_user(
+        self,
+        user_id: UUID,
+        ip_address: str | None = None,
+        user_agent: str | None = None,
+    ) -> User:
         user = self.get_user(user_id)
 
         self.repository.soft_delete(user)
@@ -167,6 +187,8 @@ class UserService:
             event_type=AuditEventType.USER_DELETED,
             user_id=user.id,
             email=user.email,
+            ip_address=ip_address,
+            user_agent=user_agent,
             resource_type="user",
             resource_id=user.id,
         )

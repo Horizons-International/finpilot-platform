@@ -903,7 +903,7 @@ def test_submit_verification_to_mock_provider(
         f"verification-cases/{case_id}/provider-verification"
     )
 
-    assert response.status_code == 200
+    assert response.status_code == 201
 
     data = response.json()["data"]
 
