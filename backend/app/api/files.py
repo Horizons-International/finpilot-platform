@@ -1,13 +1,19 @@
 from typing import Any
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, UploadFile, status
+from fastapi import (
+    APIRouter,
+    Depends,
+    Request,
+    UploadFile,
+    status,
+)
 from fastapi import File as FastAPIFile
 from fastapi.responses import Response
 
 from app.core.dependencies import get_file_service
 from app.core.responses import APIResponse
-from app.core.security import get_current_user_payload, require_roles
+from app.core.security import require_roles
 from app.schemas.file import FileResponse
 from app.services.file_service import FileService
 from app.utils.enums import UserRole
@@ -26,10 +32,16 @@ router = APIRouter(
     description="Upload a file to the storage service.",
 )
 async def upload_file(
+    request: Request,
     file: UploadFile = FastAPIFile(...),
     module: str = "customers",
     folder: str = "uploads",
-    current_user: dict[str, Any] = Depends(get_current_user_payload),
+    current_user: dict[str, Any] = Depends(
+        require_roles(
+            UserRole.ADMINISTRATOR,
+            resource_type="file",
+        )
+    ),
     service: FileService = Depends(get_file_service),
 ):
     file_record = await service.upload_file(
@@ -38,6 +50,8 @@ async def upload_file(
         email=current_user["email"],
         module=module,
         folder=folder,
+        ip_address=(request.client.host if request.client else None),
+        user_agent=request.headers.get("user-agent"),
     )
 
     return APIResponse(
@@ -49,10 +63,12 @@ async def upload_file(
 
 @router.get(
     "/{file_id}",
+    status_code=status.HTTP_200_OK,
     summary="Get file",
     description="Retrieve an file from the storage service by ID.",
 )
 def download_file(
+    request: Request,
     file_id: UUID,
     service: FileService = Depends(get_file_service),
     current_user: dict[str, Any] = Depends(
@@ -66,6 +82,8 @@ def download_file(
         file_id=file_id,
         user_id=UUID(current_user["sub"]),
         email=current_user["email"],
+        ip_address=(request.client.host if request.client else None),
+        user_agent=request.headers.get("user-agent"),
     )
 
     return Response(
@@ -80,10 +98,12 @@ def download_file(
 @router.delete(
     "/{file_id}",
     response_model=APIResponse[None],
+    status_code=status.HTTP_200_OK,
     summary="Delete a file",
     description="Delete a file from storage services by ID.",
 )
 def delete_file(
+    request: Request,
     file_id: UUID,
     service: FileService = Depends(get_file_service),
     current_user: dict[str, Any] = Depends(
@@ -97,6 +117,8 @@ def delete_file(
         file_id=file_id,
         user_id=UUID(current_user["sub"]),
         email=current_user["email"],
+        ip_address=(request.client.host if request.client else None),
+        user_agent=request.headers.get("user-agent"),
     )
 
     return APIResponse(

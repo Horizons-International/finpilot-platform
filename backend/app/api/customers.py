@@ -1,7 +1,13 @@
 from typing import Any
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Query, status
+from fastapi import (
+    APIRouter,
+    Depends,
+    Query,
+    Request,
+    status,
+)
 from pydantic import EmailStr
 from sqlalchemy.orm import Session
 
@@ -34,6 +40,7 @@ router = APIRouter(
     description="Creates a new customer.",
 )
 def create_customer(
+    request: Request,
     customer_data: CustomerCreate,
     db: Session = Depends(get_db),
     current_user: dict[str, Any] = Depends(
@@ -48,6 +55,9 @@ def create_customer(
     customer = service.create_customer(
         customer_data=customer_data,
         created_by=UUID(current_user["sub"]),
+        email=current_user["email"],
+        ip_address=(request.client.host if request.client else None),
+        user_agent=request.headers.get("user-agent"),
     )
 
     return APIResponse(
@@ -60,10 +70,12 @@ def create_customer(
 @router.put(
     "/{customer_id}",
     response_model=APIResponse[CustomerResponse],
+    status_code=status.HTTP_200_OK,
     summary="Update customer",
     description="Updates an existing customer.",
 )
 def update_customer(
+    request: Request,
     customer_id: UUID,
     customer_data: CustomerUpdate,
     db: Session = Depends(get_db),
@@ -80,6 +92,9 @@ def update_customer(
         customer_id=customer_id,
         customer_data=customer_data,
         updated_by=UUID(current_user["sub"]),
+        email=current_user["email"],
+        ip_address=(request.client.host if request.client else None),
+        user_agent=request.headers.get("user-agent"),
     )
 
     return APIResponse(
@@ -92,10 +107,12 @@ def update_customer(
 @router.patch(
     "/{customer_id}/status",
     response_model=APIResponse[CustomerResponse],
+    status_code=status.HTTP_200_OK,
     summary="Change customer status",
-    description="Change the status of a existing customer.",
+    description="Changes the status of a existing customer.",
 )
 def update_customer_status(
+    request: Request,
     customer_id: UUID,
     status_data: CustomerStatusUpdate,
     db: Session = Depends(get_db),
@@ -112,6 +129,9 @@ def update_customer_status(
         customer_id=customer_id,
         new_status=status_data.status,
         changed_by=UUID(current_user["sub"]),
+        email=current_user["email"],
+        ip_address=(request.client.host if request.client else None),
+        user_agent=request.headers.get("user-agent"),
     )
 
     return APIResponse(
@@ -124,6 +144,7 @@ def update_customer_status(
 @router.get(
     "",
     response_model=APIResponse[CustomerListResponse],
+    status_code=status.HTTP_200_OK,
     summary="Search customers",
     description=(
         "Searches customers by ID, name, phone number, or email "
@@ -197,6 +218,7 @@ def search_customers(
 @router.get(
     "/{customer_id}",
     response_model=APIResponse[CustomerResponse],
+    status_code=status.HTTP_200_OK,
     summary="Get customer",
     description="Retrieves a customer by ID.",
 )

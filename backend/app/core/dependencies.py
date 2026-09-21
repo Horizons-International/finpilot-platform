@@ -9,8 +9,12 @@ from app.core.security import decode_access_token
 from app.models.user import User
 from app.rag.embeddings import EmbeddingService
 from app.rag.retrieval import RetrievalService
+from app.services.ai_compliance_service import (
+    AIComplianceService,
+)
 from app.services.ai_usage_service import AIUsageService
 from app.services.compliance_service import ComplianceService
+from app.services.document_review_service import DocumentReviewService
 from app.services.document_service import DocumentService
 from app.services.file_service import FileService
 from app.services.knowledge_document_service import (
@@ -130,3 +134,20 @@ def get_compliance_service(
     db: Session = Depends(get_db),
 ) -> ComplianceService:
     return ComplianceService(db)
+
+
+def get_document_review_service(
+    db: Session = Depends(get_db),
+) -> DocumentReviewService:
+    return DocumentReviewService(db)
+
+
+def get_ai_compliance_service(
+    db: Session = Depends(get_db),
+) -> AIComplianceService:
+    retrieval_service = RetrievalService(db)
+
+    return AIComplianceService(
+        db,
+        retrieval_service=retrieval_service,
+    )

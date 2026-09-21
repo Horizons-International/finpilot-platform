@@ -6,6 +6,7 @@ from app.models.customer_audit_log import CustomerAuditLog
 from app.repositories.customer_audit_log_repository import (
     CustomerAuditLogRepository,
 )
+from app.utils.audit import serialize_audit_value
 
 
 class CustomerAuditLogService:
@@ -30,8 +31,8 @@ class CustomerAuditLogService:
             resource_type=resource_type,
             resource_id=resource_id,
             action=action,
-            old_value=old_value,
-            new_value=new_value,
+            old_value=serialize_audit_value(old_value),
+            new_value=serialize_audit_value(new_value),
         )
 
         return self.repository.create(audit_log)

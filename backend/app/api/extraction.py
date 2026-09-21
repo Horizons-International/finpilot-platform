@@ -1,7 +1,7 @@
 from typing import Any
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, Request, status
 
 from app.core.responses import APIResponse
 from app.core.security import require_roles
@@ -21,8 +21,11 @@ router = APIRouter(
     "/{document_id}/extraction",
     response_model=APIResponse[DocumentExtractionResponse],
     status_code=status.HTTP_201_CREATED,
+    summary="Post document extraction",
+    description="Creates document extraction.",
 )
 def extract_document(
+    request: Request,
     document_id: UUID,
     extraction_service: DocumentExtractionService = Depends(
         get_document_extraction_service
@@ -38,6 +41,9 @@ def extract_document(
     result = extraction_service.extract_document_by_id(
         document_id=document_id,
         requested_by=UUID(current_user["sub"]),
+        email=current_user["email"],
+        ip_address=(request.client.host if request.client else None),
+        user_agent=request.headers.get("user-agent"),
     )
 
     return APIResponse(
@@ -50,6 +56,9 @@ def extract_document(
 @router.get(
     "/{document_id}/extraction",
     response_model=APIResponse[DocumentExtractionResponse],
+    status_code=status.HTTP_200_OK,
+    summary="Get document extraction",
+    description="Retrieves document extraction by ID.",
 )
 def get_document_extraction(
     document_id: UUID,

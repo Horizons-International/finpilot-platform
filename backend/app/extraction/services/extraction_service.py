@@ -39,6 +39,9 @@ class DocumentExtractionService:
         document: CustomerDocument,
         ocr_result: OCRResult,
         requested_by: UUID,
+        email: str,
+        ip_address: str | None = None,
+        user_agent: str | None = None,
     ) -> DocumentExtraction:
         logger.info(
             "Extraction request started: provider=%s document_id=%s ocr_result_id=%s",
@@ -59,6 +62,9 @@ class DocumentExtractionService:
 
         self.audit_service.log_event(
             user_id=requested_by,
+            email=email,
+            ip_address=ip_address,
+            user_agent=user_agent,
             event_type=AuditEventType.DOCUMENT_EXTRACTION_REQUESTED,
             resource_type="document_extraction",
             resource_id=extraction.id,
@@ -110,6 +116,9 @@ class DocumentExtractionService:
 
             self.audit_service.log_event(
                 user_id=requested_by,
+                email=email,
+                ip_address=ip_address,
+                user_agent=user_agent,
                 event_type=AuditEventType.DOCUMENT_EXTRACTION_COMPLETED,
                 resource_type="document_extraction",
                 resource_id=extraction.id,
@@ -131,6 +140,9 @@ class DocumentExtractionService:
 
             self.audit_service.log_event(
                 user_id=requested_by,
+                email=email,
+                ip_address=ip_address,
+                user_agent=user_agent,
                 event_type=AuditEventType.DOCUMENT_EXTRACTION_FAILED,
                 resource_type="document_extraction",
                 resource_id=extraction.id,
@@ -151,6 +163,9 @@ class DocumentExtractionService:
 
             self.audit_service.log_event(
                 user_id=requested_by,
+                email=email,
+                ip_address=ip_address,
+                user_agent=user_agent,
                 event_type=AuditEventType.DOCUMENT_EXTRACTION_FAILED,
                 resource_type="document_extraction",
                 resource_id=extraction.id,
@@ -171,6 +186,9 @@ class DocumentExtractionService:
 
             self.audit_service.log_event(
                 user_id=requested_by,
+                email=email,
+                ip_address=ip_address,
+                user_agent=user_agent,
                 event_type=AuditEventType.DOCUMENT_EXTRACTION_FAILED,
                 resource_type="document_extraction",
                 resource_id=extraction.id,
@@ -187,6 +205,9 @@ class DocumentExtractionService:
         self,
         document_id: UUID,
         requested_by: UUID,
+        email: str,
+        ip_address: str | None = None,
+        user_agent: str | None = None,
     ) -> DocumentExtraction:
         document = (
             self.db.query(CustomerDocument)
@@ -217,6 +238,9 @@ class DocumentExtractionService:
                 document,
                 ocr_result,
                 requested_by=requested_by,
+                email=email,
+                ip_address=ip_address,
+                user_agent=user_agent,
             )
             self.db.commit()
 

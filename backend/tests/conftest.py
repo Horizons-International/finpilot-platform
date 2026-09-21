@@ -22,6 +22,7 @@ from app.models.compliance_case import ComplianceCase
 from app.models.customer import Customer
 from app.models.customer_audit_log import CustomerAuditLog
 from app.models.customer_contact import CustomerContact
+from app.models.customer_risk_profile import CustomerRiskProfile
 from app.models.customer_status_history import CustomerStatusHistory
 from app.models.document import CustomerDocument
 from app.models.file import File
@@ -244,6 +245,10 @@ def cleanup_test_customers():
 
             db.query(CustomerAuditLog).filter(
                 CustomerAuditLog.customer_id == customer.id
+            ).delete(synchronize_session=False)
+
+            db.query(CustomerRiskProfile).filter(
+                CustomerRiskProfile.customer_id == customer.id
             ).delete(synchronize_session=False)
 
             repository.delete(customer)

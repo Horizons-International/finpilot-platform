@@ -1,6 +1,6 @@
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, Request, status
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
@@ -31,6 +31,7 @@ router = APIRouter(
 )
 def create_user(
     user_data: UserCreate,
+    request: Request,
     db: Session = Depends(get_db),
     _: dict = Depends(
         require_roles(
@@ -41,7 +42,11 @@ def create_user(
 ):
     service = UserService(db)
 
-    user = service.create_user(user_data)
+    user = service.create_user(
+        user_data,
+        ip_address=(request.client.host if request.client else None),
+        user_agent=request.headers.get("user-agent"),
+    )
 
     return APIResponse(
         success=True,
@@ -53,6 +58,7 @@ def create_user(
 @router.get(
     "/{user_id}",
     response_model=APIResponse[UserResponse],
+    status_code=status.HTTP_200_OK,
     summary="Get user",
     description="Retrieves a user by ID.",
 )
@@ -68,7 +74,9 @@ def get_user(
 ):
     service = UserService(db)
 
-    user = service.get_user(user_id)
+    user = service.get_user(
+        user_id,
+    )
 
     return APIResponse(
         success=True,
@@ -80,6 +88,7 @@ def get_user(
 @router.get(
     "",
     response_model=APIResponse[UserListResponse],
+    status_code=status.HTTP_200_OK,
     summary="Get users",
     description="Retrieves all the users in the database.",
 )
@@ -111,11 +120,13 @@ def get_users(
 @router.put(
     "/{user_id}",
     response_model=APIResponse[UserResponse],
+    status_code=status.HTTP_200_OK,
     summary="Update user",
     description="Updates an existing user information.",
 )
 def update_user(
     user_id: UUID,
+    request: Request,
     user_data: UserUpdate,
     db: Session = Depends(get_db),
     _: dict = Depends(
@@ -130,6 +141,8 @@ def update_user(
     user = service.update_user(
         user_id,
         user_data,
+        ip_address=(request.client.host if request.client else None),
+        user_agent=request.headers.get("user-agent"),
     )
 
     return APIResponse(
@@ -142,11 +155,13 @@ def update_user(
 @router.patch(
     "/{user_id}/status",
     response_model=APIResponse[UserResponse],
+    status_code=status.HTTP_200_OK,
     summary="Update user status",
     description="Updates the status of an existing user.",
 )
 def update_user_status(
     user_id: UUID,
+    request: Request,
     status_data: UserStatusUpdate,
     db: Session = Depends(get_db),
     _: dict = Depends(
@@ -161,6 +176,8 @@ def update_user_status(
     user = service.update_status(
         user_id,
         status_data,
+        ip_address=(request.client.host if request.client else None),
+        user_agent=request.headers.get("user-agent"),
     )
 
     return APIResponse(
@@ -173,6 +190,7 @@ def update_user_status(
 @router.delete(
     "/{user_id}",
     response_model=APIResponse[UserResponse],
+    status_code=status.HTTP_200_OK,
     summary="Delete user",
     description="Delete an existing user by ID",
 )

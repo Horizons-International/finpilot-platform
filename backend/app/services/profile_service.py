@@ -28,6 +28,8 @@ class ProfileService:
         self,
         user_id: UUID,
         profile_data: ProfileUpdateRequest,
+        ip_address: str | None = None,
+        user_agent: str | None = None,
     ) -> User:
         user = self.get_profile(user_id)
 
@@ -57,6 +59,8 @@ class ProfileService:
             event_type=AuditEventType.USER_UPDATED,
             user_id=user.id,
             email=user.email,
+            ip_address=ip_address,
+            user_agent=user_agent,
             resource_type="user",
             resource_id=user.id,
         )

@@ -1,7 +1,7 @@
 from datetime import date
 from typing import Any
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.orm import Session
 
 from app.core.dependencies import get_db
@@ -29,6 +29,9 @@ def get_report_service(
 @router.get(
     "/verification-summary",
     response_model=APIResponse[VerificationSummaryResponse],
+    status_code=status.HTTP_200_OK,
+    summary="Get verification summary",
+    description="Retreive verification summary.",
 )
 def get_verification_summary(
     date_from: date | None = Query(default=None),

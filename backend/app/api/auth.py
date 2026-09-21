@@ -1,7 +1,7 @@
 from typing import Any
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, Request, status
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
@@ -26,6 +26,7 @@ router = APIRouter(
 @router.post(
     "/login",
     response_model=APIResponse[LoginResponse],
+    status_code=status.HTTP_200_OK,
     summary="Authenticate user",
     description="Authenticates a user and returns access and refresh tokens.",
 )
@@ -49,6 +50,7 @@ def login(
 @router.post(
     "/refresh",
     response_model=APIResponse[RefreshTokenResponse],
+    status_code=status.HTTP_200_OK,
     summary="Refresh access token",
     description="Generates a new access token using a valid refresh token.",
 )
@@ -67,6 +69,8 @@ def refresh_token(
 
 @router.get(
     "/admin-only",
+    response_model=APIResponse,
+    status_code=status.HTTP_200_OK,
     summary="For administrators",
     description=(
         "Endpoint to test out administrator authentication."
@@ -86,6 +90,7 @@ def admin_only(
 @router.post(
     "/change-password",
     response_model=APIResponse[dict[str, str]],
+    status_code=status.HTTP_200_OK,
     summary="Change password",
     description="Changes the password of the currently authenticated user.",
 )

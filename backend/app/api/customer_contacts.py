@@ -57,6 +57,7 @@ def create_customer_contact(
 @router.get(
     "/{customer_id}/contacts",
     response_model=APIResponse[list[CustomerContactResponse]],
+    status_code=status.HTTP_200_OK,
     summary="Get customer contacts",
     description="Retrieves all contact records belonging to a customer.",
 )
@@ -85,6 +86,7 @@ def get_customer_contacts(
 @router.put(
     "/{customer_id}/contacts/{contact_id}",
     response_model=APIResponse[CustomerContactResponse],
+    status_code=status.HTTP_200_OK,
     summary="Update customer contact",
     description="Updates an existing customer contact record.",
 )

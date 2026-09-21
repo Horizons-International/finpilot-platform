@@ -1,7 +1,7 @@
 from typing import Any
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, Request, status
 
 from app.core.database import get_db
 from app.core.responses import APIResponse
@@ -32,8 +32,11 @@ def get_verification_document_type_service(
     "",
     response_model=APIResponse[VerificationDocumentTypeResponse],
     status_code=status.HTTP_201_CREATED,
+    summary="Post verification document type",
+    description="Creates verification document type.",
 )
 def create_verification_document_type(
+    request: Request,
     data: VerificationDocumentTypeCreate,
     current_user: dict[str, Any] = Depends(
         require_roles(
@@ -49,6 +52,8 @@ def create_verification_document_type(
         data=data,
         user_id=UUID(current_user["sub"]),
         email=current_user["email"],
+        ip_address=(request.client.host if request.client else None),
+        user_agent=request.headers.get("user-agent"),
     )
 
     return APIResponse(
@@ -61,6 +66,9 @@ def create_verification_document_type(
 @router.get(
     "",
     response_model=APIResponse[list[VerificationDocumentTypeResponse]],
+    status_code=status.HTTP_200_OK,
+    summary="Get verification document types",
+    description="Retrieves all verfication document types.",
 )
 def get_verification_document_types(
     _: dict[str, Any] = Depends(
@@ -89,9 +97,12 @@ def get_verification_document_types(
 @router.get(
     "/active",
     response_model=APIResponse[list[VerificationDocumentTypeResponse]],
+    status_code=status.HTTP_200_OK,
+    summary="Get active verfication  document types",
+    description="Retrieves all active verification document types.",
 )
 def get_active_verification_document_types(
-    current_user: dict[str, Any] = Depends(
+    _: dict[str, Any] = Depends(
         require_roles(
             UserRole.ADMINISTRATOR,
             UserRole.COMPLIANCE_OFFICER,
@@ -118,6 +129,9 @@ def get_active_verification_document_types(
 @router.get(
     "/{document_type_id}",
     response_model=APIResponse[VerificationDocumentTypeResponse],
+    status_code=status.HTTP_200_OK,
+    summary="Get verification document type",
+    description="Retrieves verifiaction document type by ID.",
 )
 def get_verification_document_type(
     document_type_id: UUID,
@@ -144,8 +158,12 @@ def get_verification_document_type(
 @router.patch(
     "/{document_type_id}",
     response_model=APIResponse[VerificationDocumentTypeResponse],
+    status_code=status.HTTP_200_OK,
+    summary="Patch verification document type",
+    description="Updates verification document type by ID.",
 )
 def update_verification_document_type(
+    request: Request,
     document_type_id: UUID,
     data: VerificationDocumentTypeUpdate,
     current_user: dict[str, Any] = Depends(
@@ -163,6 +181,8 @@ def update_verification_document_type(
         data=data,
         user_id=UUID(current_user["sub"]),
         email=current_user["email"],
+        ip_address=(request.client.host if request.client else None),
+        user_agent=request.headers.get("user-agent"),
     )
 
     return APIResponse(

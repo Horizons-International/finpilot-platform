@@ -51,6 +51,9 @@ class CustomerService:
         self,
         customer_data: CustomerCreate,
         created_by: UUID,
+        email: str | None = None,
+        ip_address: str | None = None,
+        user_agent: str | None = None,
     ) -> Customer:
         existing_customer = self.repository.get_by_email(
             customer_data.email,
@@ -79,6 +82,9 @@ class CustomerService:
         self.audit_service.log_event(
             event_type=AuditEventType.CUSTOMER_CREATED,
             user_id=created_by,
+            email=email,
+            ip_address=ip_address,
+            user_agent=user_agent,
             resource_type="customer",
             resource_id=customer.id,
         )
@@ -128,6 +134,9 @@ class CustomerService:
         customer_data: CustomerUpdate,
         updated_by: UUID,
         *,
+        email: str | None = None,
+        ip_address: str | None = None,
+        user_agent: str | None = None,
         commit: bool = True,
     ) -> Customer:
         customer = self.get_customer(customer_id)
@@ -185,6 +194,9 @@ class CustomerService:
         self.audit_service.log_event(
             event_type=AuditEventType.CUSTOMER_UPDATED,
             user_id=updated_by,
+            email=email,
+            ip_address=ip_address,
+            user_agent=user_agent,
             resource_type="customer",
             resource_id=customer.id,
         )
@@ -201,6 +213,9 @@ class CustomerService:
         customer_id: UUID,
         new_status: CustomerStatus,
         changed_by: UUID,
+        email: str | None = None,
+        ip_address: str | None = None,
+        user_agent: str | None = None,
     ) -> Customer:
         customer = self.get_customer(customer_id)
 
@@ -231,6 +246,9 @@ class CustomerService:
         self.audit_service.log_event(
             event_type=AuditEventType.CUSTOMER_STATUS_CHANGED,
             user_id=changed_by,
+            email=email,
+            ip_address=ip_address,
+            user_agent=user_agent,
             resource_type="customer",
             resource_id=customer.id,
         )

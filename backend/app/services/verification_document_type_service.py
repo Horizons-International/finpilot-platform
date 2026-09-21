@@ -44,6 +44,8 @@ class VerificationDocumentTypeService:
         data: VerificationDocumentTypeCreate,
         user_id: UUID,
         email: str,
+        ip_address: str | None = None,
+        user_agent: str | None = None,
     ) -> VerificationDocumentType:
         existing = self.repository.get_by_name(data.name)
 
@@ -66,6 +68,8 @@ class VerificationDocumentTypeService:
                 event_type=AuditEventType.VERIFICATION_DOCUMENT_TYPE_CREATED,
                 user_id=user_id,
                 email=email,
+                ip_address=ip_address,
+                user_agent=user_agent,
                 resource_type="verification_document_type",
                 resource_id=document_type.id,
             )
@@ -97,6 +101,8 @@ class VerificationDocumentTypeService:
         data: VerificationDocumentTypeUpdate,
         user_id: UUID,
         email: str,
+        ip_address: str | None = None,
+        user_agent: str | None = None,
     ) -> VerificationDocumentType:
         document_type = self.repository.get_by_id(document_type_id)
 
@@ -131,6 +137,8 @@ class VerificationDocumentTypeService:
                 ),
                 user_id=user_id,
                 email=email,
+                ip_address=ip_address,
+                user_agent=user_agent,
                 resource_type="verification_document_type",
                 resource_id=document_type.id,
             )

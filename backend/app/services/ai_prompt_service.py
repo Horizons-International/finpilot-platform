@@ -71,6 +71,8 @@ class AIPromptService:
         data: AIPromptCreate,
         user_id: UUID,
         email: str,
+        ip_address: str | None = None,
+        user_agent: str | None = None,
     ) -> AIPrompt:
         existing = self.repository.get_lastest_by_name(data.name)
 
@@ -96,6 +98,8 @@ class AIPromptService:
                 event_type=AuditEventType.AI_PROMPT_CREATED,
                 user_id=user_id,
                 email=email,
+                ip_address=ip_address,
+                user_agent=user_agent,
                 resource_type="ai_prompt",
                 resource_id=prompt.id,
             )
@@ -115,6 +119,8 @@ class AIPromptService:
         data: AIPromptVersionCreate,
         user_id: UUID,
         email: str,
+        ip_address: str | None = None,
+        user_agent: str | None = None,
     ) -> AIPrompt:
         current_prompt = self.get_by_id(prompt_id)
 
@@ -141,6 +147,8 @@ class AIPromptService:
                 event_type=AuditEventType.AI_PROMPT_VERSION_CREATED,
                 user_id=user_id,
                 email=email,
+                ip_address=ip_address,
+                user_agent=user_agent,
                 resource_type="ai_prompt",
                 resource_id=prompt.id,
             )
@@ -160,6 +168,8 @@ class AIPromptService:
         data: AIPromptStatusUpdate,
         user_id: UUID,
         email: str,
+        ip_address: str | None = None,
+        user_agent: str | None = None,
     ) -> AIPrompt:
         prompt = self.get_by_id(prompt_id)
 
@@ -171,12 +181,16 @@ class AIPromptService:
                 prompt=prompt,
                 user_id=user_id,
                 email=email,
+                ip_address=ip_address,
+                user_agent=user_agent,
             )
 
         return self._deactivate(
             prompt=prompt,
             user_id=user_id,
             email=email,
+            ip_address=ip_address,
+            user_agent=user_agent,
         )
 
     def _activate(
@@ -184,6 +198,8 @@ class AIPromptService:
         prompt: AIPrompt,
         user_id: UUID,
         email: str,
+        ip_address: str | None = None,
+        user_agent: str | None = None,
     ) -> AIPrompt:
         existing_active = self.repository.get_active(prompt.name)
 
@@ -201,6 +217,8 @@ class AIPromptService:
             event_type=AuditEventType.AI_PROMPT_ACTIVATED,
             user_id=user_id,
             email=email,
+            ip_address=ip_address,
+            user_agent=user_agent,
             resource_type="ai_prompt",
             resource_id=prompt.id,
         )
@@ -220,6 +238,8 @@ class AIPromptService:
         prompt: AIPrompt,
         user_id: UUID,
         email: str,
+        ip_address: str | None = None,
+        user_agent: str | None = None,
     ) -> AIPrompt:
         prompt.status = AIPromptStatus.INACTIVE
 
@@ -229,6 +249,8 @@ class AIPromptService:
             event_type=AuditEventType.AI_PROMPT_DEACTIVATED,
             user_id=user_id,
             email=email,
+            ip_address=ip_address,
+            user_agent=user_agent,
             resource_type="ai_prompt",
             resource_id=prompt.id,
         )
@@ -243,6 +265,8 @@ class AIPromptService:
         data: AIPromptAssignmentCreate,
         user_id: UUID,
         email: str,
+        ip_address: str | None = None,
+        user_agent: str | None = None,
     ) -> AIPromptAssignment:
         prompt = self.get_by_id(data.prompt_id)
 
@@ -268,6 +292,8 @@ class AIPromptService:
             event_type=AuditEventType.AI_PROMPT_ASSIGNED,
             user_id=user_id,
             email=email,
+            ip_address=ip_address,
+            user_agent=user_agent,
             resource_type="ai_prompt",
             resource_id=prompt.id,
         )

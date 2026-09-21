@@ -38,6 +38,8 @@ class KnowledgeDocumentService:
         file: UploadFile,
         uploaded_by: UUID,
         email: str,
+        ip_address: str | None = None,
+        user_agent: str | None = None,
     ):
         name = name.strip()
 
@@ -79,6 +81,8 @@ class KnowledgeDocumentService:
                 event_type=AuditEventType.KNOWLEDGE_DOCUMENT_CREATED,
                 user_id=uploaded_by,
                 email=email,
+                ip_address=ip_address,
+                user_agent=user_agent,
                 resource_type="knowledge_document",
                 resource_id=document.id,
             )
@@ -110,6 +114,8 @@ class KnowledgeDocumentService:
         uploaded_by: UUID,
         email: str,
         data: KnowledgeDocumentVersionCreate,
+        ip_address: str | None = None,
+        user_agent: str | None = None,
     ):
         latest_document = self.repository.get_by_id(document_id)
 
@@ -158,6 +164,8 @@ class KnowledgeDocumentService:
                 event_type=AuditEventType.KNOWLEDGE_DOCUMENT_VERSION_CREATED,
                 user_id=uploaded_by,
                 email=email,
+                ip_address=ip_address,
+                user_agent=user_agent,
                 resource_type="knowledge_document",
                 resource_id=document.id,
             )
@@ -214,6 +222,8 @@ class KnowledgeDocumentService:
         document_id: UUID,
         uploaded_by: UUID,
         email: str,
+        ip_address: str | None = None,
+        user_agent: str | None = None,
     ):
         document = self.repository.get_by_id(document_id)
 
@@ -241,6 +251,8 @@ class KnowledgeDocumentService:
             event_type=AuditEventType.KNOWLEDGE_DOCUMENT_ACTIVATED,
             user_id=uploaded_by,
             email=email,
+            ip_address=ip_address,
+            user_agent=user_agent,
             resource_type="knowledge_document",
             resource_id=document.id,
         )
@@ -255,6 +267,8 @@ class KnowledgeDocumentService:
         document_id: UUID,
         uploaded_by: UUID,
         email: str,
+        ip_address: str | None = None,
+        user_agent: str | None = None,
     ):
         document = self.repository.get_by_id(document_id)
 
@@ -272,6 +286,8 @@ class KnowledgeDocumentService:
             event_type=AuditEventType.KNOWLEDGE_DOCUMENT_DEACTIVATED,
             user_id=uploaded_by,
             email=email,
+            ip_address=ip_address,
+            user_agent=user_agent,
             resource_type="knowledge_document",
             resource_id=document.id,
         )

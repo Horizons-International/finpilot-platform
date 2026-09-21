@@ -1,7 +1,14 @@
 from typing import Any
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Form, UploadFile, status
+from fastapi import (
+    APIRouter,
+    Depends,
+    Form,
+    Request,
+    UploadFile,
+    status,
+)
 from fastapi import File as FastAPIFile
 
 from app.core.dependencies import get_document_service
@@ -28,6 +35,7 @@ router = APIRouter(
     description="Upload a document for a customer's verification case.",
 )
 async def upload_document(
+    request: Request,
     customer_id: UUID,
     verification_case_id: UUID,
     document_type_id: UUID = Form(...),
@@ -48,6 +56,8 @@ async def upload_document(
         file=file,
         user_id=UUID(current_user["sub"]),
         email=current_user["email"],
+        ip_address=(request.client.host if request.client else None),
+        user_agent=request.headers.get("user-agent"),
     )
 
     return APIResponse(

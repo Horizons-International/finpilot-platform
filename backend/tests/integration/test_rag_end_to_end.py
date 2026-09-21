@@ -155,7 +155,7 @@ async def test_complete_rag_pipeline(
     customer_id = customer_response.json()["data"]["id"]
 
     with patch(
-        "app.services.ai_compliance_dependencies.RetrievalService",
+        "app.core.dependencies.RetrievalService",
     ) as retrieval_service_class:
         fake_retrieval_service = retrieval_service_class.return_value
 
@@ -171,7 +171,7 @@ async def test_complete_rag_pipeline(
             },
         )
 
-    assert ai_response.status_code == 200
+    assert ai_response.status_code == 201
 
     data = ai_response.json()["data"]
 

@@ -1,7 +1,7 @@
 from typing import Any
 from uuid import UUID
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Request, status
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
@@ -19,6 +19,7 @@ router = APIRouter(
 @router.get(
     "",
     response_model=APIResponse[ProfileResponse],
+    status_code=status.HTTP_200_OK,
     summary="Get profile",
     description="Retreive information the current user account.",
 )
@@ -42,10 +43,12 @@ def get_profile(
 @router.put(
     "",
     response_model=APIResponse[ProfileResponse],
+    status_code=status.HTTP_200_OK,
     summary="Update profile",
     description="Updates the information of the current user.",
 )
 def update_profile(
+    request: Request,
     profile_data: ProfileUpdateRequest,
     current_user: dict[str, Any] = Depends(get_current_user_payload),
     db: Session = Depends(get_db),
@@ -55,6 +58,8 @@ def update_profile(
     user = service.update_profile(
         UUID(current_user["sub"]),
         profile_data,
+        ip_address=(request.client.host if request.client else None),
+        user_agent=request.headers.get("user-agent"),
     )
 
     return APIResponse(

@@ -57,6 +57,7 @@ def create_customer_address(
 @router.get(
     "/{customer_id}/addresses",
     response_model=APIResponse[list[CustomerAddressResponse]],
+    status_code=status.HTTP_200_OK,
     summary="Get customer addresses",
     description="Retrieves all addresses belonging to a customer.",
 )
@@ -87,6 +88,7 @@ def get_customer_addresses(
 @router.put(
     "/{customer_id}/addresses/{address_id}",
     response_model=APIResponse[CustomerAddressResponse],
+    status_code=status.HTTP_200_OK,
     summary="Update customer address",
     description="Updates an existing customer address.",
 )
@@ -121,6 +123,7 @@ def update_customer_address(
 @router.patch(
     "/{customer_id}/addresses/{address_id}/primary",
     response_model=APIResponse[CustomerAddressResponse],
+    status_code=status.HTTP_200_OK,
     summary="Mark address as primary",
     description="Marks a customer address as the primary address.",
 )

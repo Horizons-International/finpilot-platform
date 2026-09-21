@@ -1,7 +1,13 @@
 from typing import Any
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Query, status
+from fastapi import (
+    APIRouter,
+    Depends,
+    Query,
+    Request,
+    status,
+)
 
 from app.core.dependencies import (
     get_compliance_service,
@@ -37,6 +43,7 @@ router = APIRouter(
     description="Create a compliance case for a customer.",
 )
 def create_compliance_case(
+    request: Request,
     case_data: ComplianceCaseCreate,
     current_user: dict[str, Any] = Depends(
         require_roles(
@@ -53,6 +60,8 @@ def create_compliance_case(
         case_data,
         user_id=UUID(current_user["sub"]),
         email=current_user["email"],
+        ip_address=(request.client.host if request.client else None),
+        user_agent=request.headers.get("user-agent"),
     )
 
     return APIResponse(
@@ -175,6 +184,7 @@ def get_customer_compliance_cases(
 )
 def update_compliance_case(
     case_id: UUID,
+    request: Request,
     case_data: ComplianceCaseUpdate,
     current_user: dict[str, Any] = Depends(
         require_roles(
@@ -192,6 +202,8 @@ def update_compliance_case(
         case_data,
         user_id=UUID(current_user["sub"]),
         email=current_user["email"],
+        ip_address=(request.client.host if request.client else None),
+        user_agent=request.headers.get("user-agent"),
     )
 
     return APIResponse(
@@ -210,6 +222,7 @@ def update_compliance_case(
 )
 def assign_compliance_case(
     case_id: UUID,
+    request: Request,
     assignment: ComplianceCaseAssignment,
     service: ComplianceService = Depends(get_compliance_service),
     current_user: dict[str, Any] = Depends(
@@ -225,6 +238,8 @@ def assign_compliance_case(
         assignment.assigned_to,
         user_id=UUID(current_user["sub"]),
         email=current_user["email"],
+        ip_address=(request.client.host if request.client else None),
+        user_agent=request.headers.get("user-agent"),
     )
 
     return APIResponse(
@@ -243,6 +258,7 @@ def assign_compliance_case(
 )
 def update_compliance_case_status(
     case_id: UUID,
+    request: Request,
     status_data: ComplianceCaseStatusUpdate,
     service: ComplianceService = Depends(get_compliance_service),
     current_user: dict[str, Any] = Depends(
@@ -259,6 +275,8 @@ def update_compliance_case_status(
         user_id=UUID(current_user["sub"]),
         email=current_user["email"],
         resolution_reason=status_data.resolution_reason,
+        ip_address=(request.client.host if request.client else None),
+        user_agent=request.headers.get("user-agent"),
     )
 
     return APIResponse(

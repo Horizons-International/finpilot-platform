@@ -354,6 +354,7 @@ def test_extract_document_sends_ocr_text_to_provider(
         document,
         ocr_result,
         requested_by=admin.id,
+        email=admin.email,
     )
 
     assert provider.document_ids == [document.id]
@@ -382,6 +383,7 @@ def test_extract_document_stores_extracted_fields(
         document,
         ocr_result,
         requested_by=admin.id,
+        email=admin.email,
     )
 
     assert result.first_name == "John"
@@ -415,6 +417,7 @@ def test_extract_document_stores_provider_name(
         document,
         ocr_result,
         requested_by=admin.id,
+        email=admin.email,
     )
 
     assert result.provider_name == "FakeExtractionProvider"
@@ -442,6 +445,7 @@ def test_extract_document_sets_processing_status_before_provider_call(
         document,
         ocr_result,
         requested_by=admin.id,
+        email=admin.email,
     )
 
     assert result.status == ExtractionStatus.COMPLETED
@@ -469,6 +473,7 @@ def test_extract_document_creates_extraction_record(
         document,
         ocr_result,
         requested_by=admin.id,
+        email=admin.email,
     )
 
     service.repository.create.assert_called_once()
@@ -508,6 +513,7 @@ def test_extract_document_handles_provider_error(
             document,
             ocr_result,
             requested_by=admin.id,
+            email=admin.email,
         )
 
     service.db.flush.assert_called()
@@ -543,6 +549,7 @@ def test_extract_document_handles_unexpected_provider_error(
             document,
             ocr_result,
             requested_by=admin.id,
+            email=admin.email,
         )
 
     created_extraction = service.repository.create.call_args.args[0]
@@ -578,6 +585,7 @@ def test_extract_document_handles_empty_provider_response(
             document,
             ocr_result,
             requested_by=admin.id,
+            email=admin.email,
         )
 
     created_extraction = service.repository.create.call_args.args[0]
@@ -621,6 +629,7 @@ def test_extract_document_by_id_raises_for_missing_document(
         service.extract_document_by_id(
             document_id,
             requested_by=admin.id,
+            email=admin.email,
         )
 
 
@@ -661,6 +670,7 @@ def test_extract_document_by_id_raises_when_no_completed_ocr_result(
         service.extract_document_by_id(
             document.id,
             requested_by=admin.id,
+            email=admin.email,
         )
 
 
@@ -695,6 +705,7 @@ def test_extract_document_by_id_commits_successfully(
     result = service.extract_document_by_id(
         document.id,
         requested_by=admin.id,
+        email=admin.email,
     )
 
     assert result.status == ExtractionStatus.COMPLETED
@@ -736,6 +747,7 @@ def test_extract_document_by_id_commits_failed_result(
         service.extract_document_by_id(
             document.id,
             requested_by=admin.id,
+            email=admin.email,
         )
 
     db.commit.assert_called_once()
