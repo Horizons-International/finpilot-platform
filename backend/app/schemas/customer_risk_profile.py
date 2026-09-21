@@ -1,4 +1,5 @@
 from datetime import datetime
+from typing import Any
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -31,6 +32,7 @@ class CustomerRiskProfileResponse(BaseModel):
     risk_category: str
     assessed_at: datetime
     assessment_source: str
+    calculation_details: dict[str, Any] | None
 
 
 class CustomerRiskProfileSummary(BaseModel):

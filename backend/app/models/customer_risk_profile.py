@@ -1,8 +1,10 @@
 import uuid
 from datetime import datetime
+from typing import Any
 from uuid import UUID
 
 from sqlalchemy import DateTime, Enum, ForeignKey, Integer, String, UniqueConstraint
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.dialects.postgresql import UUID as PostgreSQLUUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -60,6 +62,11 @@ class CustomerRiskProfile(Base):
     assessment_source: Mapped[str] = mapped_column(
         String(100),
         nullable=False,
+    )
+
+    calculation_details: Mapped[dict[str, Any] | None] = mapped_column(
+        JSONB,
+        nullable=True,
     )
 
     customer = relationship(
