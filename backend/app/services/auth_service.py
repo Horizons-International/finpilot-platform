@@ -43,6 +43,7 @@ class AuthService:
             self.audit_service.log_event(
                 event_type=AuditEventType.LOGIN_FAILURE,
                 email=email,
+                resource_type="user",
                 ip_address=ip_address,
                 user_agent=user_agent,
             )
@@ -55,6 +56,7 @@ class AuthService:
                 event_type=AuditEventType.LOGIN_FAILURE,
                 user_id=user.id,
                 email=user.email,
+                resource_type="user",
                 ip_address=ip_address,
                 user_agent=user_agent,
             )
@@ -67,6 +69,7 @@ class AuthService:
                 event_type=AuditEventType.LOGIN_FAILURE,
                 user_id=user.id,
                 email=user.email,
+                resource_type="user",
                 ip_address=ip_address,
                 user_agent=user_agent,
             )
@@ -79,6 +82,7 @@ class AuthService:
                 event_type=AuditEventType.LOGIN_FAILURE,
                 user_id=user.id,
                 email=user.email,
+                resource_type="user",
                 ip_address=ip_address,
                 user_agent=user_agent,
             )
@@ -99,6 +103,7 @@ class AuthService:
             event_type=AuditEventType.LOGIN_SUCCESS,
             user_id=user.id,
             email=user.email,
+            resource_type="user",
             ip_address=ip_address,
             user_agent=user_agent,
         )
@@ -180,6 +185,7 @@ class AuthService:
             event_type=AuditEventType.PASSWORD_CHANGE,
             user_id=user.id,
             email=user.email,
+            resource_type="user",
             ip_address=ip_address,
             user_agent=user_agent,
         )

@@ -8,6 +8,9 @@ from sqlalchemy.exc import SQLAlchemyError
 from app.api.ai_assistant import router as ai_assistant_router
 from app.api.ai_prompts import router as ai_prompts_router
 from app.api.ai_usage import router as ai_usage_router
+from app.api.aml_rules import (
+    router as aml_rules_router,
+)
 from app.api.auth import router as auth_router
 from app.api.compliance_cases import router as compliance_cases_router
 from app.api.customer_addresses import router as customer_addresses_router
@@ -94,9 +97,10 @@ app.include_router(customer_router)
 app.include_router(customer_contacts_router)
 app.include_router(customer_addresses_router)
 app.include_router(customer_risk_profiles_router)
+app.include_router(customer_audit_logs_router)
 app.include_router(risk_scoring_router)
 app.include_router(risk_scoring_rules_router)
-app.include_router(customer_audit_logs_router)
+app.include_router(aml_rules_router)
 app.include_router(verification_router)
 app.include_router(verification_cases_router)
 app.include_router(verification_reviews_router)
