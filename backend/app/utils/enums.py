@@ -91,6 +91,10 @@ class AuditEventType(str, Enum):
     RISK_SCORING_RULE_DELETED = "RISK_SCORING_RULE_DELETED"
     CUSTOMER_RISK_SCORE_CALCULATED = "CUSTOMER_RISK_SCORE_CALCULATED"
 
+    AML_RULE_CREATED = "AML_RULE_CREATED"
+    AML_RULE_STATUS_CHANGED = "AML_RULE_STATUS_CHANGED"
+    AML_RULE_EVALUATED = "AML_RULE_EVALUATED"
+
 
 class UserStatus(str, Enum):
     ACTIVE = "active"
@@ -252,3 +256,21 @@ class RiskRuleOperator(str, Enum):
     LESS_THAN_OR_EQUAL = "LESS_THAN_OR_EQUAL"
     EXISTS = "EXISTS"
     NOT_EXISTS = "NOT_EXISTS"
+
+
+class AMLRuleType(str, Enum):
+    CUSTOMER_RISK = "CUSTOMER_RISK"
+    TRANSACTION = "TRANSACTION"
+    VERIFICATION = "VERIFICATION"
+
+
+class AMLRuleSeverity(str, Enum):
+    LOW = "LOW"
+    MEDIUM = "MEDIUM"
+    HIGH = "HIGH"
+    CRITICAL = "CRITICAL"
+
+
+class AMLRuleStatus(str, Enum):
+    ACTIVE = "ACTIVE"
+    INACTIVE = "INACTIVE"

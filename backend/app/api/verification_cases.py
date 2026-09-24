@@ -42,7 +42,7 @@ def create_verification_case(
         require_roles(
             UserRole.ADMINISTRATOR,
             UserRole.COMPLIANCE_OFFICER,
-            resource_type="case",
+            resource_type="verification_case",
         )
     ),
     service: VerificationService = Depends(get_verification_service),
@@ -77,7 +77,7 @@ def get_verification_cases(
             UserRole.ADMINISTRATOR,
             UserRole.COMPLIANCE_OFFICER,
             UserRole.REVIEWER,
-            resource_type="user",
+            resource_type="verification_case",
         )
     ),
     service: VerificationService = Depends(get_verification_service),
@@ -107,6 +107,7 @@ def update_verification_case_status(
         require_roles(
             UserRole.ADMINISTRATOR,
             UserRole.COMPLIANCE_OFFICER,
+            resource_type="verification",
         )
     ),
     service: VerificationService = Depends(get_verification_service),
@@ -143,6 +144,7 @@ def initiate_verification(
         require_roles(
             UserRole.ADMINISTRATOR,
             UserRole.COMPLIANCE_OFFICER,
+            resource_type="verification_case",
         )
     ),
     service: VerificationService = Depends(get_verification_service),
@@ -178,6 +180,7 @@ def submit_provider_verification(
         require_roles(
             UserRole.ADMINISTRATOR,
             UserRole.COMPLIANCE_OFFICER,
+            resource_type="verification_case",
         )
     ),
     service: VerificationService = Depends(get_verification_service),

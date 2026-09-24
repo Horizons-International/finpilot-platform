@@ -17,6 +17,7 @@ from app.main import app
 from app.models.ai_interaction import AIInteraction
 from app.models.ai_prompt_assignment import AIPromptAssignment
 from app.models.ai_usage_log import AIUsageLog
+from app.models.aml_rule import AMLRule
 from app.models.audit_log import AuditLog
 from app.models.compliance_case import ComplianceCase
 from app.models.customer import Customer
@@ -527,3 +528,21 @@ def configured_risk_thresholds(db_session):
         db_session.commit()
 
         return thresholds
+
+
+@pytest.fixture
+def cleanup_aml_rules():
+    db = TestSessionLocal()
+
+    existing_rule_ids = {rule.id for rule in db.query(AMLRule).all()}
+
+    yield
+
+    current_rules = db.query(AMLRule).all()
+
+    for rule in current_rules:
+        if rule.id not in existing_rule_ids:
+            db.delete(rule)
+
+    db.commit()
+    db.close()
