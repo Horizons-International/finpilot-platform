@@ -57,7 +57,9 @@ class RiskScoringRuleService:
 
         return rule
 
-    def get_all(self) -> list[RiskScoringRule]:
+    def list_all(
+        self,
+    ) -> list[RiskScoringRule]:
         return self.repository.get_all()
 
     def get_by_id(
@@ -85,10 +87,13 @@ class RiskScoringRuleService:
 
         update_data = data.model_dump(exclude_unset=True)
 
+        if not update_data:
+            raise bad_request("At least one field must be provided for update.")
+
         for field, value in update_data.items():
             setattr(rule, field, value)
 
-        self.repository.update(rule)
+        rule = self.repository.update(rule)
 
         self.audit_service.log_event(
             user_id=user_id,
@@ -122,7 +127,7 @@ class RiskScoringRuleService:
 
         rule.is_active = is_active
 
-        self.repository.update(rule)
+        rule = self.repository.update(rule)
 
         self.audit_service.log_event(
             user_id=user_id,
@@ -155,7 +160,7 @@ class RiskScoringRuleService:
         self.audit_service.log_event(
             user_id=user_id,
             email=email,
-            event_type=AuditEventType.RISK_SCORING_RULE_UPDATED,
+            event_type=AuditEventType.RISK_SCORING_RULE_DELETED,
             resource_type="risk_scoring_rule",
             resource_id=rule.id,
             ip_address=ip_address,

@@ -185,6 +185,9 @@ def upgrade() -> None:
         "ALTER TYPE auditeventtype ADD VALUE IF NOT EXISTS "
         "'CUSTOMER_RISK_SCORE_CALCULATED'"
     )
+    op.execute(
+        "ALTER TYPE auditeventtype ADD VALUE IF NOT EXISTS 'RISK_SCORING_RULE_DELETED'"
+    )
     # ### end Alembic commands ###
 
 

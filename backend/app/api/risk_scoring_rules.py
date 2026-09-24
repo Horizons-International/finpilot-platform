@@ -9,6 +9,7 @@ from app.core.security import require_roles
 from app.schemas.risk_scoring import (
     RiskScoringRuleCreate,
     RiskScoringRuleResponse,
+    RiskScoringRuleStatusUpdate,
     RiskScoringRuleUpdate,
 )
 from app.services.risk_scoring_rule_service import RiskScoringRuleService
@@ -71,7 +72,7 @@ def create_risk_scoring_rule(
 )
 def list_risk_scoring_rules(
     db: Session = Depends(get_db),
-    current_user: dict = Depends(
+    _: dict = Depends(
         require_roles(
             UserRole.ADMINISTRATOR,
             UserRole.COMPLIANCE_OFFICER,
@@ -80,7 +81,7 @@ def list_risk_scoring_rules(
 ) -> APIResponse[list[RiskScoringRuleResponse]]:
     service = RiskScoringRuleService(db)
 
-    rules = service.get_all()
+    rules = service.list_all()
 
     return APIResponse(
         success=True,
@@ -101,7 +102,7 @@ def list_risk_scoring_rules(
 def get_risk_scoring_rule(
     rule_id: UUID,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(
+    _: dict = Depends(
         require_roles(
             UserRole.ADMINISTRATOR,
             UserRole.COMPLIANCE_OFFICER,
@@ -119,7 +120,7 @@ def get_risk_scoring_rule(
     )
 
 
-@router.patch(
+@router.put(
     "/{rule_id}",
     response_model=APIResponse[RiskScoringRuleResponse],
     status_code=status.HTTP_200_OK,
@@ -165,13 +166,13 @@ def update_risk_scoring_rule(
     status_code=status.HTTP_200_OK,
     summary="Update risk scoring rule status",
     description=(
-        "Enable or disable an existing risk scoring rule. "
-        "Only administrators can modify risk scoring rule status."
+        "Activate or deactivate a configurable risk scoring "
+        "factor. Only administrators can change factor status."
     ),
 )
 def update_risk_scoring_rule_status(
     rule_id: UUID,
-    is_active: bool,
+    payload: RiskScoringRuleStatusUpdate,
     request: Request,
     db: Session = Depends(get_db),
     current_user: dict = Depends(
@@ -185,7 +186,7 @@ def update_risk_scoring_rule_status(
 
     rule = service.update_status(
         rule_id=rule_id,
-        is_active=is_active,
+        is_active=payload.is_active,
         user_id=user_id,
         email=email,
         ip_address=request.client.host if request.client else None,

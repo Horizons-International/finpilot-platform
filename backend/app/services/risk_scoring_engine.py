@@ -69,34 +69,31 @@ class RiskScoringEngine:
         operator: RiskRuleOperator,
         expected_value: Any,
     ) -> bool:
-        if operator == RiskRuleOperator.EXISTS:
-            return factor_value is not None
-
-        if operator == RiskRuleOperator.NOT_EXISTS:
-            return factor_value is None
-
-        if factor_value is None:
-            return False
-
-        if operator == RiskRuleOperator.EQUALS:
-            return bool(factor_value == expected_value)
-
-        if operator == RiskRuleOperator.NOT_EQUALS:
-            return bool(factor_value != expected_value)
-
-        if operator == RiskRuleOperator.IN:
-            if not isinstance(expected_value, (list, tuple, set)):
-                return False
-
-            return bool(factor_value in expected_value)
-
-        if operator == RiskRuleOperator.NOT_IN:
-            if not isinstance(expected_value, (list, tuple, set)):
-                return False
-
-            return bool(factor_value not in expected_value)
-
         try:
+            if operator == RiskRuleOperator.EQUALS:
+                return bool(factor_value == expected_value)
+
+            if operator == RiskRuleOperator.NOT_EQUALS:
+                return bool(factor_value != expected_value)
+
+            if operator == RiskRuleOperator.IN:
+                if not isinstance(
+                    expected_value,
+                    (list, tuple, set),
+                ):
+                    return False
+
+                return factor_value in expected_value
+
+            if operator == RiskRuleOperator.NOT_IN:
+                if not isinstance(
+                    expected_value,
+                    (list, tuple, set),
+                ):
+                    return False
+
+                return factor_value not in expected_value
+
             if operator == RiskRuleOperator.GREATER_THAN:
                 return bool(factor_value > expected_value)
 
@@ -109,10 +106,16 @@ class RiskScoringEngine:
             if operator == RiskRuleOperator.LESS_THAN_OR_EQUAL:
                 return bool(factor_value <= expected_value)
 
-        except TypeError:
+            if operator == RiskRuleOperator.EXISTS:
+                return factor_value is not None
+
+            if operator == RiskRuleOperator.NOT_EXISTS:
+                return factor_value is None
+
             return False
 
-        return False
+        except TypeError:
+            return False
 
     @staticmethod
     def _resolve_risk_level(

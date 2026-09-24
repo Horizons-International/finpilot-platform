@@ -1,11 +1,11 @@
-from uuid import UUID
+from uuid import UUID, uuid4
 
 import pytest
 
 from app.models.audit_log import AuditLog
 from app.models.risk_scoring_rule import RiskScoringRule
 from app.utils.enums import AuditEventType, RiskRuleOperator, UserRole
-from tests.helpers import authenticate_client
+from tests.helpers import authenticate_client, create_customer_with_data
 
 
 @pytest.fixture
@@ -21,6 +21,28 @@ def cleanup_risk_scoring_rules(db_session):
             db_session.delete(rule)
 
     db_session.commit()
+
+
+def create_risk_factor(
+    client,
+    *,
+    factor_key: str,
+    expected_value,
+    score_points: int,
+    operator: str = "EQUALS",
+):
+    return client.post(
+        "/api/v1/risk-scoring/rules",
+        json={
+            "factor_key": factor_key,
+            "operator": operator,
+            "expected_value": expected_value,
+            "score_points": score_points,
+            "description": "Test risk factor",
+            "priority": 1,
+            "is_active": True,
+        },
+    )
 
 
 def test_admin_can_create_risk_scoring_rule(
@@ -584,3 +606,325 @@ def test_risk_scoring_rule_creation_is_audited(
     assert audit_log is not None
     assert audit_log.resource_id is not None
     assert str(audit_log.resource_id) == rule_id
+
+
+def test_administrator_can_update_risk_factor_weight(
+    client,
+    create_test_user,
+    cleanup_risk_scoring_configuration,
+):
+    admin = create_test_user(
+        email=f"risk-factor-update-{uuid4()}@example.com",
+        role=UserRole.ADMINISTRATOR,
+    )
+
+    authenticate_client(client, admin)
+
+    create_response = create_risk_factor(
+        client,
+        factor_key="country",
+        expected_value="HIGH_RISK",
+        score_points=30,
+    )
+
+    assert create_response.status_code == 201
+
+    factor_id = create_response.json()["data"]["id"]
+
+    response = client.put(
+        f"/api/v1/risk-scoring/rules/{factor_id}",
+        json={
+            "score_points": 40,
+        },
+    )
+
+    assert response.status_code == 200
+
+    data = response.json()["data"]
+
+    assert data["id"] == factor_id
+    assert data["score_points"] == 40
+    assert data["factor_key"] == "country"
+
+
+def test_administrator_can_deactivate_risk_factor(
+    client,
+    create_test_user,
+    cleanup_risk_scoring_configuration,
+):
+    admin = create_test_user(
+        email=f"risk-factor-disable-{uuid4()}@example.com",
+        role=UserRole.ADMINISTRATOR,
+    )
+
+    authenticate_client(client, admin)
+
+    create_response = create_risk_factor(
+        client,
+        factor_key="country",
+        expected_value="HIGH_RISK",
+        score_points=30,
+    )
+
+    assert create_response.status_code == 201
+
+    factor_id = create_response.json()["data"]["id"]
+
+    response = client.patch(
+        f"/api/v1/risk-scoring/rules/{factor_id}/status",
+        json={
+            "is_active": False,
+        },
+    )
+
+    assert response.status_code == 200
+
+    data = response.json()["data"]
+
+    assert data["id"] == factor_id
+    assert data["is_active"] is False
+
+
+def test_administrator_can_reactivate_risk_factor(
+    client,
+    create_test_user,
+    cleanup_risk_scoring_configuration,
+):
+    admin = create_test_user(
+        email=f"risk-factor-enable-{uuid4()}@example.com",
+        role=UserRole.ADMINISTRATOR,
+    )
+
+    authenticate_client(client, admin)
+
+    create_response = create_risk_factor(
+        client,
+        factor_key="country",
+        expected_value="HIGH_RISK",
+        score_points=30,
+    )
+
+    assert create_response.status_code == 201
+
+    factor_id = create_response.json()["data"]["id"]
+
+    disable_response = client.patch(
+        f"/api/v1/risk-scoring/rules/{factor_id}/status",
+        json={
+            "is_active": False,
+        },
+    )
+
+    assert disable_response.status_code == 200
+
+    enable_response = client.patch(
+        f"/api/v1/risk-scoring/rules/{factor_id}/status",
+        json={
+            "is_active": True,
+        },
+    )
+
+    assert enable_response.status_code == 200
+
+    data = enable_response.json()["data"]
+
+    assert data["id"] == factor_id
+    assert data["is_active"] is True
+
+
+def test_inactive_risk_factor_is_ignored_by_risk_calculation(
+    client,
+    create_test_user,
+    cleanup_test_customers,
+    cleanup_risk_scoring_configuration,
+    configured_risk_thresholds,
+):
+    admin = create_test_user(
+        email=f"inactive-factor-{uuid4()}@example.com",
+        role=UserRole.ADMINISTRATOR,
+    )
+
+    authenticate_client(client, admin)
+
+    factor_response = create_risk_factor(
+        client,
+        factor_key="country",
+        expected_value="HIGH_RISK",
+        score_points=30,
+    )
+
+    assert factor_response.status_code == 201
+
+    factor_id = factor_response.json()["data"]["id"]
+
+    disable_response = client.patch(
+        f"/api/v1/risk-scoring/rules/{factor_id}/status",
+        json={
+            "is_active": False,
+        },
+    )
+
+    assert disable_response.status_code == 200
+
+    customer_response = create_customer_with_data(
+        client,
+        email=f"inactive-factor-customer-{uuid4()}@example.com",
+    )
+
+    assert customer_response.status_code == 201
+
+    customer_id = customer_response.json()["data"]["id"]
+
+    response = client.post(
+        f"/api/v1/customers/{customer_id}/risk-score",
+        json={
+            "factors": {
+                "country": "HIGH_RISK",
+            },
+            "risk_category": "AUTOMATED",
+            "assessment_source": "RISK_SCORING_ENGINE",
+        },
+    )
+
+    assert response.status_code == 200
+
+    data = response.json()["data"]
+
+    assert data["risk_score"] == 0
+    assert data["applied_rules"] == []
+
+
+def test_active_risk_factor_contributes_weight(
+    client,
+    create_test_user,
+    cleanup_test_customers,
+    cleanup_risk_scoring_configuration,
+    configured_risk_thresholds,
+):
+    admin = create_test_user(
+        email=f"active-factor-{uuid4()}@example.com",
+        role=UserRole.ADMINISTRATOR,
+    )
+
+    authenticate_client(client, admin)
+
+    factor_response = create_risk_factor(
+        client,
+        factor_key="country",
+        expected_value="HIGH_RISK",
+        score_points=30,
+    )
+
+    assert factor_response.status_code == 201
+
+    customer_response = create_customer_with_data(
+        client,
+        email=f"active-factor-customer-{uuid4()}@example.com",
+    )
+
+    assert customer_response.status_code == 201
+
+    customer_id = customer_response.json()["data"]["id"]
+
+    response = client.post(
+        f"/api/v1/customers/{customer_id}/risk-score",
+        json={
+            "factors": {
+                "country": "HIGH_RISK",
+            },
+            "risk_category": "AUTOMATED",
+            "assessment_source": "RISK_SCORING_ENGINE",
+        },
+    )
+
+    assert response.status_code == 200
+
+    data = response.json()["data"]
+
+    assert data["risk_score"] == 30
+    assert len(data["applied_rules"]) == 1
+    assert data["applied_rules"][0]["score_points"] == 30
+
+
+def test_update_nonexistent_risk_factor_returns_404(
+    client,
+    create_test_user,
+    cleanup_risk_scoring_configuration,
+):
+    admin = create_test_user(
+        email=f"risk-factor-not-found-{uuid4()}@example.com",
+        role=UserRole.ADMINISTRATOR,
+    )
+
+    authenticate_client(client, admin)
+
+    response = client.put(
+        "/api/v1/risk-scoring/rules/00000000-0000-0000-0000-000000000000",
+        json={
+            "score_points": 50,
+        },
+    )
+
+    assert response.status_code == 404
+
+
+def test_risk_factor_weight_cannot_be_negative(
+    client,
+    create_test_user,
+    cleanup_risk_scoring_configuration,
+):
+    admin = create_test_user(
+        email=f"risk-factor-negative-{uuid4()}@example.com",
+        role=UserRole.ADMINISTRATOR,
+    )
+
+    authenticate_client(client, admin)
+
+    response = create_risk_factor(
+        client,
+        factor_key="country",
+        expected_value="HIGH_RISK",
+        score_points=-10,
+    )
+
+    assert response.status_code == 422
+
+
+def test_cannot_deactivate_already_inactive_factor(
+    client,
+    create_test_user,
+    cleanup_risk_scoring_configuration,
+):
+    admin = create_test_user(
+        email=f"risk-factor-status-{uuid4()}@example.com",
+        role=UserRole.ADMINISTRATOR,
+    )
+
+    authenticate_client(client, admin)
+
+    create_response = create_risk_factor(
+        client,
+        factor_key="country",
+        expected_value="HIGH_RISK",
+        score_points=30,
+    )
+
+    factor_id = create_response.json()["data"]["id"]
+
+    first_response = client.patch(
+        f"/api/v1/risk-scoring/rules/{factor_id}/status",
+        json={
+            "is_active": False,
+        },
+    )
+
+    assert first_response.status_code == 200
+
+    second_response = client.patch(
+        f"/api/v1/risk-scoring/rules/{factor_id}/status",
+        json={
+            "is_active": False,
+        },
+    )
+
+    assert second_response.status_code == 400
