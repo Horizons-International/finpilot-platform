@@ -4,7 +4,6 @@ import pytest
 
 from app.models.audit_log import AuditLog
 from app.models.customer_risk_profile import CustomerRiskProfile
-from app.models.risk_score_threshold import RiskScoreThreshold
 from app.models.risk_scoring_rule import RiskScoringRule
 from app.utils.enums import (
     AuditEventType,
@@ -16,38 +15,6 @@ from tests.helpers import (
     authenticate_client,
     create_customer_with_data,
 )
-
-
-@pytest.fixture
-def configured_risk_thresholds(db_session):
-    rules = db_session.query(RiskScoreThreshold)
-
-    if rules is None:
-        thresholds = [
-            RiskScoreThreshold(
-                risk_level=CustomerRiskLevel.LOW,
-                min_score=0,
-                max_score=30,
-                is_active=True,
-            ),
-            RiskScoreThreshold(
-                risk_level=CustomerRiskLevel.MEDIUM,
-                min_score=31,
-                max_score=70,
-                is_active=True,
-            ),
-            RiskScoreThreshold(
-                risk_level=CustomerRiskLevel.HIGH,
-                min_score=71,
-                max_score=100,
-                is_active=True,
-            ),
-        ]
-
-        db_session.add_all(thresholds)
-        db_session.commit()
-
-        return thresholds
 
 
 @pytest.fixture

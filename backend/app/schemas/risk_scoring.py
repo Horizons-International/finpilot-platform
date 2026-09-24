@@ -1,7 +1,7 @@
 from typing import Any
 from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from app.utils.enums import CustomerRiskLevel, RiskRuleOperator
 
@@ -43,22 +43,27 @@ class RiskScoringRuleCreate(BaseModel):
         min_length=1,
         max_length=100,
     )
-
     operator: RiskRuleOperator
-
     expected_value: Any | None = None
-
-    score_points: int
-
-    description: str | None = None
-
+    score_points: int = Field(
+        ge=0,
+    )
+    description: str | None = Field(
+        default=None,
+        max_length=1000,
+    )
     priority: int = 0
-
     is_active: bool = True
 
 
+class RiskScoringRuleStatusUpdate(BaseModel):
+    is_active: bool
+
+
 class RiskScoringRuleResponse(BaseModel):
-    model_config = {"from_attributes": True}
+    model_config = ConfigDict(
+        from_attributes=True,
+    )
 
     id: UUID
     factor_key: str
@@ -70,16 +75,6 @@ class RiskScoringRuleResponse(BaseModel):
     is_active: bool
 
 
-class RiskScoreThresholdResponse(BaseModel):
-    model_config = {"from_attributes": True}
-
-    id: UUID
-    risk_level: CustomerRiskLevel
-    min_score: int
-    max_score: int
-    is_active: bool
-
-
 class RiskScoringRuleUpdate(BaseModel):
     factor_key: str | None = Field(
         default=None,
@@ -88,7 +83,13 @@ class RiskScoringRuleUpdate(BaseModel):
     )
     operator: RiskRuleOperator | None = None
     expected_value: Any | None = None
-    score_points: int | None = None
-    description: str | None = None
+    score_points: int | None = Field(
+        default=None,
+        ge=0,
+    )
+    description: str | None = Field(
+        default=None,
+        max_length=1000,
+    )
     priority: int | None = None
     is_active: bool | None = None

@@ -1,3 +1,5 @@
+from uuid import uuid4
+
 import pytest
 
 from app.models.risk_score_threshold import RiskScoreThreshold
@@ -603,3 +605,134 @@ def test_type_mismatch_does_not_match_numeric_operator(
     )
 
     assert result.score == 0
+
+
+def test_matching_factor_adds_weight():
+    rule = RiskScoringRule(
+        id=uuid4(),
+        factor_key="country",
+        operator=RiskRuleOperator.EQUALS,
+        expected_value="HIGH_RISK",
+        score_points=30,
+        priority=1,
+        is_active=True,
+    )
+
+    threshold = RiskScoreThreshold(
+        risk_level=CustomerRiskLevel.LOW,
+        min_score=0,
+        max_score=30,
+        is_active=True,
+    )
+
+    engine = RiskScoringEngine()
+
+    result = engine.calculate(
+        factors={
+            "country": "HIGH_RISK",
+        },
+        rules=[rule],
+        thresholds=[threshold],
+    )
+
+    assert result.score == 30
+    assert result.applied_rules[0].score_points == 30
+
+
+def test_non_matching_factor_does_not_add_weight():
+    rule = RiskScoringRule(
+        id=uuid4(),
+        factor_key="country",
+        operator=RiskRuleOperator.EQUALS,
+        expected_value="HIGH_RISK",
+        score_points=30,
+        priority=1,
+        is_active=True,
+    )
+
+    threshold = RiskScoreThreshold(
+        risk_level=CustomerRiskLevel.LOW,
+        min_score=0,
+        max_score=30,
+        is_active=True,
+    )
+
+    engine = RiskScoringEngine()
+
+    result = engine.calculate(
+        factors={
+            "country": "LOW_RISK",
+        },
+        rules=[rule],
+        thresholds=[threshold],
+    )
+
+    assert result.score == 0
+    assert result.applied_rules == []
+
+
+def test_inactive_factor_is_not_applied():
+    RiskScoringRule(
+        id=uuid4(),
+        factor_key="country",
+        operator=RiskRuleOperator.EQUALS,
+        expected_value="HIGH_RISK",
+        score_points=30,
+        priority=1,
+        is_active=False,
+    )
+
+    threshold = RiskScoreThreshold(
+        risk_level=CustomerRiskLevel.LOW,
+        min_score=0,
+        max_score=30,
+        is_active=True,
+    )
+
+    engine = RiskScoringEngine()
+
+    # The engine receives the rules it should evaluate.
+    # The application/service layer should therefore pass
+    # only active rules.
+    result = engine.calculate(
+        factors={
+            "country": "HIGH_RISK",
+        },
+        rules=[],
+        thresholds=[threshold],
+    )
+
+    assert result.score == 0
+    assert result.applied_rules == []
+
+
+def test_numeric_type_mismatch_does_not_match():
+    rule = RiskScoringRule(
+        id=uuid4(),
+        factor_key="previous_alerts",
+        operator=RiskRuleOperator.GREATER_THAN,
+        expected_value=2,
+        score_points=20,
+        priority=1,
+        is_active=True,
+    )
+
+    threshold = RiskScoreThreshold(
+        risk_level=CustomerRiskLevel.LOW,
+        min_score=0,
+        max_score=30,
+        is_active=True,
+    )
+
+    engine = RiskScoringEngine()
+
+    result = engine.calculate(
+        factors={
+            "previous_alerts": "three",
+        },
+        rules=[rule],
+        thresholds=[threshold],
+    )
+
+    assert result.score == 0
+    assert result.applied_rules == []

@@ -38,7 +38,7 @@ from app.ocr.services.ocr_service import OCRService
 from app.repositories.ai_prompt_repository import AIPromptRepository
 from app.repositories.customer_repository import CustomerRepository
 from app.storages.local_storage import LocalStorage
-from app.utils.enums import CustomerStatus, UserStatus
+from app.utils.enums import CustomerRiskLevel, CustomerStatus, UserStatus
 
 os.environ.setdefault(
     "TEST_DATABASE_URL",
@@ -495,3 +495,35 @@ def cleanup_risk_scoring_configuration(db_session):
             db_session.delete(threshold)
 
     db_session.commit()
+
+
+@pytest.fixture
+def configured_risk_thresholds(db_session):
+    rules = db_session.query(RiskScoreThreshold)
+
+    if rules is None:
+        thresholds = [
+            RiskScoreThreshold(
+                risk_level=CustomerRiskLevel.LOW,
+                min_score=0,
+                max_score=30,
+                is_active=True,
+            ),
+            RiskScoreThreshold(
+                risk_level=CustomerRiskLevel.MEDIUM,
+                min_score=31,
+                max_score=70,
+                is_active=True,
+            ),
+            RiskScoreThreshold(
+                risk_level=CustomerRiskLevel.HIGH,
+                min_score=71,
+                max_score=100,
+                is_active=True,
+            ),
+        ]
+
+        db_session.add_all(thresholds)
+        db_session.commit()
+
+        return thresholds
