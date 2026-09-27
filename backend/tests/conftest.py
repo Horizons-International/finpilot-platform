@@ -23,6 +23,9 @@ from app.models.compliance_case import ComplianceCase
 from app.models.customer import Customer
 from app.models.customer_audit_log import CustomerAuditLog
 from app.models.customer_contact import CustomerContact
+from app.models.customer_risk_assessment_history import (
+    CustomerRiskAssessmentHistory,
+)
 from app.models.customer_risk_profile import CustomerRiskProfile
 from app.models.customer_status_history import CustomerStatusHistory
 from app.models.document import CustomerDocument
@@ -603,5 +606,22 @@ def cleanup_investigation_notes(db_session):
     for note in current_notes:
         if note.id not in initial_ids:
             db_session.delete(note)
+
+    db_session.commit()
+
+
+@pytest.fixture
+def cleanup_customer_risk_assessment_history(db_session):
+    initial_ids = {
+        history.id for history in db_session.query(CustomerRiskAssessmentHistory).all()
+    }
+
+    yield
+
+    current_history = db_session.query(CustomerRiskAssessmentHistory).all()
+
+    for history in current_history:
+        if history.id not in initial_ids:
+            db_session.delete(history)
 
     db_session.commit()

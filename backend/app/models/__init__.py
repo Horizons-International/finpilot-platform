@@ -9,6 +9,9 @@ from app.models.customer import Customer  # noqa: F401
 from app.models.customer_address import CustomerAddress  # noqa: F401
 from app.models.customer_audit_log import CustomerAuditLog  # noqa: F401
 from app.models.customer_contact import CustomerContact  # noqa: F401
+from app.models.customer_risk_assessment_history import (
+    CustomerRiskAssessmentHistory,  # noqa: F401
+)
 from app.models.customer_risk_profile import CustomerRiskProfile  # noqa: F401
 from app.models.document import CustomerDocument  # noqa: F401
 from app.models.document_extraction import DocumentExtraction  # noqa: F401
