@@ -30,6 +30,7 @@ from app.models.file import File
 from app.models.knowledge_document import KnowledgeDocument
 from app.models.risk_score_threshold import RiskScoreThreshold
 from app.models.risk_scoring_rule import RiskScoringRule
+from app.models.transaction_monitoring_result import TransactionMonitoringResult
 from app.models.user import User
 from app.models.verification_case import IdentityVerificationCase
 from app.models.verification_document_type import VerificationDocumentType
@@ -546,3 +547,24 @@ def cleanup_aml_rules():
 
     db.commit()
     db.close()
+
+
+@pytest.fixture
+def cleanup_transaction_monitoring_results(db_session):
+    """
+    Remove transaction monitoring results created during the test
+    while preserving results that existed before the test.
+    """
+    initial_result_ids = {
+        result.id for result in db_session.query(TransactionMonitoringResult).all()
+    }
+
+    yield
+
+    current_results = db_session.query(TransactionMonitoringResult).all()
+
+    for result in current_results:
+        if result.id not in initial_result_ids:
+            db_session.delete(result)
+
+    db_session.commit()

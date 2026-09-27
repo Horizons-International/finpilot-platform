@@ -34,6 +34,9 @@ from app.api.rag import router as rag_router
 from app.api.reports import router as reports_router
 from app.api.risk_scoring import router as risk_scoring_router
 from app.api.risk_scoring_rules import router as risk_scoring_rules_router
+from app.api.transaction_monitoring import (
+    router as transaction_monitoring_router,
+)
 from app.api.users import router as users_router
 from app.api.verification_cases import (
     router as verification_cases_router,
@@ -101,6 +104,7 @@ app.include_router(customer_audit_logs_router)
 app.include_router(risk_scoring_router)
 app.include_router(risk_scoring_rules_router)
 app.include_router(aml_rules_router)
+app.include_router(transaction_monitoring_router)
 app.include_router(verification_router)
 app.include_router(verification_cases_router)
 app.include_router(verification_reviews_router)
