@@ -95,6 +95,8 @@ class AuditEventType(str, Enum):
     AML_RULE_STATUS_CHANGED = "AML_RULE_STATUS_CHANGED"
     AML_RULE_EVALUATED = "AML_RULE_EVALUATED"
 
+    VERIFICATION_CASE_ASSIGNED = "VERIFICATION_CASE_ASSIGNED"
+
 
 class UserStatus(str, Enum):
     ACTIVE = "active"
@@ -274,3 +276,8 @@ class AMLRuleSeverity(str, Enum):
 class AMLRuleStatus(str, Enum):
     ACTIVE = "ACTIVE"
     INACTIVE = "INACTIVE"
+
+
+class TransactionMonitoringOutcome(str, Enum):
+    MATCHED = "MATCHED"
+    NOT_MATCHED = "NOT_MATCHED"
