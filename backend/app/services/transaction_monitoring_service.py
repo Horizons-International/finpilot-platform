@@ -76,6 +76,7 @@ class TransactionMonitoringService:
                 transaction_id=payload.transaction_id,
                 customer_id=payload.customer_id,
                 rule_id=evaluated_rule.rule_id,
+                country=payload.country,
                 result=outcome,
             )
 

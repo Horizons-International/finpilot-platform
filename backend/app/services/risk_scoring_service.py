@@ -4,8 +4,14 @@ from uuid import UUID
 
 from sqlalchemy.orm import Session
 
+from app.models.customer_risk_assessment_history import (
+    CustomerRiskAssessmentHistory,
+)
 from app.models.customer_risk_profile import CustomerRiskProfile
 from app.repositories.customer_repository import CustomerRepository
+from app.repositories.customer_risk_assessment_history_repository import (
+    CustomerRiskAssessmentHistoryRepository,
+)
 from app.repositories.customer_risk_profile_repository import (
     CustomerRiskProfileRepository,
 )
@@ -36,6 +42,8 @@ class RiskScoringService:
         self.audit_service = AuditService(db)
 
         self.engine = RiskScoringEngine()
+
+        self.history_repository = CustomerRiskAssessmentHistoryRepository(db)
 
     def calculate_and_store(
         self,
@@ -109,6 +117,18 @@ class RiskScoringService:
             self.db.flush()
 
             event_type = AuditEventType.CUSTOMER_RISK_PROFILE_UPDATED
+
+        history = CustomerRiskAssessmentHistory(
+            customer_id=profile.customer_id,
+            risk_level=profile.risk_level,
+            risk_score=profile.risk_score,
+            risk_category=profile.risk_category,
+            assessed_at=profile.assessed_at,
+            assessment_source=profile.assessment_source,
+            calculation_details=profile.calculation_details,
+        )
+
+        self.history_repository.create(history)
 
         self.audit_service.log_event(
             event_type=event_type,

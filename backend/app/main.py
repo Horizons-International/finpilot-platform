@@ -53,7 +53,12 @@ from app.api.verification_cases import (
 from app.api.verification_document_types import (
     router as verification_document_type_router,
 )
-from app.api.verification_reviews import router as verification_reviews_router
+from app.api.verification_reports import (
+    router as verification_reports_router,
+)
+from app.api.verification_reviews import (
+    router as verification_reviews_router,
+)
 from app.core.dependencies import get_current_user
 from app.core.exceptions import (
     database_exception_handler,
@@ -123,6 +128,7 @@ app.include_router(ai_assistant_router)
 app.include_router(ai_usage_router)
 app.include_router(documents_router)
 app.include_router(knowledge_documents_router)
+app.include_router(verification_reports_router)
 app.include_router(reports_router)
 app.include_router(ocr_router)
 app.include_router(extraction_router)

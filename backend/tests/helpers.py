@@ -48,7 +48,9 @@ def create_customer_with_data(client, **overrides):
     )
 
 
-def create_verification_case(client, customer_id):
+def create_verification_case(
+    client, customer_id, *, verification_type: str = "IDENTITY"
+):
     """
     Create a verification case directly via
     POST /customers/{customer_id}/verification-cases.
@@ -58,7 +60,7 @@ def create_verification_case(client, customer_id):
     response = client.post(
         f"/api/v1/customers/{customer_id}/verification-cases",
         json={
-            "verification_type": "IDENTITY",
+            "verification_type": str(verification_type),
         },
     )
 
