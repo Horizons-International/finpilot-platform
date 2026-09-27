@@ -78,7 +78,9 @@ def refresh_token(
     ),
 )
 def admin_only(
-    current_user: dict[str, Any] = Depends(require_roles(UserRole.ADMINISTRATOR)),
+    current_user: dict[str, Any] = Depends(
+        require_roles(UserRole.ADMINISTRATOR, resource_type="Admin_only"),
+    ),
 ):
     return APIResponse(
         success=True,

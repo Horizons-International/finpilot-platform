@@ -33,6 +33,9 @@ from app.models.risk_scoring_rule import RiskScoringRule
 from app.models.transaction_monitoring_result import TransactionMonitoringResult
 from app.models.user import User
 from app.models.verification_case import IdentityVerificationCase
+from app.models.verification_case_assignment_history import (
+    VerificationCaseAssignmentHistory,
+)
 from app.models.verification_document_type import VerificationDocumentType
 from app.ocr.providers.base import OCRProvider
 from app.ocr.services.dependencies import get_ocr_service
@@ -566,5 +569,23 @@ def cleanup_transaction_monitoring_results(db_session):
     for result in current_results:
         if result.id not in initial_result_ids:
             db_session.delete(result)
+
+    db_session.commit()
+
+
+@pytest.fixture
+def cleanup_verification_case_assignments(db_session):
+    initial_ids = {
+        history.id
+        for history in db_session.query(VerificationCaseAssignmentHistory).all()
+    }
+
+    yield
+
+    current_history = db_session.query(VerificationCaseAssignmentHistory).all()
+
+    for history in current_history:
+        if history.id not in initial_ids:
+            db_session.delete(history)
 
     db_session.commit()

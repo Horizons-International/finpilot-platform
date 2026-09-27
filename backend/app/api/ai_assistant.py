@@ -36,6 +36,7 @@ def ask_ai_assistant(
             UserRole.ADMINISTRATOR,
             UserRole.COMPLIANCE_OFFICER,
             UserRole.REVIEWER,
+            resource_type="ai_assistant",
         )
     ),
     service: AIComplianceService = Depends(get_ai_compliance_service),
@@ -71,6 +72,7 @@ def get_ai_interaction(
             UserRole.ADMINISTRATOR,
             UserRole.COMPLIANCE_OFFICER,
             UserRole.REVIEWER,
+            resource_type="ai_assistant",
         )
     ),
     service: AIComplianceService = Depends(get_ai_compliance_service),
@@ -102,6 +104,7 @@ def get_my_ai_interactions(
             UserRole.ADMINISTRATOR,
             UserRole.COMPLIANCE_OFFICER,
             UserRole.REVIEWER,
+            resource_type="ai_assistant",
         )
     ),
     service: AIComplianceService = Depends(get_ai_compliance_service),

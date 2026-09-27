@@ -36,7 +36,7 @@ def _get_authenticated_user(
     email = current_user["email"]
 
     if not isinstance(email, str) or not email:
-        unauthorized("Authenticated user email is missing.")
+        raise unauthorized("Authenticated user email is missing.")
 
     return user_id, email
 

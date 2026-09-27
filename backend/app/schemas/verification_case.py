@@ -18,6 +18,8 @@ class VerificationCaseResponse(BaseModel):
     verification_type: VerificationType
     status: VerificationStatus
     assigned_to: UUID | None
+    assigned_at: datetime | None
+    assigned_by: UUID | None
     completed_at: datetime | None
     created_at: datetime
     updated_at: datetime

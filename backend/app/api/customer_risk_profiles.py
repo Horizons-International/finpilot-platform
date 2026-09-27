@@ -42,7 +42,7 @@ def create_customer_risk_profile(
         require_roles(
             UserRole.ADMINISTRATOR,
             UserRole.COMPLIANCE_OFFICER,
-            resource_type="risk profiles",
+            resource_type="risk_profiles",
         )
     ),
     service: CustomerRiskProfileService = Depends(get_customer_risk_profile_service),
@@ -82,7 +82,7 @@ def get_customer_risk_profile(
             UserRole.ADMINISTRATOR,
             UserRole.COMPLIANCE_OFFICER,
             UserRole.REVIEWER,
-            resource_type="risk profile",
+            resource_type="risk_profile",
         )
     ),
 ) -> APIResponse[CustomerRiskProfileResponse]:
@@ -110,7 +110,7 @@ def get_customer_risk_profile_by_id(
             UserRole.ADMINISTRATOR,
             UserRole.COMPLIANCE_OFFICER,
             UserRole.REVIEWER,
-            resource_type="risk profile",
+            resource_type="risk_profile",
         )
     ),
 ) -> APIResponse[CustomerRiskProfileResponse]:
@@ -137,7 +137,7 @@ def list_customer_risk_profiles(
             UserRole.ADMINISTRATOR,
             UserRole.COMPLIANCE_OFFICER,
             UserRole.REVIEWER,
-            resource_type="risk profile",
+            resource_type="risk_profile",
         )
     ),
 ) -> APIResponse[list[CustomerRiskProfileResponse]]:
