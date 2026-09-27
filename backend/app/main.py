@@ -25,6 +25,9 @@ from app.api.documents import router as documents_router
 from app.api.extraction import router as extraction_router
 from app.api.files import router as files_router
 from app.api.health import router as health_router
+from app.api.investigation_notes import (
+    router as investigation_notes_router,
+)
 from app.api.knowledge_documents import (
     router as knowledge_documents_router,
 )
@@ -124,6 +127,9 @@ app.include_router(reports_router)
 app.include_router(ocr_router)
 app.include_router(extraction_router)
 app.include_router(document_review_router)
+app.include_router(
+    investigation_notes_router,
+)
 app.include_router(rag_router)
 
 app.add_exception_handler(

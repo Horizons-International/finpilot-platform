@@ -27,6 +27,7 @@ from app.models.customer_risk_profile import CustomerRiskProfile
 from app.models.customer_status_history import CustomerStatusHistory
 from app.models.document import CustomerDocument
 from app.models.file import File
+from app.models.investigation_note import InvestigationNote
 from app.models.knowledge_document import KnowledgeDocument
 from app.models.risk_score_threshold import RiskScoreThreshold
 from app.models.risk_scoring_rule import RiskScoringRule
@@ -587,5 +588,20 @@ def cleanup_verification_case_assignments(db_session):
     for history in current_history:
         if history.id not in initial_ids:
             db_session.delete(history)
+
+    db_session.commit()
+
+
+@pytest.fixture
+def cleanup_investigation_notes(db_session):
+    initial_ids = {note.id for note in db_session.query(InvestigationNote).all()}
+
+    yield
+
+    current_notes = db_session.query(InvestigationNote).all()
+
+    for note in current_notes:
+        if note.id not in initial_ids:
+            db_session.delete(note)
 
     db_session.commit()

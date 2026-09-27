@@ -12,6 +12,7 @@ from app.models.customer_contact import CustomerContact  # noqa: F401
 from app.models.customer_risk_profile import CustomerRiskProfile  # noqa: F401
 from app.models.document import CustomerDocument  # noqa: F401
 from app.models.document_extraction import DocumentExtraction  # noqa: F401
+from app.models.investigation_note import InvestigationNote  # noqa: F401
 from app.models.knowledge_document import KnowledgeDocument  # noqa: F401
 from app.models.knowledge_document_chunk import (
     KnowledgeDocumentChunk,  # noqa: F401

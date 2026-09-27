@@ -29,14 +29,14 @@ router = APIRouter(
 def _get_authenticated_user(
     current_user: dict[str, Any],
 ) -> tuple[UUID, str]:
-    raw_user_id = current_user.get("sub")
+    raw_user_id = current_user["sub"]
 
     try:
         user_id = UUID(str(raw_user_id))
     except (TypeError, ValueError):
         raise unauthorized("Invalid authenticated user.")
 
-    email = current_user.get("email")
+    email = current_user["email"]
 
     if not isinstance(email, str) or not email:
         raise unauthorized(

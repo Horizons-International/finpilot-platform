@@ -1,3 +1,4 @@
+import time
 import uuid
 
 from app.models.audit_log import AuditLog
@@ -556,18 +557,25 @@ def test_assignment_history_is_available(
 
     case_id = case["id"]
 
-    for reviewer in (
-        first_reviewer,
-        second_reviewer,
-    ):
-        response = client.patch(
-            f"/api/v1/customers/{customer_id}/verification-cases/{case_id}/assignment",
-            json={
-                "assigned_to": str(reviewer.id),
-            },
-        )
+    response = client.patch(
+        f"/api/v1/customers/{customer_id}/verification-cases/{case_id}/assignment",
+        json={
+            "assigned_to": str(first_reviewer.id),
+        },
+    )
 
-        assert response.status_code == 200
+    assert response.status_code == 200
+
+    time.sleep(1)
+
+    response = client.patch(
+        f"/api/v1/customers/{customer_id}/verification-cases/{case_id}/assignment",
+        json={
+            "assigned_to": str(second_reviewer.id),
+        },
+    )
+
+    assert response.status_code == 200
 
     response = client.get(
         f"/api/v1/customers/{customer_id}/"

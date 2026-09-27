@@ -235,8 +235,8 @@ def require_roles(
 
             audit_service.log_event(
                 event_type=AuditEventType.ACCESS_DENIED,
-                user_id=current_user.get("sub"),
-                email=current_user.get("email"),
+                user_id=current_user["sub"],
+                email=current_user["email"],
                 ip_address=request.client.host if request.client else None,
                 user_agent=request.headers.get("user-agent"),
                 resource_type=resource_type,
