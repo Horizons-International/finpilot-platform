@@ -1,3 +1,4 @@
+from typing import Any
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Request, status
@@ -35,8 +36,8 @@ def create_risk_scoring_rule(
     payload: RiskScoringRuleCreate,
     request: Request,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(
-        require_roles(UserRole.ADMINISTRATOR),
+    current_user: dict[str, Any] = Depends(
+        require_roles(UserRole.ADMINISTRATOR, resource_type="risk_score_rule"),
     ),
 ) -> APIResponse[RiskScoringRuleResponse]:
     service = RiskScoringRuleService(db)
@@ -76,6 +77,7 @@ def list_risk_scoring_rules(
         require_roles(
             UserRole.ADMINISTRATOR,
             UserRole.COMPLIANCE_OFFICER,
+            resource_type="risk_score_rule",
         ),
     ),
 ) -> APIResponse[list[RiskScoringRuleResponse]]:
@@ -106,6 +108,7 @@ def get_risk_scoring_rule(
         require_roles(
             UserRole.ADMINISTRATOR,
             UserRole.COMPLIANCE_OFFICER,
+            resource_type="risk_score_rule",
         ),
     ),
 ) -> APIResponse[RiskScoringRuleResponse]:
@@ -136,7 +139,7 @@ def update_risk_scoring_rule(
     request: Request,
     db: Session = Depends(get_db),
     current_user: dict = Depends(
-        require_roles(UserRole.ADMINISTRATOR),
+        require_roles(UserRole.ADMINISTRATOR, resource_type="risk_score_rule"),
     ),
 ) -> APIResponse[RiskScoringRuleResponse]:
     service = RiskScoringRuleService(db)
@@ -176,7 +179,7 @@ def update_risk_scoring_rule_status(
     request: Request,
     db: Session = Depends(get_db),
     current_user: dict = Depends(
-        require_roles(UserRole.ADMINISTRATOR),
+        require_roles(UserRole.ADMINISTRATOR, resource_type="risk_score_rule"),
     ),
 ) -> APIResponse[RiskScoringRuleResponse]:
     service = RiskScoringRuleService(db)
@@ -215,7 +218,7 @@ def delete_risk_scoring_rule(
     request: Request,
     db: Session = Depends(get_db),
     current_user: dict = Depends(
-        require_roles(UserRole.ADMINISTRATOR),
+        require_roles(UserRole.ADMINISTRATOR, resource_type="risk_score_rule"),
     ),
 ) -> APIResponse[None]:
     service = RiskScoringRuleService(db)

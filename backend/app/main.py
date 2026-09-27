@@ -38,6 +38,9 @@ from app.api.transaction_monitoring import (
     router as transaction_monitoring_router,
 )
 from app.api.users import router as users_router
+from app.api.verification_case_assignments import (
+    router as verification_case_assignments_router,
+)
 from app.api.verification_cases import (
     router as verification_cases_router,
 )
@@ -107,6 +110,9 @@ app.include_router(aml_rules_router)
 app.include_router(transaction_monitoring_router)
 app.include_router(verification_router)
 app.include_router(verification_cases_router)
+app.include_router(
+    verification_case_assignments_router,
+)
 app.include_router(verification_reviews_router)
 app.include_router(verification_document_type_router)
 app.include_router(ai_prompts_router)

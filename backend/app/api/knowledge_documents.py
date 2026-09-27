@@ -51,7 +51,7 @@ async def create_knowledge_document(
     current_user: dict[str, Any] = Depends(
         require_roles(
             UserRole.ADMINISTRATOR,
-            resource_type="knowledge document",
+            resource_type="knowledge_document",
         )
     ),
     service: KnowledgeDocumentService = Depends(get_knowledge_document_service),
@@ -85,7 +85,7 @@ def list_knowledge_documents(
     _: dict[str, Any] = Depends(
         require_roles(
             UserRole.ADMINISTRATOR,
-            resource_type="knowledge document",
+            resource_type="knowledge_document",
         )
     ),
 ):
@@ -111,7 +111,7 @@ def get_knowledge_document(
     _: dict[str, Any] = Depends(
         require_roles(
             UserRole.ADMINISTRATOR,
-            resource_type="knowledge document",
+            resource_type="knowledge_document",
         )
     ),
 ):
@@ -142,7 +142,7 @@ async def create_knowledge_document_version(
     current_user: dict[str, Any] = Depends(
         require_roles(
             UserRole.ADMINISTRATOR,
-            resource_type="knowledge document",
+            resource_type="knowledge_document",
         )
     ),
     service: KnowledgeDocumentService = Depends(get_knowledge_document_service),
@@ -182,7 +182,7 @@ def list_knowledge_document_versions(
     _: dict[str, Any] = Depends(
         require_roles(
             UserRole.ADMINISTRATOR,
-            resource_type="knowledge document",
+            resource_type="knowledge_document",
         )
     ),
 ):
@@ -209,7 +209,7 @@ def update_knowledge_document_status(
     current_user: dict[str, Any] = Depends(
         require_roles(
             UserRole.ADMINISTRATOR,
-            resource_type="knowledge document",
+            resource_type="knowledge_document",
         )
     ),
     service: KnowledgeDocumentService = Depends(get_knowledge_document_service),

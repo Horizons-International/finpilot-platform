@@ -42,6 +42,7 @@ def get_verification_summary(
             UserRole.ADMINISTRATOR,
             UserRole.COMPLIANCE_OFFICER,
             UserRole.AUDITOR,
+            resource_type="verification_summary",
         )
     ),
     service: ReportService = Depends(get_report_service),
@@ -72,6 +73,7 @@ def get_document_summary(
             UserRole.ADMINISTRATOR,
             UserRole.COMPLIANCE_OFFICER,
             UserRole.AUDITOR,
+            resource_type="verification_summary",
         )
     ),
     service: ReportService = Depends(get_report_service),

@@ -49,7 +49,7 @@ def create_compliance_case(
         require_roles(
             UserRole.ADMINISTRATOR,
             UserRole.COMPLIANCE_OFFICER,
-            resource_type="case",
+            resource_type="compliance_case",
         )
     ),
     service: ComplianceService = Depends(
@@ -93,7 +93,7 @@ def get_compliance_cases(
             UserRole.ADMINISTRATOR,
             UserRole.COMPLIANCE_OFFICER,
             UserRole.REVIEWER,
-            resource_type="case",
+            resource_type="compliance_case",
         )
     ),
     service: ComplianceService = Depends(
@@ -127,7 +127,7 @@ def get_compliance_case(
             UserRole.ADMINISTRATOR,
             UserRole.COMPLIANCE_OFFICER,
             UserRole.REVIEWER,
-            resource_type="case",
+            resource_type="compliance_case",
         )
     ),
     service: ComplianceService = Depends(
@@ -157,7 +157,7 @@ def get_customer_compliance_cases(
             UserRole.ADMINISTRATOR,
             UserRole.COMPLIANCE_OFFICER,
             UserRole.REVIEWER,
-            resource_type="case",
+            resource_type="compliance_case",
         )
     ),
     service: ComplianceService = Depends(
@@ -190,7 +190,7 @@ def update_compliance_case(
         require_roles(
             UserRole.ADMINISTRATOR,
             UserRole.COMPLIANCE_OFFICER,
-            resource_type="case",
+            resource_type="compliance_case",
         )
     ),
     service: ComplianceService = Depends(
@@ -229,7 +229,7 @@ def assign_compliance_case(
         require_roles(
             UserRole.ADMINISTRATOR,
             UserRole.COMPLIANCE_OFFICER,
-            resource_type="case",
+            resource_type="compliance_case",
         )
     ),
 ) -> APIResponse[ComplianceCaseResponse]:
@@ -265,7 +265,7 @@ def update_compliance_case_status(
         require_roles(
             UserRole.ADMINISTRATOR,
             UserRole.COMPLIANCE_OFFICER,
-            resource_type="case",
+            resource_type="compliance_case",
         )
     ),
 ) -> APIResponse[ComplianceCaseResponse]:
@@ -301,7 +301,7 @@ def get_compliance_case_history(
             UserRole.ADMINISTRATOR,
             UserRole.COMPLIANCE_OFFICER,
             UserRole.REVIEWER,
-            resource_type="case",
+            resource_type="compliance_case",
         )
     ),
 ) -> APIResponse[list[ComplianceCaseHistoryResponse]]:

@@ -22,5 +22,8 @@ from app.models.transaction_monitoring_result import (
     TransactionMonitoringResult,  # noqa: F401
 )
 from app.models.verification_case import IdentityVerificationCase  # noqa: F401
+from app.models.verification_case_assignment_history import (
+    VerificationCaseAssignmentHistory,  # noqa: F401
+)
 from app.models.verification_document_type import VerificationDocumentType  # noqa: F401
 from app.models.verification_review import VerificationReview  # noqa: F401

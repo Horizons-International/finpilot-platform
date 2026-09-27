@@ -32,12 +32,12 @@ def _get_authenticated_user(
     try:
         user_id = UUID(str(raw_user_id))
     except (TypeError, ValueError):
-        unauthorized("Invalid authenticated user.")
+        raise unauthorized("Invalid authenticated user.")
 
     email = current_user["email"]
 
     if not isinstance(email, str) or not email:
-        unauthorized("Authenticated user email is missing.")
+        raise unauthorized("Authenticated user email is missing.")
 
     return user_id, email
 
@@ -72,6 +72,7 @@ def evaluate_transaction(
         require_roles(
             UserRole.ADMINISTRATOR,
             UserRole.COMPLIANCE_OFFICER,
+            resource_type="transaction_monitoring",
         )
     ),
 ) -> APIResponse[TransactionMonitoringResponse]:

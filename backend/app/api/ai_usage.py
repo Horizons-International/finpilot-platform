@@ -1,3 +1,4 @@
+from typing import Any
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query, status
@@ -39,10 +40,8 @@ def get_ai_usage(
     feature: str | None = Query(
         default=None,
     ),
-    _current_user=Depends(
-        require_roles(
-            UserRole.ADMINISTRATOR,
-        ),
+    _: dict[str, Any] = Depends(
+        require_roles(UserRole.ADMINISTRATOR, resource_type="ai_usage"),
     ),
     service: AIUsageService = Depends(
         get_ai_usage_service,
@@ -72,10 +71,8 @@ def get_ai_usage_summary(
     feature: str | None = Query(
         default=None,
     ),
-    _current_user=Depends(
-        require_roles(
-            UserRole.ADMINISTRATOR,
-        ),
+    _: dict[str, Any] = Depends(
+        require_roles(UserRole.ADMINISTRATOR, resource_type="ai_usage"),
     ),
     service: AIUsageService = Depends(
         get_ai_usage_service,

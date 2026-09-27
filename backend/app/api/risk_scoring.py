@@ -38,7 +38,7 @@ def calculate_customer_risk_score(
         require_roles(
             UserRole.ADMINISTRATOR,
             UserRole.COMPLIANCE_OFFICER,
-            resource_type="risk scoring",
+            resource_type="risk_score",
         )
     ),
     service: RiskScoringService = Depends(get_risk_scoring_service),
