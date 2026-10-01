@@ -10,6 +10,9 @@ from app.services.ai_compliance_service import (
 )
 from app.services.ai_usage_service import AIUsageService
 from app.services.compliance_service import ComplianceService
+from app.services.customer_onboarding import (
+    CustomerOnboardingService,
+)
 from app.services.document_review_service import DocumentReviewService
 from app.services.document_service import DocumentService
 from app.services.file_service import FileService
@@ -128,3 +131,15 @@ def get_workflow_service(
     db: Session = Depends(get_db),
 ) -> WorkflowService:
     return WorkflowService(db)
+
+
+def get_customer_onboarding_service(
+    db: Session = Depends(get_db),
+    workflow_service: WorkflowService = Depends(
+        get_workflow_service,
+    ),
+) -> CustomerOnboardingService:
+    return CustomerOnboardingService(
+        db=db,
+        workflow_service=workflow_service,
+    )

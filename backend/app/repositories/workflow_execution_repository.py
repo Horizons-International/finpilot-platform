@@ -1,5 +1,6 @@
 from uuid import UUID
 
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.models.workflow import (
@@ -7,7 +8,7 @@ from app.models.workflow import (
     WorkflowStepExecution,
 )
 from app.repositories.base_repository import BaseRepository
-from app.utils.enums import WorkflowStepExecutionStatus
+from app.utils.enums import WorkflowExecutionStatus, WorkflowStepExecutionStatus
 
 
 class WorkflowExecutionRepository(
@@ -94,3 +95,58 @@ class WorkflowExecutionRepository(
         self.db.refresh(step_execution)
 
         return step_execution
+
+    def get_for_entity(
+        self,
+        *,
+        workflow_id: UUID,
+        entity_type: str,
+        entity_id: UUID,
+        statuses: set[WorkflowExecutionStatus] | None = None,
+    ) -> WorkflowExecution | None:
+        query = select(WorkflowExecution).where(
+            WorkflowExecution.workflow_id == workflow_id,
+            WorkflowExecution.entity_type == entity_type,
+            WorkflowExecution.entity_id == entity_id,
+        )
+
+        if statuses:
+            query = query.where(
+                WorkflowExecution.status.in_(statuses),
+            )
+
+        query = query.order_by(
+            WorkflowExecution.created_at.desc(),
+        )
+
+        return self.db.scalars(query).first()
+
+    def get_latest_for_entity(
+        self,
+        *,
+        workflow_id: UUID,
+        entity_type: str,
+        entity_id: UUID,
+    ) -> WorkflowExecution | None:
+        return self.get_for_entity(
+            workflow_id=workflow_id,
+            entity_type=entity_type,
+            entity_id=entity_id,
+        )
+
+    def get_active_for_entity(
+        self,
+        *,
+        workflow_id: UUID,
+        entity_type: str,
+        entity_id: UUID,
+    ) -> WorkflowExecution | None:
+        return self.get_for_entity(
+            workflow_id=workflow_id,
+            entity_type=entity_type,
+            entity_id=entity_id,
+            statuses={
+                WorkflowExecutionStatus.IN_PROGRESS,
+                WorkflowExecutionStatus.FAILED,
+            },
+        )

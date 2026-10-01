@@ -44,6 +44,7 @@ from app.models.verification_document_type import VerificationDocumentType
 from app.models.workflow import (
     Workflow,
     WorkflowExecution,
+    WorkflowStepExecution,
 )
 from app.ocr.providers.base import OCRProvider
 from app.ocr.services.dependencies import get_ocr_service
@@ -666,5 +667,41 @@ def cleanup_workflows(db_session):
         for workflow in current_workflows:
             if workflow.id in created_workflow_ids:
                 db_session.delete(workflow)
+
+    db_session.commit()
+
+
+@pytest.fixture
+def cleanup_workflow_executions(db_session):
+    existing_execution_ids = {
+        execution.id for execution in db_session.query(WorkflowExecution).all()
+    }
+
+    yield
+
+    current_executions = db_session.query(WorkflowExecution).all()
+
+    new_execution_ids = [
+        execution.id
+        for execution in current_executions
+        if execution.id not in existing_execution_ids
+    ]
+
+    if new_execution_ids:
+        db_session.query(WorkflowStepExecution).filter(
+            WorkflowStepExecution.workflow_execution_id.in_(
+                new_execution_ids,
+            )
+        ).delete(
+            synchronize_session=False,
+        )
+
+        db_session.query(WorkflowExecution).filter(
+            WorkflowExecution.id.in_(
+                new_execution_ids,
+            )
+        ).delete(
+            synchronize_session=False,
+        )
 
     db_session.commit()
