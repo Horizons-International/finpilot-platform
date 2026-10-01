@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, Query, status
 from pydantic import ValidationError
 from sqlalchemy.orm import Session
 
-from app.core.dependencies import get_db
+from app.core.database import get_db
 from app.core.responses import APIResponse
 from app.core.security import require_roles
 from app.schemas.compliance_reports import (
