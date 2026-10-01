@@ -31,3 +31,9 @@ from app.models.verification_case_assignment_history import (
 )
 from app.models.verification_document_type import VerificationDocumentType  # noqa: F401
 from app.models.verification_review import VerificationReview  # noqa: F401
+from app.models.workflow import (
+    Workflow,  # noqa: F401
+    WorkflowExecution,  # noqa: F401
+    WorkflowStep,  # noqa: F401
+    WorkflowStepExecution,  # noqa: F401
+)

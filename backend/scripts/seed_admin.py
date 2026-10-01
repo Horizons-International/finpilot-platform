@@ -7,7 +7,7 @@ from app.utils.enums import UserStatus
 
 
 def seed_admin() -> None:
-    admin_email = "admin@example.com"
+    admin_email = settings.ADMIN_EMAIL
     admin_password = settings.ADMIN_PASSWORD
     if admin_password is None:
         raise RuntimeError("ADMIN_PASSWORD environment variable is required")

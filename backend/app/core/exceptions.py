@@ -1,7 +1,7 @@
 from fastapi import HTTPException, Request, status
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
-from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 
 from app.core.logger import get_logger
 from app.core.responses import APIResponse, ErrorDetail
@@ -45,10 +45,10 @@ async def validation_exception_handler(
         raise exc
 
     logger.warning(
-        "Validation error: %s %s - %s",
+        "Validation error: %s %s - %d validation errors",
         request.method,
         request.url.path,
-        exc.errors(),
+        len(exc.errors()),
     )
 
     errors: list[ErrorDetail] = []
@@ -80,6 +80,47 @@ async def validation_exception_handler(
 
     return JSONResponse(
         status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+        content=response.model_dump(),
+    )
+
+
+async def integrity_error_handler(
+    request: Request,
+    exc: Exception,
+) -> JSONResponse:
+    if not isinstance(exc, IntegrityError):
+        raise exc
+
+    constraint_name = getattr(
+        getattr(exc.orig, "diag", None),
+        "constraint_name",
+        None,
+    )
+
+    if constraint_name in {
+        "users_email_key",
+        "ix_users_email",
+    }:
+        message = "Email is already registered."
+    else:
+        message = "The request conflicts with existing data."
+
+    logger.warning(
+        "Database integrity error: %s %s constraint=%s",
+        request.method,
+        request.url.path,
+        constraint_name,
+    )
+
+    response: APIResponse[None] = APIResponse(
+        success=False,
+        message=message,
+        data=None,
+        errors=None,
+    )
+
+    return JSONResponse(
+        status_code=status.HTTP_409_CONFLICT,
         content=response.model_dump(),
     )
 

@@ -1,12 +1,8 @@
 from fastapi import Depends
-from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
-from jose import JWTError
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.core.database import get_db
-from app.core.security import decode_access_token
-from app.models.user import User
 from app.rag.embeddings import EmbeddingService
 from app.rag.retrieval import RetrievalService
 from app.services.ai_compliance_service import (
@@ -24,42 +20,9 @@ from app.services.knowledge_indexing_service import KnowledgeIndexingService
 from app.services.risk_scoring_service import RiskScoringService
 from app.services.verification_review_service import VerificationReviewService
 from app.services.verification_service import VerificationService
+from app.services.workflow_service import WorkflowService
 from app.storages.base_storage import BaseStorage
 from app.storages.local_storage import LocalStorage
-from app.utils.enums import UserStatus
-from app.utils.errors import unauthorized
-
-security = HTTPBearer()
-
-
-def get_current_user(
-    credentials: HTTPAuthorizationCredentials = Depends(security),
-    db: Session = Depends(get_db),
-) -> User:
-    token = credentials.credentials
-
-    try:
-        payload = decode_access_token(token)
-    except JWTError:
-        raise unauthorized("Invalid or expired token")
-
-    if payload.get("type") != "access":
-        raise unauthorized("Invalid access token")
-
-    user_id = payload.get("sub")
-
-    if not user_id:
-        raise unauthorized("Invalid token")
-
-    user = db.query(User).filter(User.id == user_id).first()
-
-    if not user:
-        raise unauthorized("User not found")
-
-    if user.status != UserStatus.ACTIVE:
-        raise unauthorized("User account is not active")
-
-    return user
 
 
 def get_storage() -> BaseStorage:
@@ -145,9 +108,10 @@ def get_document_review_service(
 
 def get_ai_compliance_service(
     db: Session = Depends(get_db),
+    retrieval_service: RetrievalService = Depends(
+        get_retrieval_service,
+    ),
 ) -> AIComplianceService:
-    retrieval_service = RetrievalService(db)
-
     return AIComplianceService(
         db,
         retrieval_service=retrieval_service,
@@ -158,3 +122,9 @@ def get_risk_scoring_service(
     db: Session = Depends(get_db),
 ) -> RiskScoringService:
     return RiskScoringService(db)
+
+
+def get_workflow_service(
+    db: Session = Depends(get_db),
+) -> WorkflowService:
+    return WorkflowService(db)

@@ -41,6 +41,10 @@ from app.models.verification_case_assignment_history import (
     VerificationCaseAssignmentHistory,
 )
 from app.models.verification_document_type import VerificationDocumentType
+from app.models.workflow import (
+    Workflow,
+    WorkflowExecution,
+)
 from app.ocr.providers.base import OCRProvider
 from app.ocr.services.dependencies import get_ocr_service
 from app.ocr.services.ocr_service import OCRService
@@ -623,5 +627,44 @@ def cleanup_customer_risk_assessment_history(db_session):
     for history in current_history:
         if history.id not in initial_ids:
             db_session.delete(history)
+
+    db_session.commit()
+
+
+@pytest.fixture
+def cleanup_workflows(db_session):
+    existing_workflow_ids = {
+        workflow.id for workflow in db_session.query(Workflow).all()
+    }
+
+    yield
+
+    current_workflows = db_session.query(Workflow).all()
+
+    created_workflow_ids = {
+        workflow.id
+        for workflow in current_workflows
+        if workflow.id not in existing_workflow_ids
+    }
+
+    if created_workflow_ids:
+        executions = (
+            db_session.query(WorkflowExecution)
+            .filter(
+                WorkflowExecution.workflow_id.in_(
+                    created_workflow_ids,
+                ),
+            )
+            .all()
+        )
+
+        for execution in executions:
+            db_session.delete(execution)
+
+        db_session.flush()
+
+        for workflow in current_workflows:
+            if workflow.id in created_workflow_ids:
+                db_session.delete(workflow)
 
     db_session.commit()
