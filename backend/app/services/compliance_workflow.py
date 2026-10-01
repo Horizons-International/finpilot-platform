@@ -1,4 +1,4 @@
-from app.services.workflow_service import WorkflowValidationService
+from app.services.workflow_validation_service import WorkflowValidationService
 from app.utils.enums import ComplianceCaseStatus
 
 COMPLIANCE_CASE_TRANSITIONS: dict[

@@ -78,6 +78,7 @@ def test_readiness_check_database_unavailable(client):
         bind=bad_engine,
         autoflush=False,
         autocommit=False,
+        expire_on_commit=False,
     )
 
     def override_get_db():

@@ -4,6 +4,8 @@ from app.core.security import create_access_token
 from app.main import app
 from app.models.audit_log import AuditLog
 from app.models.user import User
+from app.utils.enums import UserRole
+from tests.helpers import authenticate_client
 
 client = TestClient(app)
 
@@ -233,3 +235,30 @@ def test_delete_user(client, create_test_user):
     )
 
     assert response.status_code in (200, 204)
+
+
+def test_duplicate_user_email_returns_conflict(
+    client,
+    create_test_user,
+):
+    admin = create_test_user(email="adminnn@example.com", role=UserRole.ADMINISTRATOR)
+
+    create_test_user(
+        email="duplicate@example.com",
+        role=UserRole.REVIEWER,
+    )
+
+    authenticate_client(client, admin)
+
+    response = client.post(
+        "/api/v1/users",
+        json={
+            "first_name": "Another",
+            "last_name": "User",
+            "email": "duplicate@example.com",
+            "password": "Password123!",
+            "role": "Reviewer",
+        },
+    )
+
+    assert response.status_code == 400

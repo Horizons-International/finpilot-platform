@@ -3,7 +3,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.exceptions import RequestValidationError
-from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 
 from app.api.ai_assistant import router as ai_assistant_router
 from app.api.ai_prompts import router as ai_prompts_router
@@ -59,15 +59,18 @@ from app.api.verification_reports import (
 from app.api.verification_reviews import (
     router as verification_reviews_router,
 )
-from app.core.dependencies import get_current_user
+from app.api.workflows import router as workflows_router
+from app.core.config import settings
 from app.core.exceptions import (
     database_exception_handler,
     http_exception_handler,
+    integrity_error_handler,
     unexpected_exception_handler,
     validation_exception_handler,
 )
 from app.core.logger import get_logger, setup_logging
 from app.core.responses import APIResponse
+from app.core.security import get_current_user
 from app.middleware.request_id import RequestIDMiddleware
 from app.models.user import User
 from app.schemas.auth import MeResponse
@@ -87,13 +90,14 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(
-    title="FinPilot API",
+    title=settings.APP_NAME,
     lifespan=lifespan,
     description=(
-        "FinPilot Platform API for user management, authentication, "
-        "profiles, and administration."
-    ),
-    version="1.0.0",
+        """FinPilot Platform API for user management, authentication, 
+        profiles, and administration, AML, compliance cases, risk scoring,
+         verification, RAG, AI, transaction monitoring, reporting, etc."""
+    ),  # fmt: skip
+    version=settings.APP_VERSION,
     docs_url="/docs",
     redoc_url="/redoc",
     openapi_url="/openapi.json",
@@ -108,6 +112,7 @@ app.include_router(users_router)
 app.include_router(compliance_cases_router)
 app.include_router(files_router)
 app.include_router(customer_router)
+app.include_router(workflows_router)
 app.include_router(customer_contacts_router)
 app.include_router(customer_addresses_router)
 app.include_router(customer_risk_profiles_router)
@@ -149,6 +154,11 @@ app.add_exception_handler(
 )
 
 app.add_exception_handler(
+    IntegrityError,
+    integrity_error_handler,
+)
+
+app.add_exception_handler(
     SQLAlchemyError,
     database_exception_handler,
 )
@@ -157,20 +167,6 @@ app.add_exception_handler(
     Exception,
     unexpected_exception_handler,
 )
-
-
-@app.get(
-    "/health",
-    tags=["Health"],
-    summary="Check API health",
-    description="Returns the current health status of the API.",
-)
-def health():
-    return APIResponse(
-        success=True,
-        message="Service is healthy.",
-        data={"status": "healthy"},
-    )
 
 
 @app.get(

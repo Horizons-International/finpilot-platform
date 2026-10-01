@@ -1,12 +1,12 @@
 from typing import Any
-from uuid import UUID
 
 from fastapi import APIRouter, Depends, Request, status
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.core.responses import APIResponse
-from app.core.security import get_current_user_payload, require_roles
+from app.core.security import get_current_user, require_roles
+from app.models.user import User
 from app.schemas.auth import (
     ChangePasswordRequest,
     LoginRequest,
@@ -100,12 +100,12 @@ def change_password(
     password_data: ChangePasswordRequest,
     request: Request,
     db: Session = Depends(get_db),
-    current_user: dict[str, Any] = Depends(get_current_user_payload),
+    current_user: User = Depends(get_current_user),
 ):
     service = AuthService(db)
 
     service.change_password(
-        user_id=UUID(current_user["sub"]),
+        user_id=current_user.id,
         password_data=password_data,
         ip_address=(request.client.host if request.client else None),
         user_agent=request.headers.get("user-agent"),
