@@ -12,6 +12,7 @@ from app.core.security import (
     validate_password,
     verify_password,
 )
+from app.models.user import User
 from app.repositories.user_repository import UserRepository
 from app.schemas.auth import (
     AuthUserResponse,
@@ -133,17 +134,36 @@ class AuthService:
         except JWTError as exc:
             raise unauthorized("Invalid or expired refresh token") from exc
 
-        user_id = payload.get("sub")
+        user_id_raw = payload.get("sub")
 
-        if not user_id:
+        try:
+            user_id = UUID(str(user_id_raw))
+        except (TypeError, ValueError):
             raise unauthorized("Invalid refresh token")
 
+        user = (
+            self.db.query(User)
+            .filter(
+                User.id == user_id,
+                User.is_deleted.is_(False),
+            )
+            .first()
+        )
+
+        if user is None:
+            raise unauthorized("Invalid refresh token")
+
+        if user.status != UserStatus.ACTIVE:
+            raise unauthorized("User account is not active")
+
+        token_data = {
+            "sub": str(user.id),
+            "email": user.email,
+            "role": user.role,
+        }
+
         access_token = create_access_token(
-            data={
-                "sub": user_id,
-                "email": payload.get("email"),
-                "role": payload.get("role"),
-            }
+            data=token_data,
         )
 
         return RefreshTokenResponse(

@@ -1,6 +1,6 @@
 from typing import Literal
 
-from pydantic import Field
+from pydantic import EmailStr, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -19,9 +19,11 @@ class Settings(BaseSettings):
 
     # JWT
     SECRET_KEY: str
-    JWT_EXPIRE_MINUTES: int = Field(default=30, gt=0)
+    JWT_ACCESS_EXPIRE_MINUTES: int = Field(default=30, gt=0)
+    JWT_REFRESH_EXPIRE_DAYS: int = Field(default=7, gt=0)
 
     # Administrator
+    ADMIN_EMAIL: EmailStr
     ADMIN_PASSWORD: str
 
     model_config = SettingsConfigDict(
@@ -34,7 +36,12 @@ class Settings(BaseSettings):
     # Storage Settings
     STORAGE_TYPE: str = "local"
     STORAGE_PATH: str = "./storage"
-    MAX_FILE_SIZE: int = 10 * 1024 * 1024
+    MAX_FILE_SIZE_MB: int = Field(default=10, gt=0)
+
+    @property
+    def MAX_FILE_SIZE(self) -> int:
+        return self.MAX_FILE_SIZE_MB * 1024 * 1024
+
     ALLOWED_FILE_TYPES: list[str] = [
         "application/pdf",
         "image/png",
@@ -50,10 +57,13 @@ class Settings(BaseSettings):
     AI_PROVIDER: str = "mock"
     AI_API_KEY: str = ""
     AI_MODEL: str = ""
-    AI_MAX_TOKENS: int = 1000
-    AI_TEMPERATURE: float = 0.0
-    AI_TIMEOUT: int = 30
-    AI_MAX_CONTEXT_CHARACTERS: int = 30000
+    AI_MAX_TOKENS: int = Field(default=1000, gt=0)
+    AI_TEMPERATURE: float = Field(default=0.0, ge=0.0, le=2.0)
+    AI_TIMEOUT: int = Field(default=30, gt=0)
+    AI_MAX_CONTEXT_CHARACTERS: int = Field(
+        default=30000,
+        gt=0,
+    )
 
 
 settings = Settings()  # type: ignore[call-arg]
