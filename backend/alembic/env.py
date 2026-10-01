@@ -19,6 +19,12 @@ from app.models.file import File  # noqa: F401
 from app.models.knowledge_document import KnowledgeDocument  # noqa: F401
 from app.models.ocr_result import OCRResult  # noqa: F401
 from app.models.user import User  # noqa: F401
+from app.models.workflow import (
+    Workflow,  # noqa: F401
+    WorkflowExecution,  # noqa: F401
+    WorkflowStep,  # noqa: F401
+    WorkflowStepExecution,  # noqa: F401
+)
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.

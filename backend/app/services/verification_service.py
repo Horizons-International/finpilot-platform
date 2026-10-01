@@ -21,7 +21,7 @@ from app.schemas.verification_case import (
 )
 from app.services.audit_service import AuditService
 from app.services.customer_audit_log_service import CustomerAuditLogService
-from app.services.workflow_service import WorkflowValidationService
+from app.services.workflow_validation_service import WorkflowValidationService
 from app.utils.date_time import utc_now
 from app.utils.enums import AuditEventType, VerificationStatus
 from app.utils.errors import bad_request, not_found
@@ -57,7 +57,7 @@ class VerificationService:
         self.repository = VerificationCaseRepository(db)
         self.customer_audit_log_service = CustomerAuditLogService(db)
         self.provider = provider or get_verification_provider()
-        self.workflow_service = WorkflowValidationService(
+        self.workflow_validation_service = WorkflowValidationService(
             VERIFICATION_STATUS_TRANSITIONS
         )
 
@@ -153,7 +153,7 @@ class VerificationService:
         current_status = case.status
         new_status = status_data.status
 
-        self.workflow_service.validate_transition(
+        self.workflow_validation_service.validate_transition(
             current_status=current_status,
             new_status=new_status,
         )

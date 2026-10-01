@@ -1,5 +1,3 @@
-import logging
-
 from fastapi import APIRouter, Depends, status
 from fastapi.responses import JSONResponse
 from sqlalchemy import text
@@ -8,13 +6,14 @@ from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.core.database import get_db
+from app.core.logger import get_logger
 from app.core.responses import APIResponse
 
 router = APIRouter(
     tags=["Health"],
 )
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 @router.get(

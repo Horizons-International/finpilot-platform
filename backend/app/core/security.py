@@ -2,6 +2,7 @@ import re
 from collections.abc import Callable
 from datetime import timedelta
 from typing import Any, cast
+from uuid import UUID
 
 import bcrypt
 from fastapi import Depends, HTTPException, Request, status
@@ -11,26 +12,13 @@ from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.core.database import get_db
+from app.models.user import User
 from app.services.audit_service import AuditService
 from app.utils.date_time import utc_now
-from app.utils.enums import AuditEventType, UserRole
+from app.utils.enums import AuditEventType, UserRole, UserStatus
 from app.utils.errors import unauthorized
 
 ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 30
-REFRESH_TOKEN_EXPIRE_DAYS = 7
-
-
-# ---------------------------------------------------------------------------
-# Roles
-# ---------------------------------------------------------------------------
-
-
-class Roles:
-    ADMINISTRATOR = "Administrator"
-    COMPLIANCE_OFFICER = "Compliance Officer"
-    REVIEWER = "Reviewer"
-    AUDITOR = "Auditor"
 
 
 # ---------------------------------------------------------------------------
@@ -75,7 +63,7 @@ def create_access_token(
     if expires_delta:
         expire = utc_now() + expires_delta
     else:
-        expire = utc_now() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+        expire = utc_now() + timedelta(minutes=settings.JWT_ACCESS_EXPIRE_MINUTES)
 
     to_encode.update(
         {
@@ -107,7 +95,7 @@ def create_refresh_token(
     if expires_delta:
         expire = utc_now() + expires_delta
     else:
-        expire = utc_now() + timedelta(days=REFRESH_TOKEN_EXPIRE_DAYS)
+        expire = utc_now() + timedelta(days=settings.JWT_REFRESH_EXPIRE_DAYS)
 
     to_encode.update(
         {
@@ -160,15 +148,23 @@ def decode_refresh_token(token: str) -> dict[str, Any]:
 # Authentication dependency
 # ---------------------------------------------------------------------------
 
-security = HTTPBearer()
+security = HTTPBearer(auto_error=False)
 
 
-def get_current_user_payload(
+def get_current_user(
     credentials: HTTPAuthorizationCredentials = Depends(security),
-) -> dict[str, Any]:
+    db: Session = Depends(get_db),
+) -> User:
     """
     Validate the access token and return its payload.
     """
+
+    if credentials is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Authentication credentials were not provided",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
 
     token = credentials.credentials
 
@@ -188,7 +184,12 @@ def get_current_user_payload(
             headers={"WWW-Authenticate": "Bearer"},
         )
 
-    if not payload.get("sub"):
+    try:
+        user_id = UUID(str(payload["sub"]))
+    except (KeyError, TypeError, ValueError):
+        raise unauthorized("Invalid access token")
+
+    if not user_id:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid access token",
@@ -201,7 +202,15 @@ def get_current_user_payload(
             detail="Invalid access token.",
         )
 
-    return payload
+    user = db.query(User).filter(User.id == user_id).first()
+
+    if not user:
+        raise unauthorized("User not found")
+
+    if user.status != UserStatus.ACTIVE:
+        raise unauthorized("User account is not active")
+
+    return user
 
 
 # ---------------------------------------------------------------------------
@@ -220,12 +229,10 @@ def require_roles(
 
     def role_checker(
         request: Request,
-        current_user: dict[str, Any] = Depends(get_current_user_payload),
+        current_user: User = Depends(get_current_user),
         db: Session = Depends(get_db),
     ) -> dict[str, Any]:
-        user_role = current_user.get("role")
-
-        if user_role not in allowed_roles:
+        if current_user.role not in allowed_roles:
             resource_id = None
 
             if resource_type is not None:
@@ -235,8 +242,8 @@ def require_roles(
 
             audit_service.log_event(
                 event_type=AuditEventType.ACCESS_DENIED,
-                user_id=current_user["sub"],
-                email=current_user["email"],
+                user_id=current_user.id,
+                email=current_user.email,
                 ip_address=request.client.host if request.client else None,
                 user_agent=request.headers.get("user-agent"),
                 resource_type=resource_type,
@@ -250,7 +257,11 @@ def require_roles(
                 detail="You do not have permission to access this resource.",
             )
 
-        return current_user
+        return {
+            "sub": str(current_user.id),
+            "email": current_user.email,
+            "role": current_user.role,
+        }
 
     return role_checker
 
