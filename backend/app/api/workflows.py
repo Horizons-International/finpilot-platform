@@ -483,6 +483,7 @@ def start_workflow_execution(
         payload,
         user_id=UUID(current_user["sub"]),
         email=current_user["email"],
+        actor_role=current_user["role"],
         ip_address=request.client.host if request.client else None,
         user_agent=request.headers.get("user-agent"),
     )

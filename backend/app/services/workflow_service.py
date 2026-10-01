@@ -479,6 +479,7 @@ class WorkflowService:
         *,
         user_id: UUID,
         email: str,
+        actor_role: UserRole,
         ip_address: str | None = None,
         user_agent: str | None = None,
     ) -> WorkflowExecution:
@@ -502,6 +503,11 @@ class WorkflowService:
             raise bad_request(
                 "Workflow contains no steps.",
             )
+
+        self._validate_step_actor(
+            steps[0],
+            actor_role,
+        )
 
         execution = WorkflowExecution(
             workflow_id=workflow.id,
@@ -798,3 +804,145 @@ class WorkflowService:
             step.order_number = index
 
         self.db.flush()
+
+    def _validate_step_actor(
+        self,
+        step,
+        actor_role: UserRole,
+    ) -> None:
+        if actor_role == UserRole.ADMINISTRATOR:
+            return
+
+        if step.assigned_role != actor_role.value:
+            raise forbidden("You do not have permission to execute this workflow step.")
+
+    def fail_execution(
+        self,
+        execution_id: UUID,
+        *,
+        user_id: UUID,
+        email: str,
+        actor_role: UserRole,
+        notes: str | None = None,
+        ip_address: str | None = None,
+        user_agent: str | None = None,
+    ) -> WorkflowExecution:
+        execution = self.execution_repository.get_by_id_for_update(
+            execution_id,
+        )
+
+        if execution is None:
+            raise not_found("Workflow execution")
+
+        if execution.status != WorkflowExecutionStatus.IN_PROGRESS:
+            raise bad_request("Only an in-progress workflow execution can fail.")
+
+        current_step = self.execution_repository.get_in_progress_step(
+            execution_id,
+        )
+
+        if current_step is None:
+            raise bad_request("The workflow execution does not have an active step.")
+
+        self._validate_step_actor(
+            current_step.workflow_step,
+            actor_role,
+        )
+
+        current_step.status = WorkflowStepExecutionStatus.FAILED
+        current_step.notes = notes
+        current_step.completed_at = utc_now()
+
+        execution.status = WorkflowExecutionStatus.FAILED
+
+        self.db.flush()
+
+        self.audit_service.log_event(
+            event_type=AuditEventType.WORKFLOW_STEP_FAILED,
+            user_id=user_id,
+            email=email,
+            ip_address=ip_address,
+            user_agent=user_agent,
+            resource_type="workflow_step_execution",
+            resource_id=current_step.id,
+        )
+
+        self.audit_service.log_event(
+            event_type=AuditEventType.WORKFLOW_EXECUTION_FAILED,
+            user_id=user_id,
+            email=email,
+            ip_address=ip_address,
+            user_agent=user_agent,
+            resource_type="workflow_execution",
+            resource_id=execution.id,
+        )
+
+        self.db.commit()
+        self.db.refresh(execution)
+
+        return execution
+
+    def retry_failed_execution(
+        self,
+        execution_id: UUID,
+        *,
+        user_id: UUID,
+        email: str,
+        actor_role: UserRole,
+        ip_address: str | None = None,
+        user_agent: str | None = None,
+    ) -> WorkflowExecution:
+        execution = self.execution_repository.get_by_id_for_update(
+            execution_id,
+        )
+
+        if execution is None:
+            raise not_found("Workflow execution")
+
+        if execution.status != WorkflowExecutionStatus.FAILED:
+            raise bad_request("Only a failed workflow execution can be retried.")
+
+        failed_step = (
+            self.db.query(WorkflowStepExecution)
+            .filter(
+                WorkflowStepExecution.workflow_execution_id == execution.id,
+                WorkflowStepExecution.status == WorkflowStepExecutionStatus.FAILED,
+            )
+            .order_by(
+                WorkflowStepExecution.order_number.desc(),
+            )
+            .first()
+        )
+
+        if failed_step is None:
+            raise bad_request("The workflow execution does not have a failed step.")
+
+        self._validate_step_actor(
+            failed_step.workflow_step,
+            actor_role,
+        )
+
+        failed_step.status = WorkflowStepExecutionStatus.IN_PROGRESS
+        failed_step.started_at = utc_now()
+        failed_step.completed_at = None
+        failed_step.notes = None
+
+        execution.status = WorkflowExecutionStatus.IN_PROGRESS
+        execution.current_step_id = failed_step.workflow_step_id
+
+        self.db.flush()
+
+        self.audit_service.log_event(
+            event_type=AuditEventType.WORKFLOW_STEP_RETRIED,
+            user_id=user_id,
+            email=email,
+            ip_address=ip_address,
+            user_agent=user_agent,
+            resource_type="workflow_step_execution",
+            resource_id=failed_step.id,
+        )
+
+        self.db.commit()
+        self.db.refresh(execution)
+
+        return execution
