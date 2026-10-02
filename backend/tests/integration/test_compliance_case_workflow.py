@@ -3,10 +3,8 @@ from uuid import uuid4
 import pytest
 
 from app.models.audit_log import AuditLog
-from app.utils.enums import (
-    AuditEventType,
-    UserRole,
-)
+from app.models.notification import Notification
+from app.utils.enums import AuditEventType, NotificationEventType, UserRole
 from tests.helpers import (
     authenticate_client,
     create_customer_with_data,
@@ -78,9 +76,11 @@ def update_case_status(
 
 def test_open_can_be_assigned(
     client,
+    db_session,
     create_test_user,
     cleanup_compliance_cases,
     cleanup_test_customers,
+    cleanup_notifications,
 ):
     admin = create_test_user(
         email="workflow-assign-admin@example.com",
@@ -112,9 +112,32 @@ def test_open_can_be_assigned(
     assert data["status"] == "ASSIGNED"
     assert data["assigned_to"] == str(reviewer.id)
 
+    db_session.expire_all()
+
+    notification = (
+        db_session.query(Notification)
+        .filter(
+            Notification.user_id == reviewer.id,
+            Notification.event_type
+            == NotificationEventType.COMPLIANCE_CASE_ASSIGNED.value,
+            Notification.resource_type == "compliance_case",
+            Notification.resource_id == case["id"],
+        )
+        .first()
+    )
+
+    assert notification is not None
+    assert notification.title == "Compliance case assigned"
+    assert notification.read_at is None
+
 
 def test_assigned_can_move_to_under_review(
-    client, create_test_user, cleanup_compliance_cases, cleanup_test_customers
+    client,
+    db_session,
+    create_test_user,
+    cleanup_compliance_cases,
+    cleanup_test_customers,
+    cleanup_notifications,
 ):
     admin = create_test_user(
         email="workflow-review-admin@example.com",
@@ -149,6 +172,25 @@ def test_assigned_can_move_to_under_review(
 
     assert response.status_code == 200
     assert response.json()["data"]["status"] == "UNDER_REVIEW"
+
+    db_session.expire_all()
+
+    notification = (
+        db_session.query(Notification)
+        .filter(
+            Notification.user_id == reviewer.id,
+            Notification.event_type
+            == NotificationEventType.COMPLIANCE_CASE_UPDATED.value,
+            Notification.resource_type == "compliance_case",
+            Notification.resource_id == case["id"],
+        )
+        .order_by(Notification.created_at.desc())
+        .first()
+    )
+
+    assert notification is not None
+    assert notification.title == "Compliance case updated"
+    assert response.json()["data"]["status"] in notification.message
 
 
 def test_under_review_can_be_escalated(

@@ -11,8 +11,11 @@ from app.repositories.verification_case_assignment_repository import (
     VerificationCaseAssignmentRepository,
 )
 from app.services.audit_service import AuditService
+from app.services.notification_service import NotificationService
 from app.utils.enums import (
     AuditEventType,
+    NotificationChannel,
+    NotificationEventType,
     UserRole,
     UserStatus,
 )
@@ -25,10 +28,9 @@ from app.utils.errors import (
 class VerificationCaseAssignmentService:
     def __init__(self, db: Session) -> None:
         self.db = db
-
         self.repository = VerificationCaseAssignmentRepository(db)
-
         self.audit_service = AuditService(db)
+        self.notification_service = NotificationService(db)
 
     def assign_case(
         self,
@@ -104,6 +106,16 @@ class VerificationCaseAssignmentService:
             resource_id=case.id,
             ip_address=ip_address,
             user_agent=user_agent,
+        )
+
+        self.notification_service.create_notification(
+            user_id=case.assigned_to,
+            title="Verification case assigned",
+            message=(f"Verification case {case.id} has been assigned."),
+            event_type=NotificationEventType.VERIFICATION_CASE_ASSIGNED,
+            resource_type="verification_case",
+            resource_id=case.id,
+            channels=(NotificationChannel.IN_APP,),
         )
 
         self.db.commit()

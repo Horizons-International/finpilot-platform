@@ -1,8 +1,14 @@
 import uuid
 
+from app.models.notification import Notification
 from app.models.verification_case import IdentityVerificationCase
 from app.models.verification_review import VerificationReview
-from app.utils.enums import ReviewDecision, UserRole, VerificationStatus
+from app.utils.enums import (
+    NotificationEventType,
+    ReviewDecision,
+    UserRole,
+    VerificationStatus,
+)
 from tests.helpers import (
     authenticate_client,
     initiate_verification,
@@ -113,6 +119,7 @@ def test_assigned_reviewer_can_approve_verification_case(
     db_session,
     create_test_user,
     cleanup_test_customers,
+    cleanup_notifications,
 ):
     customer_id, case_id, reviewer = create_assigned_review_case(
         client,
@@ -153,12 +160,28 @@ def test_assigned_reviewer_can_approve_verification_case(
     assert case.status == VerificationStatus.APPROVED
     assert case.completed_at is not None
 
+    notification = (
+        db_session.query(Notification)
+        .filter(
+            Notification.user_id == reviewer.id,
+            Notification.event_type == NotificationEventType.VERIFICATION_COMPLETED,
+            Notification.resource_type == "verification_case",
+            Notification.resource_id == case_id,
+        )
+        .order_by(Notification.created_at.desc())
+        .first()
+    )
+
+    assert notification is not None
+    assert notification.title == "Verification completed"
+
 
 def test_assigned_reviewer_can_reject_verification_case(
     client,
     db_session,
     create_test_user,
     cleanup_test_customers,
+    cleanup_notifications,
 ):
     customer_id, case_id, reviewer = create_assigned_review_case(
         client,
@@ -198,6 +221,21 @@ def test_assigned_reviewer_can_reject_verification_case(
     assert case is not None
     assert case.status == VerificationStatus.REJECTED
     assert case.completed_at is not None
+
+    notification = (
+        db_session.query(Notification)
+        .filter(
+            Notification.user_id == reviewer.id,
+            Notification.event_type == NotificationEventType.VERIFICATION_COMPLETED,
+            Notification.resource_type == "verification_case",
+            Notification.resource_id == case_id,
+        )
+        .order_by(Notification.created_at.desc())
+        .first()
+    )
+
+    assert notification is not None
+    assert notification.title == "Verification completed"
 
 
 def test_assigned_reviewer_can_request_more_information(

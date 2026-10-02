@@ -10,11 +10,13 @@ from app.models.document_extraction import DocumentExtraction
 from app.models.document_extraction_review_log import (
     DocumentExtractionReviewLog,
 )
+from app.models.notification import Notification
 from app.models.ocr_result import OCRResult
 from app.utils.enums import (
     AuditEventType,
     ExtractionReviewStatus,
     ExtractionStatus,
+    NotificationEventType,
     OCRProcessingStatus,
     UserRole,
 )
@@ -968,6 +970,22 @@ def test_reject_document_review_stores_reason(
     assert body["data"]["reviewed_by"] == str(reviewer.id)
     assert body["data"]["reviewed_at"] is not None
     assert body["data"]["rejection_reason"] == reason
+
+    db_session.expire_all()
+
+    notification = (
+        db_session.query(Notification)
+        .filter(
+            Notification.event_type == NotificationEventType.DOCUMENT_REJECTED.value,
+            Notification.resource_type == "document",
+            Notification.resource_id == document_id,
+        )
+        .order_by(Notification.created_at.desc())
+        .first()
+    )
+
+    assert notification is not None
+    assert notification.status.value == "UNREAD"
 
 
 def test_reject_document_review_does_not_update_customer(

@@ -2,10 +2,12 @@ import uuid
 from typing import Any
 
 from app.models.audit_log import AuditLog
+from app.models.notification import Notification
 from app.models.task import Task
 from app.models.user import User
 from app.utils.enums import (
     AuditEventType,
+    NotificationEventType,
     TaskAssignmentStrategy,
     TaskStatus,
     UserRole,
@@ -409,6 +411,7 @@ def test_task_is_automatically_assigned_by_active_rule(
     cleanup_tasks,
     cleanup_workflow_executions,
     cleanup_workflows,
+    cleanup_notifications,
 ):
     admin = create_test_user(
         email=f"assignment-auto-admin-{uuid.uuid4()}@example.com",
@@ -458,6 +461,22 @@ def test_task_is_automatically_assigned_by_active_rule(
     assert task["assigned_to"] == str(reviewer.id)
     assert task["assignment_rule_id"] == rule["id"]
     assert task["status"] == TaskStatus.ASSIGNED.value
+
+    notification = (
+        db_session.query(Notification)
+        .filter(
+            Notification.user_id == reviewer.id,
+            Notification.event_type == NotificationEventType.TASK_ASSIGNED,
+            Notification.resource_type == "task",
+            Notification.resource_id == task["id"],
+        )
+        .order_by(Notification.created_at.desc())
+        .first()
+    )
+
+    assert notification is not None
+    assert notification.title == "New task assigned"
+    assert "automatically assigned" in notification.message
 
 
 def test_assignment_uses_country_condition(

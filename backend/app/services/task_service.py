@@ -17,12 +17,15 @@ from app.schemas.task import (
     TaskUpdate,
 )
 from app.services.audit_service import AuditService
+from app.services.notification_service import NotificationService
 from app.services.task_assignment_service import (
     TaskAssignmentService,
 )
 from app.utils.date_time import utc_now
 from app.utils.enums import (
     AuditEventType,
+    NotificationChannel,
+    NotificationEventType,
     TaskPriority,
     TaskStatus,
     UserRole,
@@ -62,6 +65,7 @@ class TaskService:
         self.repository = TaskRepository(db)
         self.audit_service = AuditService(db)
         self.assignment_service = TaskAssignmentService(db)
+        self.notification_service = NotificationService(db)
 
     # ------------------------------------------------------------------
     # Validation helpers
@@ -286,6 +290,16 @@ class TaskService:
                 user_agent=user_agent,
                 resource_type="task",
                 resource_id=task.id,
+            )
+
+            self.notification_service.create_notification(
+                user_id=data.assigned_to,
+                title="New task assigned",
+                message=(f'The task "{task.title}" has been assigned to you.'),
+                event_type=NotificationEventType.TASK_ASSIGNED,
+                resource_type="task",
+                resource_id=task.id,
+                channels=(NotificationChannel.IN_APP,),
             )
         elif (
             data.workflow_execution_id is not None
@@ -563,6 +577,16 @@ class TaskService:
             )
 
         task.assigned_to = assigned_user.id
+
+        self.notification_service.create_notification(
+            user_id=assigned_user.id,
+            title="New task assigned",
+            message=(f'The task "{task.title}" has been assigned to you.'),
+            event_type=NotificationEventType.TASK_ASSIGNED,
+            resource_type="task",
+            resource_id=task.id,
+            channels=(NotificationChannel.IN_APP,),
+        )
 
         if task.status == TaskStatus.NEW:
             old_status = task.status

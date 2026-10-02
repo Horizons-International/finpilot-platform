@@ -17,9 +17,12 @@ from app.repositories.task_assignment_rule_repository import (
     TaskAssignmentRuleRepository,
 )
 from app.services.audit_service import AuditService
+from app.services.notification_service import NotificationService
 from app.utils.date_time import utc_now
 from app.utils.enums import (
     AuditEventType,
+    NotificationChannel,
+    NotificationEventType,
     TaskAssignmentStrategy,
     TaskStatus,
     UserRole,
@@ -42,6 +45,7 @@ class TaskAssignmentService:
         self.db = db
         self.repository = TaskAssignmentRuleRepository(db)
         self.audit_service = AuditService(db)
+        self.notification_service = NotificationService(db)
 
     # ------------------------------------------------------------------
     # Rule management
@@ -444,6 +448,18 @@ class TaskAssignmentService:
                 )
 
                 self.db.add(history)
+
+            self.notification_service.create_notification(
+                user_id=selected_user.id,
+                title="New task assigned",
+                message=(
+                    f'The task "{task.title}" has been automatically assigned to you.'
+                ),
+                event_type=NotificationEventType.TASK_ASSIGNED,
+                resource_type="task",
+                resource_id=task.id,
+                channels=(NotificationChannel.IN_APP,),
+            )
 
             self.db.flush()
 

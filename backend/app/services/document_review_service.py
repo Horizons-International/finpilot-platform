@@ -14,10 +14,13 @@ from app.services.customer_service import CustomerService
 from app.services.document_extraction_review_log_service import (
     DocumentExtractionReviewLogService,
 )
+from app.services.notification_service import NotificationService
 from app.utils.enums import (
     AuditEventType,
     ExtractionReviewStatus,
     ExtractionStatus,
+    NotificationChannel,
+    NotificationEventType,
     OCRProcessingStatus,
 )
 from app.utils.errors import bad_request, not_found
@@ -29,6 +32,7 @@ class DocumentReviewService:
         self.audit_service = AuditService(db)
         self.review_log_service = DocumentExtractionReviewLogService(db)
         self.customer_service = CustomerService(db)
+        self.notification_service = NotificationService(db)
 
     def get_review(
         self,
@@ -245,7 +249,7 @@ class DocumentReviewService:
         user_agent: str | None = None,
     ) -> DocumentExtraction:
         (
-            _document,
+            document,
             _ocr_result,
             extraction,
             _customer,
@@ -262,6 +266,19 @@ class DocumentReviewService:
         extraction.reviewed_by = reviewer_id
         extraction.reviewed_at = datetime.now(timezone.utc)
         extraction.rejection_reason = normalized_reason
+
+        self.notification_service.create_notification(
+            user_id=document.uploaded_by,
+            title="Document rejected",
+            message=(
+                f'Document "{document.file_name}" was rejected. '
+                f"Reason: {normalized_reason}"
+            ),
+            event_type=NotificationEventType.DOCUMENT_REJECTED,
+            resource_type="document",
+            resource_id=document.id,
+            channels=(NotificationChannel.IN_APP,),
+        )
 
         self.db.flush()
 

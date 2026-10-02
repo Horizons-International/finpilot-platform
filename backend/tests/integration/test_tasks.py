@@ -1,6 +1,5 @@
-from app.utils.enums import (
-    UserRole,
-)
+from app.models.notification import Notification
+from app.utils.enums import NotificationEventType, UserRole
 from tests.helpers import authenticate_client, create_customer_with_data
 
 
@@ -41,8 +40,10 @@ def test_task_can_be_created(
 
 def test_task_can_be_created_assigned(
     client,
+    db_session,
     create_test_user,
     cleanup_tasks,
+    cleanup_notifications,
 ):
     admin = create_test_user(
         email="task-created-assigned-admin@example.com",
@@ -75,11 +76,32 @@ def test_task_can_be_created_assigned(
     assert data["assigned_to"] == str(reviewer.id)
     assert data["status"] == "ASSIGNED"
 
+    task_id = data["id"]
+
+    notification = (
+        db_session.query(Notification)
+        .filter(
+            Notification.user_id == reviewer.id,
+            Notification.event_type == NotificationEventType.TASK_ASSIGNED,
+            Notification.resource_type == "task",
+            Notification.resource_id == task_id,
+        )
+        .order_by(Notification.created_at.desc())
+        .first()
+    )
+
+    assert notification is not None
+    assert notification.title == "New task assigned"
+    assert notification.status.value == "UNREAD"
+    assert notification.read_at is None
+
 
 def test_task_can_be_assigned(
     client,
+    db_session,
     create_test_user,
     cleanup_tasks,
+    cleanup_notifications,
 ):
     admin = create_test_user(
         email="task-assign-admin@example.com",
@@ -116,10 +138,23 @@ def test_task_can_be_assigned(
 
     assert response.status_code == 200
 
-    data = response.json()["data"]
+    notification = (
+        db_session.query(Notification)
+        .filter(
+            Notification.user_id == reviewer.id,
+            Notification.event_type == NotificationEventType.TASK_ASSIGNED,
+            Notification.resource_type == "task",
+            Notification.resource_id == task_id,
+        )
+        .order_by(Notification.created_at.desc())
+        .first()
+    )
 
-    assert data["assigned_to"] == str(reviewer.id)
-    assert data["status"] == "ASSIGNED"
+    assert notification is not None
+    assert notification.title == "New task assigned"
+    assert notification.message == (
+        'The task "Assign this task" has been assigned to you.'
+    )
 
 
 def test_user_can_see_their_tasks(
