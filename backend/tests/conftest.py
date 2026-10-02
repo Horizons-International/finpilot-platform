@@ -34,6 +34,11 @@ from app.models.investigation_note import InvestigationNote
 from app.models.knowledge_document import KnowledgeDocument
 from app.models.risk_score_threshold import RiskScoreThreshold
 from app.models.risk_scoring_rule import RiskScoringRule
+from app.models.task import (
+    Task,
+    TaskComment,
+    TaskStatusHistory,
+)
 from app.models.transaction_monitoring_result import TransactionMonitoringResult
 from app.models.user import User
 from app.models.verification_case import IdentityVerificationCase
@@ -701,6 +706,38 @@ def cleanup_workflow_executions(db_session):
                 new_execution_ids,
             )
         ).delete(
+            synchronize_session=False,
+        )
+
+    db_session.commit()
+
+
+@pytest.fixture
+def cleanup_tasks(db_session):
+    existing_task_ids = {task.id for task in db_session.query(Task).all()}
+
+    yield
+
+    current_tasks = db_session.query(Task).all()
+
+    new_task_ids = [
+        task.id for task in current_tasks if task.id not in existing_task_ids
+    ]
+
+    if new_task_ids:
+        db_session.query(TaskComment).filter(
+            TaskComment.task_id.in_(new_task_ids)
+        ).delete(
+            synchronize_session=False,
+        )
+
+        db_session.query(TaskStatusHistory).filter(
+            TaskStatusHistory.task_id.in_(new_task_ids)
+        ).delete(
+            synchronize_session=False,
+        )
+
+        db_session.query(Task).filter(Task.id.in_(new_task_ids)).delete(
             synchronize_session=False,
         )
 

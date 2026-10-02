@@ -22,6 +22,11 @@ from app.models.knowledge_document_chunk import (
 )
 from app.models.risk_score_threshold import RiskScoreThreshold  # noqa: F401
 from app.models.risk_scoring_rule import RiskScoringRule  # noqa: F401
+from app.models.task import (
+    Task,  # noqa: F401
+    TaskComment,  # noqa: F401
+    TaskStatusHistory,  # noqa: F401
+)
 from app.models.transaction_monitoring_result import (
     TransactionMonitoringResult,  # noqa: F401
 )

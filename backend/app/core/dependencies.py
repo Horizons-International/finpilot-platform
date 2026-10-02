@@ -21,6 +21,7 @@ from app.services.knowledge_document_service import (
 )
 from app.services.knowledge_indexing_service import KnowledgeIndexingService
 from app.services.risk_scoring_service import RiskScoringService
+from app.services.task_service import TaskService
 from app.services.verification_review_service import VerificationReviewService
 from app.services.verification_service import VerificationService
 from app.services.workflow_service import WorkflowService
@@ -143,3 +144,9 @@ def get_customer_onboarding_service(
         db=db,
         workflow_service=workflow_service,
     )
+
+
+def get_task_service(
+    db: Session = Depends(get_db),
+) -> TaskService:
+    return TaskService(db)
