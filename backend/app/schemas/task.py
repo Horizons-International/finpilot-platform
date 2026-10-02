@@ -94,6 +94,7 @@ class TaskResponse(BaseModel):
     title: str
     description: str | None
     assigned_to: UUID | None
+    assignment_rule_id: UUID | None
     priority: TaskPriority
     status: TaskStatus
     due_date: datetime | None

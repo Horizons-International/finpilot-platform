@@ -17,6 +17,9 @@ from app.schemas.task import (
     TaskUpdate,
 )
 from app.services.audit_service import AuditService
+from app.services.task_assignment_service import (
+    TaskAssignmentService,
+)
 from app.utils.date_time import utc_now
 from app.utils.enums import (
     AuditEventType,
@@ -58,6 +61,7 @@ class TaskService:
         self.db = db
         self.repository = TaskRepository(db)
         self.audit_service = AuditService(db)
+        self.assignment_service = TaskAssignmentService(db)
 
     # ------------------------------------------------------------------
     # Validation helpers
@@ -251,6 +255,7 @@ class TaskService:
             due_date=data.due_date,
             workflow_execution_id=data.workflow_execution_id,
             workflow_step_execution_id=data.workflow_step_execution_id,
+            assignment_rule_id=None,
         )
 
         self.repository.create(task)
@@ -281,6 +286,17 @@ class TaskService:
                 user_agent=user_agent,
                 resource_type="task",
                 resource_id=task.id,
+            )
+        elif (
+            data.workflow_execution_id is not None
+            and data.workflow_step_execution_id is not None
+        ):
+            self.assignment_service.apply_to_task(
+                task,
+                user_id=user_id,
+                email=email,
+                ip_address=ip_address,
+                user_agent=user_agent,
             )
 
         if data.priority != TaskPriority.MEDIUM:

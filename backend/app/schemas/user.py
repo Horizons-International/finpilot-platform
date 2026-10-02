@@ -31,6 +31,10 @@ class UserCreate(NameFieldValidatorMixin, EmailFieldValidatorMixin, BaseModel):
         max_length=128,
     )
     role: UserRole
+    department: str | None = Field(
+        default=None,
+        max_length=100,
+    )
 
 
 class UserUpdate(NameFieldValidatorMixin, EmailFieldValidatorMixin, BaseModel):
@@ -46,6 +50,10 @@ class UserUpdate(NameFieldValidatorMixin, EmailFieldValidatorMixin, BaseModel):
     )
     email: EmailStr | None = None
     role: UserRole | None = None
+    department: str | None = Field(
+        default=None,
+        max_length=100,
+    )
 
 
 class UserStatusUpdate(BaseModel):
@@ -61,6 +69,7 @@ class UserResponse(BaseModel):
     email: EmailStr
     status: UserStatus
     role: UserRole
+    department: str | None
     is_deleted: bool
     created_at: datetime
     updated_at: datetime
