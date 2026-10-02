@@ -359,3 +359,31 @@ class TaskPriority(str, Enum):
 
 class TaskAssignmentStrategy(str, Enum):
     LEAST_LOADED = "LEAST_LOADED"
+
+
+class NotificationStatus(str, Enum):
+    UNREAD = "UNREAD"
+    READ = "READ"
+
+
+class NotificationChannel(str, Enum):
+    IN_APP = "IN_APP"
+    EMAIL = "EMAIL"
+    SMS = "SMS"
+    PUSH = "PUSH"
+
+
+class NotificationDeliveryStatus(str, Enum):
+    PENDING = "PENDING"
+    SENT = "SENT"
+    DELIVERED = "DELIVERED"
+    FAILED = "FAILED"
+
+
+class NotificationEventType(str, Enum):
+    TASK_ASSIGNED = "TASK_ASSIGNED"
+    VERIFICATION_COMPLETED = "VERIFICATION_COMPLETED"
+    DOCUMENT_REJECTED = "DOCUMENT_REJECTED"
+    COMPLIANCE_CASE_UPDATED = "COMPLIANCE_CASE_UPDATED"
+    COMPLIANCE_CASE_ASSIGNED = "COMPLIANCE_CASE_ASSIGNED"
+    VERIFICATION_CASE_ASSIGNED = "VERIFICATION_CASE_ASSIGNED"

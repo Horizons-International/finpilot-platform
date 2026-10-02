@@ -20,6 +20,10 @@ from app.models.knowledge_document import KnowledgeDocument  # noqa: F401
 from app.models.knowledge_document_chunk import (
     KnowledgeDocumentChunk,  # noqa: F401
 )
+from app.models.notification import (
+    Notification,  # noqa: F401
+    NotificationDelivery,  # noqa: F401
+)
 from app.models.risk_score_threshold import RiskScoreThreshold  # noqa: F401
 from app.models.risk_scoring_rule import RiskScoringRule  # noqa: F401
 from app.models.task import (

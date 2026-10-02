@@ -18,11 +18,14 @@ from app.schemas.compliance_case import (
 )
 from app.services.audit_service import AuditService
 from app.services.compliance_workflow import compliance_workflow_validator
+from app.services.notification_service import NotificationService
 from app.utils.date_time import utc_now
 from app.utils.enums import (
     AuditEventType,
     ComplianceCaseStatus,
     ComplianceCaseType,
+    NotificationChannel,
+    NotificationEventType,
     UserRole,
 )
 from app.utils.errors import bad_request, not_found
@@ -31,12 +34,10 @@ from app.utils.errors import bad_request, not_found
 class ComplianceService:
     def __init__(self, db: Session) -> None:
         self.db = db
-
         self.repository = ComplianceCaseRepository(db)
-
         self.history_repository = ComplianceCaseHistoryRepository(db)
-
         self.audit_service = AuditService(db)
+        self.notification_service = NotificationService(db)
 
     # ------------------------------------------------------------------
     # Existing CRUD operations
@@ -186,6 +187,17 @@ class ComplianceService:
             resource_id=case.id,
         )
 
+        if case.assigned_to is not None:
+            self.notification_service.create_notification(
+                user_id=case.assigned_to,
+                title="Compliance case updated",
+                message=(f"Compliance case {case.id} has been updated."),
+                event_type=NotificationEventType.COMPLIANCE_CASE_UPDATED,
+                resource_type="compliance_case",
+                resource_id=case.id,
+                channels=(NotificationChannel.IN_APP,),
+            )
+
         self.db.commit()
         self.db.refresh(case)
 
@@ -250,6 +262,16 @@ class ComplianceService:
             user_agent=user_agent,
             resource_type="compliance_case",
             resource_id=case.id,
+        )
+
+        self.notification_service.create_notification(
+            user_id=assigned_to,
+            title="Compliance case assigned",
+            message=(f"Compliance case {case.id} has been assigned to you."),
+            event_type=NotificationEventType.COMPLIANCE_CASE_ASSIGNED,
+            resource_type="compliance_case",
+            resource_id=case.id,
+            channels=(NotificationChannel.IN_APP,),
         )
 
         self.db.commit()
@@ -325,6 +347,19 @@ class ComplianceService:
             resource_type="compliance_case",
             resource_id=case.id,
         )
+
+        if case.assigned_to is not None:
+            self.notification_service.create_notification(
+                user_id=case.assigned_to,
+                title="Compliance case updated",
+                message=(
+                    f"Your compliance case has been updated to {new_status.value}."
+                ),
+                event_type=NotificationEventType.COMPLIANCE_CASE_UPDATED,
+                resource_type="compliance_case",
+                resource_id=case.id,
+                channels=(NotificationChannel.IN_APP,),
+            )
 
         self.db.commit()
         self.db.refresh(case)

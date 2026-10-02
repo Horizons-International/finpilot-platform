@@ -1,6 +1,7 @@
 import uuid
 
 from app.models.audit_log import AuditLog
+from app.models.notification import Notification
 from app.providers.schemas import (
     VerificationRequest,
     VerificationResponse,
@@ -9,6 +10,7 @@ from app.providers.verification_provider import VerificationProvider
 from app.services.verification_service import VerificationService
 from app.utils.enums import (
     AuditEventType,
+    NotificationEventType,
     UserRole,
     VerificationStatus,
     VerificationType,
@@ -513,12 +515,20 @@ def test_pending_can_transition_to_under_review(
 
 def test_under_review_can_transition_to_approved(
     client,
+    db_session,
     create_test_user,
     cleanup_test_customers,
+    cleanup_verification_case_assignments,
+    cleanup_notifications,
 ):
     admin = create_test_user(
         email="workflow-approved-admin@example.com",
         role=UserRole.ADMINISTRATOR,
+    )
+
+    reviewer = create_test_user(
+        email=f"first-reviewer-{uuid.uuid4()}@example.com",
+        role=UserRole.REVIEWER,
     )
 
     authenticate_client(client, admin)
@@ -545,6 +555,15 @@ def test_under_review_can_transition_to_approved(
         json={"status": "UNDER_REVIEW"},
     )
 
+    first_response = client.patch(
+        f"/api/v1/customers/{customer_id}/verification-cases/{case_id}/assignment",
+        json={
+            "assigned_to": str(reviewer.id),
+        },
+    )
+
+    assert first_response.status_code == 200
+
     response = client.patch(
         f"/api/v1/customers/{customer_id}/verification-cases/{case_id}/status",
         json={
@@ -559,15 +578,40 @@ def test_under_review_can_transition_to_approved(
     assert data["status"] == "APPROVED"
     assert data["completed_at"] is not None
 
+    db_session.expire_all()
+
+    notification = (
+        db_session.query(Notification)
+        .filter(
+            Notification.event_type
+            == NotificationEventType.VERIFICATION_COMPLETED.value,
+            Notification.resource_type == "verification_case",
+            Notification.resource_id == case_id,
+        )
+        .order_by(Notification.created_at.desc())
+        .first()
+    )
+
+    assert notification is not None
+    assert notification.status.value == "UNREAD"
+
 
 def test_under_review_can_transition_to_rejected(
     client,
+    db_session,
     create_test_user,
     cleanup_test_customers,
+    cleanup_verification_case_assignments,
+    cleanup_notifications,
 ):
     admin = create_test_user(
         email="workflow-rejected-admin@example.com",
         role=UserRole.ADMINISTRATOR,
+    )
+
+    reviewer = create_test_user(
+        email=f"first-reviewer-{uuid.uuid4()}@example.com",
+        role=UserRole.REVIEWER,
     )
 
     authenticate_client(client, admin)
@@ -594,6 +638,15 @@ def test_under_review_can_transition_to_rejected(
         json={"status": "UNDER_REVIEW"},
     )
 
+    first_response = client.patch(
+        f"/api/v1/customers/{customer_id}/verification-cases/{case_id}/assignment",
+        json={
+            "assigned_to": str(reviewer.id),
+        },
+    )
+
+    assert first_response.status_code == 200
+
     response = client.patch(
         f"/api/v1/customers/{customer_id}/verification-cases/{case_id}/status",
         json={
@@ -607,6 +660,23 @@ def test_under_review_can_transition_to_rejected(
 
     assert data["status"] == "REJECTED"
     assert data["completed_at"] is not None
+
+    db_session.expire_all()
+
+    notification = (
+        db_session.query(Notification)
+        .filter(
+            Notification.event_type
+            == NotificationEventType.VERIFICATION_COMPLETED.value,
+            Notification.resource_type == "verification_case",
+            Notification.resource_id == case_id,
+        )
+        .order_by(Notification.created_at.desc())
+        .first()
+    )
+
+    assert notification is not None
+    assert notification.status.value == "UNREAD"
 
 
 def test_invalid_verification_status_transition_is_rejected(

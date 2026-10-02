@@ -21,9 +21,15 @@ from app.schemas.verification_case import (
 )
 from app.services.audit_service import AuditService
 from app.services.customer_audit_log_service import CustomerAuditLogService
+from app.services.notification_service import NotificationService
 from app.services.workflow_validation_service import WorkflowValidationService
 from app.utils.date_time import utc_now
-from app.utils.enums import AuditEventType, VerificationStatus
+from app.utils.enums import (
+    AuditEventType,
+    NotificationChannel,
+    NotificationEventType,
+    VerificationStatus,
+)
 from app.utils.errors import bad_request, not_found
 
 VERIFICATION_STATUS_TRANSITIONS: dict[
@@ -60,6 +66,7 @@ class VerificationService:
         self.workflow_validation_service = WorkflowValidationService(
             VERIFICATION_STATUS_TRANSITIONS
         )
+        self.notification_service = NotificationService(db)
 
     def create_case(
         self,
@@ -165,6 +172,26 @@ class VerificationService:
             VerificationStatus.REJECTED,
         }:
             case.completed_at = utc_now()
+
+            if (
+                new_status
+                in {
+                    VerificationStatus.APPROVED,
+                    VerificationStatus.REJECTED,
+                }
+                and case.assigned_to is not None
+            ):
+                self.notification_service.create_notification(
+                    user_id=case.assigned_to,
+                    title="Verification completed",
+                    message=(
+                        f"Your verification case has been {new_status.value.lower()}."
+                    ),
+                    event_type=NotificationEventType.VERIFICATION_COMPLETED,
+                    resource_type="verification_case",
+                    resource_id=case.id,
+                    channels=(NotificationChannel.IN_APP,),
+                )
 
         case = self.repository.update(case)
 

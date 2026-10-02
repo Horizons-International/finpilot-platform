@@ -34,6 +34,7 @@ from app.api.investigation_notes import (
 from app.api.knowledge_documents import (
     router as knowledge_documents_router,
 )
+from app.api.notifications import router as notifications_router
 from app.api.ocr import router as ocr_router
 from app.api.profile import router as profile_router
 from app.api.rag import router as rag_router
@@ -125,6 +126,7 @@ app.include_router(
 )
 app.include_router(customer_onboarding_router)
 app.include_router(workflows_router)
+app.include_router(notifications_router)
 app.include_router(customer_contacts_router)
 app.include_router(customer_addresses_router)
 app.include_router(customer_risk_profiles_router)

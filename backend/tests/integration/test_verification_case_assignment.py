@@ -2,12 +2,14 @@ import time
 import uuid
 
 from app.models.audit_log import AuditLog
+from app.models.notification import Notification
 from app.models.verification_case import IdentityVerificationCase
 from app.models.verification_case_assignment_history import (
     VerificationCaseAssignmentHistory,
 )
 from app.utils.enums import (
     AuditEventType,
+    NotificationEventType,
     UserRole,
 )
 from tests.helpers import (
@@ -23,6 +25,7 @@ def test_manager_can_assign_case_to_reviewer(
     create_test_user,
     cleanup_test_customers,
     cleanup_verification_case_assignments,
+    cleanup_notifications,
 ):
     manager = create_test_user(
         email=f"assignment-manager-{uuid.uuid4()}@example.com",
@@ -84,6 +87,23 @@ def test_manager_can_assign_case_to_reviewer(
     assert saved_case.assigned_at is not None
     assert saved_case.assigned_by == manager.id
 
+    db_session.expire_all()
+
+    notification = (
+        db_session.query(Notification)
+        .filter(
+            Notification.user_id == reviewer.id,
+            Notification.event_type
+            == NotificationEventType.VERIFICATION_CASE_ASSIGNED.value,
+            Notification.resource_type == "verification_case",
+            Notification.resource_id == case_id,
+        )
+        .first()
+    )
+
+    assert notification is not None
+    assert notification.status.value == "UNREAD"
+
     history = (
         db_session.query(VerificationCaseAssignmentHistory)
         .filter(
@@ -104,6 +124,7 @@ def test_manager_can_reassign_case(
     create_test_user,
     cleanup_test_customers,
     cleanup_verification_case_assignments,
+    cleanup_notifications,
 ):
     admin = create_test_user(
         email=f"reassign-admin-{uuid.uuid4()}@example.com",
@@ -180,6 +201,20 @@ def test_manager_can_reassign_case(
 
     assert saved_case is not None
     assert saved_case.assigned_to == second_reviewer.id
+
+    notification = (
+        db_session.query(Notification)
+        .filter(
+            Notification.user_id == second_reviewer.id,
+            Notification.event_type == NotificationEventType.VERIFICATION_CASE_ASSIGNED,
+            Notification.resource_type == "verification_case",
+            Notification.resource_id == case_id,
+        )
+        .order_by(Notification.created_at.desc())
+        .first()
+    )
+
+    assert notification is not None
 
     history = (
         db_session.query(VerificationCaseAssignmentHistory)

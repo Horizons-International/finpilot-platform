@@ -12,8 +12,14 @@ from app.repositories.verification_review_repository import (
 )
 from app.services.audit_service import AuditService
 from app.services.customer_audit_log_service import CustomerAuditLogService
+from app.services.notification_service import NotificationService
 from app.utils.date_time import utc_now
-from app.utils.enums import ReviewDecision, VerificationStatus
+from app.utils.enums import (
+    NotificationChannel,
+    NotificationEventType,
+    ReviewDecision,
+    VerificationStatus,
+)
 from app.utils.errors import bad_request, not_found
 
 
@@ -24,6 +30,7 @@ class VerificationReviewService:
         self.customer_audit_log_service = CustomerAuditLogService(db)
         self.review_repository = VerificationReviewRepository(db)
         self.audit_service = AuditService(db)
+        self.notification_service = NotificationService(db)
 
     def start_review(
         self,
@@ -170,6 +177,18 @@ class VerificationReviewService:
                     "decision": decision.value,
                     "notes": notes,
                 },
+            )
+
+            self.notification_service.create_notification(
+                user_id=reviewer_id,
+                title="Verification completed",
+                message=(
+                    f"Your verification case has been {new_status.value.lower()}."
+                ),
+                event_type=NotificationEventType.VERIFICATION_COMPLETED,
+                resource_type="verification_case",
+                resource_id=case.id,
+                channels=(NotificationChannel.IN_APP,),
             )
 
             self.db.commit()

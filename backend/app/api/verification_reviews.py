@@ -37,7 +37,7 @@ def start_review(
     current_user: dict[str, Any] = Depends(
         require_roles(
             UserRole.REVIEWER,
-            resource_type="verification_review",
+            resource_type="verification_case",
         )
     ),
     service: VerificationReviewService = Depends(get_verification_review_service),
@@ -75,7 +75,7 @@ def create_review(
     current_user: dict[str, Any] = Depends(
         require_roles(
             UserRole.REVIEWER,
-            resource_type="verification_review",
+            resource_type="verification_case",
         )
     ),
     service: VerificationReviewService = Depends(get_verification_review_service),

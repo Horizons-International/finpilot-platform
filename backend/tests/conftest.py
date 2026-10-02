@@ -32,6 +32,10 @@ from app.models.document import CustomerDocument
 from app.models.file import File
 from app.models.investigation_note import InvestigationNote
 from app.models.knowledge_document import KnowledgeDocument
+from app.models.notification import (
+    Notification,
+    NotificationDelivery,
+)
 from app.models.risk_score_threshold import RiskScoreThreshold
 from app.models.risk_scoring_rule import RiskScoringRule
 from app.models.task import (
@@ -773,6 +777,38 @@ def cleanup_task_assignment_rules(db_session):
             TaskAssignmentRule.id.in_(
                 new_rule_ids,
             )
+        ).delete(
+            synchronize_session=False,
+        )
+
+    db_session.commit()
+
+
+@pytest.fixture
+def cleanup_notifications(db_session):
+    existing_notification_ids = {
+        notification.id for notification in db_session.query(Notification).all()
+    }
+
+    yield
+
+    current_notifications = db_session.query(Notification).all()
+
+    new_notification_ids = [
+        notification.id
+        for notification in current_notifications
+        if notification.id not in existing_notification_ids
+    ]
+
+    if new_notification_ids:
+        db_session.query(NotificationDelivery).filter(
+            NotificationDelivery.notification_id.in_(new_notification_ids)
+        ).delete(
+            synchronize_session=False,
+        )
+
+        db_session.query(Notification).filter(
+            Notification.id.in_(new_notification_ids)
         ).delete(
             synchronize_session=False,
         )
