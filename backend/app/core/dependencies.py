@@ -21,6 +21,9 @@ from app.services.knowledge_document_service import (
 )
 from app.services.knowledge_indexing_service import KnowledgeIndexingService
 from app.services.risk_scoring_service import RiskScoringService
+from app.services.task_assignment_service import (
+    TaskAssignmentService,
+)
 from app.services.task_service import TaskService
 from app.services.verification_review_service import VerificationReviewService
 from app.services.verification_service import VerificationService
@@ -150,3 +153,9 @@ def get_task_service(
     db: Session = Depends(get_db),
 ) -> TaskService:
     return TaskService(db)
+
+
+def get_task_assignment_service(
+    db: Session = Depends(get_db),
+) -> TaskAssignmentService:
+    return TaskAssignmentService(db)

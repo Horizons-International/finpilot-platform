@@ -40,6 +40,9 @@ from app.api.rag import router as rag_router
 from app.api.reports import router as reports_router
 from app.api.risk_scoring import router as risk_scoring_router
 from app.api.risk_scoring_rules import router as risk_scoring_rules_router
+from app.api.task_assignment_rules import (
+    router as task_assignment_rules_router,
+)
 from app.api.tasks import router as tasks_router
 from app.api.transaction_monitoring import (
     router as transaction_monitoring_router,
@@ -117,6 +120,9 @@ app.include_router(compliance_cases_router)
 app.include_router(files_router)
 app.include_router(customer_router)
 app.include_router(tasks_router)
+app.include_router(
+    task_assignment_rules_router,
+)
 app.include_router(customer_onboarding_router)
 app.include_router(workflows_router)
 app.include_router(customer_contacts_router)

@@ -27,6 +27,9 @@ from app.models.task import (
     TaskComment,  # noqa: F401
     TaskStatusHistory,  # noqa: F401
 )
+from app.models.task_assignment_rule import (
+    TaskAssignmentRule,  # noqa: F401
+)
 from app.models.transaction_monitoring_result import (
     TransactionMonitoringResult,  # noqa: F401
 )

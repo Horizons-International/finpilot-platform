@@ -40,6 +40,7 @@ def create_task(
             UserRole.ADMINISTRATOR,
             UserRole.COMPLIANCE_OFFICER,
             UserRole.REVIEWER,
+            resource_type="task",
         )
     ),
 ):
@@ -76,6 +77,7 @@ def list_tasks(
             UserRole.COMPLIANCE_OFFICER,
             UserRole.REVIEWER,
             UserRole.AUDITOR,
+            resource_type="task",
         )
     ),
 ):
@@ -112,6 +114,7 @@ def list_my_tasks(
             UserRole.COMPLIANCE_OFFICER,
             UserRole.REVIEWER,
             UserRole.AUDITOR,
+            resource_type="task",
         )
     ),
 ):
@@ -147,6 +150,7 @@ def get_task(
             UserRole.COMPLIANCE_OFFICER,
             UserRole.REVIEWER,
             UserRole.AUDITOR,
+            resource_type="task",
         )
     ),
 ):
@@ -177,6 +181,7 @@ def update_task(
             UserRole.ADMINISTRATOR,
             UserRole.COMPLIANCE_OFFICER,
             UserRole.REVIEWER,
+            resource_type="task",
         )
     ),
 ):
@@ -208,8 +213,7 @@ def assign_task(
     task_service: TaskService = Depends(get_task_service),
     current_user: dict[str, Any] = Depends(
         require_roles(
-            UserRole.ADMINISTRATOR,
-            UserRole.COMPLIANCE_OFFICER,
+            UserRole.ADMINISTRATOR, UserRole.COMPLIANCE_OFFICER, resource_type="task"
         )
     ),
 ):
@@ -244,6 +248,7 @@ def update_task_status(
             UserRole.ADMINISTRATOR,
             UserRole.COMPLIANCE_OFFICER,
             UserRole.REVIEWER,
+            resource_type="task",
         )
     ),
 ):
@@ -277,6 +282,7 @@ def complete_task(
             UserRole.ADMINISTRATOR,
             UserRole.COMPLIANCE_OFFICER,
             UserRole.REVIEWER,
+            resource_type="task",
         )
     ),
 ):
@@ -310,6 +316,7 @@ def add_comment(
             UserRole.ADMINISTRATOR,
             UserRole.COMPLIANCE_OFFICER,
             UserRole.REVIEWER,
+            resource_type="task",
         )
     ),
 ):
@@ -343,6 +350,7 @@ def get_comments(
             UserRole.COMPLIANCE_OFFICER,
             UserRole.REVIEWER,
             UserRole.AUDITOR,
+            resource_type="task",
         )
     ),
 ):

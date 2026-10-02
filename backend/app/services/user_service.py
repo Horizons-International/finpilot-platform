@@ -44,6 +44,7 @@ class UserService:
             password_hash=hash_password(user_data.password),
             status=UserStatus.ACTIVE,
             role=user_data.role,
+            department=(user_data.department.strip() if user_data.department else None),
             is_deleted=False,
         )
 
@@ -88,6 +89,11 @@ class UserService:
 
         if not update_data:
             return user
+
+        if "department" in update_data:
+            department = update_data["department"]
+
+            update_data["department"] = department.strip() if department else None
 
         changed_fields: list[tuple[str, object | None, object | None]] = []
 

@@ -39,6 +39,7 @@ from app.models.task import (
     TaskComment,
     TaskStatusHistory,
 )
+from app.models.task_assignment_rule import TaskAssignmentRule
 from app.models.transaction_monitoring_result import TransactionMonitoringResult
 from app.models.user import User
 from app.models.verification_case import IdentityVerificationCase
@@ -738,6 +739,41 @@ def cleanup_tasks(db_session):
         )
 
         db_session.query(Task).filter(Task.id.in_(new_task_ids)).delete(
+            synchronize_session=False,
+        )
+
+    db_session.commit()
+
+
+@pytest.fixture
+def cleanup_task_assignment_rules(db_session):
+    existing_rule_ids = {rule.id for rule in db_session.query(TaskAssignmentRule).all()}
+
+    yield
+
+    current_rules = db_session.query(TaskAssignmentRule).all()
+
+    new_rule_ids = [
+        rule.id for rule in current_rules if rule.id not in existing_rule_ids
+    ]
+
+    if new_rule_ids:
+        db_session.query(Task).filter(
+            Task.assignment_rule_id.in_(
+                new_rule_ids,
+            )
+        ).update(
+            {
+                Task.assignment_rule_id: None,
+            },
+            synchronize_session=False,
+        )
+
+        db_session.query(TaskAssignmentRule).filter(
+            TaskAssignmentRule.id.in_(
+                new_rule_ids,
+            )
+        ).delete(
             synchronize_session=False,
         )
 
