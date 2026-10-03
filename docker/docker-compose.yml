@@ -36,5 +36,24 @@ services:
     depends_on:
       - postgres
 
+  sla-monitor:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    container_name: sla-monitor
+    env_file:
+      - .env
+    command:
+      [
+        "uv",
+        "run",
+        "python",
+        "-m",
+        "app.jobs.sla_monitor"
+      ]
+    depends_on:
+      - postgres
+    restart: unless-stopped
+
 volumes:
   postgres_data:

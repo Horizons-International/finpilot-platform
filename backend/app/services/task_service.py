@@ -18,10 +18,11 @@ from app.schemas.task import (
 )
 from app.services.audit_service import AuditService
 from app.services.notification_service import NotificationService
+from app.services.sla_service import SLAService
 from app.services.task_assignment_service import (
     TaskAssignmentService,
 )
-from app.utils.date_time import utc_now
+from app.utils.date_time import to_utc, utc_now
 from app.utils.enums import (
     AuditEventType,
     NotificationChannel,
@@ -62,6 +63,7 @@ class TaskService:
         db: Session,
     ) -> None:
         self.db = db
+        self.sla_service = SLAService(db)
         self.repository = TaskRepository(db)
         self.audit_service = AuditService(db)
         self.assignment_service = TaskAssignmentService(db)
@@ -250,13 +252,25 @@ class TaskService:
             TaskStatus.ASSIGNED if data.assigned_to is not None else TaskStatus.NEW
         )
 
+        due_date = to_utc(data.due_date) if data.due_date is not None else None
+
+        now = utc_now()
+
+        initial_sla_status = SLAService.calculate_status(
+            created_at=now,
+            due_date=due_date,
+            now=now,
+        )
+
         task = Task(
             title=title,
             description=data.description,
             assigned_to=data.assigned_to,
             priority=data.priority,
             status=initial_status,
-            due_date=data.due_date,
+            due_date=due_date,
+            completed_at=None,
+            sla_status=initial_sla_status,
             workflow_execution_id=data.workflow_execution_id,
             workflow_step_execution_id=data.workflow_step_execution_id,
             assignment_rule_id=None,
@@ -492,8 +506,19 @@ class TaskService:
                 priority_changed = True
 
         if "due_date" in update_data:
-            if update_data["due_date"] != task.due_date:
-                task.due_date = update_data["due_date"]
+            new_due_date = (
+                to_utc(update_data["due_date"])
+                if update_data["due_date"] is not None
+                else None
+            )
+
+            if new_due_date != task.due_date:
+                task.due_date = new_due_date
+
+                self.sla_service.evaluate_task(
+                    task,
+                )
+
                 changed = True
 
         if not changed:
@@ -671,6 +696,18 @@ class TaskService:
             )
 
         task.status = new_status
+
+        now = utc_now()
+
+        task.status = new_status
+
+        if new_status == TaskStatus.COMPLETED:
+            task.completed_at = now
+
+            self.sla_service.evaluate_task(
+                task,
+                now=now,
+            )
 
         self._record_status_change(
             task=task,

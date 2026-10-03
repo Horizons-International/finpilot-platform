@@ -23,7 +23,8 @@ from app.schemas.workflow import (
     WorkflowUpdate,
 )
 from app.services.audit_service import AuditService
-from app.utils.date_time import utc_now
+from app.services.sla_service import SLAService
+from app.utils.date_time import to_utc, utc_now
 from app.utils.enums import (
     AuditEventType,
     UserRole,
@@ -58,6 +59,7 @@ class WorkflowService:
         db: Session,
     ) -> None:
         self.db = db
+        self.sla_service = SLAService(db)
         self.repository = WorkflowRepository(db)
         self.execution_repository = WorkflowExecutionRepository(db)
         self.audit_service = AuditService(db)
@@ -509,6 +511,16 @@ class WorkflowService:
             actor_role,
         )
 
+        now = utc_now()
+
+        due_date = to_utc(data.due_date) if data.due_date is not None else None
+
+        initial_sla_status = SLAService.calculate_status(
+            created_at=now,
+            due_date=due_date,
+            now=now,
+        )
+
         execution = WorkflowExecution(
             workflow_id=workflow.id,
             entity_type=data.entity_type.strip(),
@@ -517,6 +529,8 @@ class WorkflowService:
             current_step_id=steps[0].id,
             started_by=user_id,
             context=data.context,
+            due_date=due_date,
+            sla_status=initial_sla_status,
         )
 
         if not execution.entity_type:
@@ -527,8 +541,6 @@ class WorkflowService:
         self.execution_repository.create(
             execution,
         )
-
-        now = utc_now()
 
         for index, step in enumerate(
             steps,
@@ -664,6 +676,11 @@ class WorkflowService:
             execution.status = WorkflowExecutionStatus.COMPLETED
             execution.current_step_id = None
             execution.completed_at = now
+
+            self.sla_service.evaluate_workflow(
+                execution,
+                now=now,
+            )
 
             self.audit_service.log_event(
                 event_type=AuditEventType.WORKFLOW_EXECUTION_COMPLETED,
