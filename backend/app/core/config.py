@@ -65,5 +65,12 @@ class Settings(BaseSettings):
         gt=0,
     )
 
+    # Communication Providers
+    EMAIL_PROVIDER: str = "mock"
+    SMS_PROVIDER: str = "mock"
+
+    EMAIL_FROM_ADDRESS: str = ""
+    SMS_FROM_NUMBER: str = ""
+
 
 settings = Settings()  # type: ignore[call-arg]
