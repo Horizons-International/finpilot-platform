@@ -19,6 +19,7 @@ from app.services.compliance_service import ComplianceService
 from app.services.customer_onboarding import (
     CustomerOnboardingService,
 )
+from app.services.dashboard_service import DashboardService
 from app.services.document_review_service import DocumentReviewService
 from app.services.document_service import DocumentService
 from app.services.file_service import FileService
@@ -184,3 +185,9 @@ def get_communication_service(
         email_provider=email_provider,
         sms_provider=sms_provider,
     )
+
+
+def get_dashboard_service(
+    db: Session = Depends(get_db),
+) -> DashboardService:
+    return DashboardService(db)
