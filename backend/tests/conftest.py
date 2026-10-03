@@ -19,6 +19,7 @@ from app.models.ai_prompt_assignment import AIPromptAssignment
 from app.models.ai_usage_log import AIUsageLog
 from app.models.aml_rule import AMLRule
 from app.models.audit_log import AuditLog
+from app.models.communication_log import CommunicationLog
 from app.models.compliance_case import ComplianceCase
 from app.models.customer import Customer
 from app.models.customer_audit_log import CustomerAuditLog
@@ -812,5 +813,20 @@ def cleanup_notifications(db_session):
         ).delete(
             synchronize_session=False,
         )
+
+    db_session.commit()
+
+
+@pytest.fixture
+def cleanup_communication_logs(db_session):
+    existing_log_ids = {log.id for log in db_session.query(CommunicationLog).all()}
+
+    yield
+
+    current_logs = db_session.query(CommunicationLog).all()
+
+    for log in current_logs:
+        if log.id not in existing_log_ids:
+            db_session.delete(log)
 
     db_session.commit()

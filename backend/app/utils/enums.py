@@ -387,3 +387,15 @@ class NotificationEventType(str, Enum):
     COMPLIANCE_CASE_UPDATED = "COMPLIANCE_CASE_UPDATED"
     COMPLIANCE_CASE_ASSIGNED = "COMPLIANCE_CASE_ASSIGNED"
     VERIFICATION_CASE_ASSIGNED = "VERIFICATION_CASE_ASSIGNED"
+
+
+class CommunicationChannel(str, Enum):
+    EMAIL = "EMAIL"
+    SMS = "SMS"
+
+
+class CommunicationStatus(str, Enum):
+    PENDING = "PENDING"
+    SENT = "SENT"
+    DELIVERED = "DELIVERED"
+    FAILED = "FAILED"

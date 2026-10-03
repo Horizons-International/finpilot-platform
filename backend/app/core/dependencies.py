@@ -1,6 +1,11 @@
 from fastapi import Depends
 from sqlalchemy.orm import Session
 
+from app.communication.providers.base import EmailProvider, SMSProvider
+from app.communication.providers.factory import (
+    get_email_provider,
+    get_sms_provider,
+)
 from app.core.config import settings
 from app.core.database import get_db
 from app.rag.embeddings import EmbeddingService
@@ -9,6 +14,7 @@ from app.services.ai_compliance_service import (
     AIComplianceService,
 )
 from app.services.ai_usage_service import AIUsageService
+from app.services.communication_service import CommunicationService
 from app.services.compliance_service import ComplianceService
 from app.services.customer_onboarding import (
     CustomerOnboardingService,
@@ -166,3 +172,15 @@ def get_notification_service(
     db: Session = Depends(get_db),
 ) -> NotificationService:
     return NotificationService(db)
+
+
+def get_communication_service(
+    db: Session = Depends(get_db),
+    email_provider: EmailProvider = Depends(get_email_provider),
+    sms_provider: SMSProvider = Depends(get_sms_provider),
+) -> CommunicationService:
+    return CommunicationService(
+        db=db,
+        email_provider=email_provider,
+        sms_provider=sms_provider,
+    )

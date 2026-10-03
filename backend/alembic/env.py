@@ -8,6 +8,7 @@ from alembic import context
 from app.core.config import settings
 from app.core.database import Base
 from app.models.audit_log import AuditLog  # noqa: F401
+from app.models.communication_log import CommunicationLog  # noqa: F401
 from app.models.customer import Customer  # noqa: F401
 from app.models.customer_address import CustomerAddress  # noqa: F401
 from app.models.customer_status_history import CustomerStatusHistory  # noqa: F401
