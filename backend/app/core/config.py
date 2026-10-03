@@ -72,5 +72,17 @@ class Settings(BaseSettings):
     EMAIL_FROM_ADDRESS: str = ""
     SMS_FROM_NUMBER: str = ""
 
+    # SLA Monitoring
+    SLA_APPROACHING_THRESHOLD_PERCENT: float = Field(
+        default=20.0,
+        gt=0.0,
+        le=100.0,
+    )
+
+    SLA_MONITOR_INTERVAL_SECONDS: int = Field(
+        default=60,
+        gt=0,
+    )
+
 
 settings = Settings()  # type: ignore[call-arg]

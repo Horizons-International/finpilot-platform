@@ -5,6 +5,7 @@ from uuid import UUID
 from pydantic import BaseModel, ConfigDict, Field
 
 from app.utils.enums import (
+    SLAStatus,
     UserRole,
     WorkflowExecutionStatus,
     WorkflowStatus,
@@ -107,6 +108,8 @@ class WorkflowExecutionCreate(BaseModel):
 
     context: dict[str, Any] | None = None
 
+    due_date: datetime | None = None
+
 
 class WorkflowExecutionCancelRequest(BaseModel):
     notes: str | None = Field(
@@ -156,6 +159,8 @@ class WorkflowExecutionResponse(BaseModel):
     started_by: UUID | None
     context: dict[str, Any] | None
     started_at: datetime
+    due_date: datetime | None
     completed_at: datetime | None
+    sla_status: SLAStatus | None
     created_at: datetime
     step_executions: list[WorkflowStepExecutionResponse]

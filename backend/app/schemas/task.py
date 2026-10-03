@@ -3,7 +3,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from app.utils.enums import TaskPriority, TaskStatus
+from app.utils.enums import SLAStatus, TaskPriority, TaskStatus
 
 
 class TaskCreate(BaseModel):
@@ -98,6 +98,8 @@ class TaskResponse(BaseModel):
     priority: TaskPriority
     status: TaskStatus
     due_date: datetime | None
+    completed_at: datetime | None
+    sla_status: SLAStatus | None
     workflow_execution_id: UUID | None
     workflow_step_execution_id: UUID | None
     created_at: datetime

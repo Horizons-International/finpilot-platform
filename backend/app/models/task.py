@@ -7,7 +7,7 @@ from sqlalchemy.dialects.postgresql import UUID as PostgreSQLUUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
-from app.utils.enums import TaskPriority, TaskStatus
+from app.utils.enums import SLAStatus, TaskPriority, TaskStatus
 
 
 class Task(Base):
@@ -63,6 +63,20 @@ class Task(Base):
 
     due_date: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True),
+        nullable=True,
+        index=True,
+    )
+
+    completed_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+    )
+
+    sla_status: Mapped[SLAStatus | None] = mapped_column(
+        Enum(
+            SLAStatus,
+            name="sla_status",
+        ),
         nullable=True,
         index=True,
     )

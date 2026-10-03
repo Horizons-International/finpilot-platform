@@ -3,6 +3,7 @@ from app.models.ai_prompt import AIPrompt  # noqa: F401
 from app.models.ai_prompt_assignment import AIPromptAssignment  # noqa: F401
 from app.models.ai_usage_log import AIUsageLog  # noqa: F401
 from app.models.aml_rule import AMLRule  # noqa: F401
+from app.models.communication_log import CommunicationLog  # noqa: F401
 from app.models.compliance_case import ComplianceCase  # noqa: F401
 from app.models.compliance_case_history import ComplianceCaseHistory  # noqa: F401
 from app.models.customer import Customer  # noqa: F401
@@ -24,6 +25,7 @@ from app.models.notification import (
     Notification,  # noqa: F401
     NotificationDelivery,  # noqa: F401
 )
+from app.models.ocr_result import OCRResult  # noqa: F401
 from app.models.risk_score_threshold import RiskScoreThreshold  # noqa: F401
 from app.models.risk_scoring_rule import RiskScoringRule  # noqa: F401
 from app.models.task import (
