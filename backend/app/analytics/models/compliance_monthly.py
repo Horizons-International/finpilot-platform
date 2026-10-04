@@ -6,82 +6,57 @@ from sqlalchemy.orm import Mapped, mapped_column
 from app.core.database import Base
 
 
-class ComplianceAnalyticsDaily(Base):
-    __tablename__ = "analytics_compliance_daily"
+class ComplianceAnalyticsMonthly(Base):
+    __tablename__ = "analytics_compliance_monthly"
 
-    snapshot_date: Mapped[date] = mapped_column(
+    month_start: Mapped[date] = mapped_column(
         Date,
         primary_key=True,
     )
 
-    # Number of compliance cases that existed
-    # at the end of this snapshot day.
+    # Number of compliance cases at the end of the calendar month.
     ending_total_cases: Mapped[int] = mapped_column(
         Integer,
         nullable=False,
     )
 
-    # Number of compliance cases created during this calendar day.
-    cases_created_during_day: Mapped[int] = mapped_column(
+    # Number of compliance cases created during the calendar month.
+    cases_created_during_month: Mapped[int] = mapped_column(
         Integer,
         nullable=False,
-        default=0,
     )
 
-    # Number of open compliance cases at the end of this snapshot day.
+    # Open compliance cases at the end of the calendar month.
     ending_open_cases: Mapped[int] = mapped_column(
         Integer,
         nullable=False,
     )
 
-    # Number of resolved compliance cases
-    # at the end of this snapshot day.
+    # Resolved compliance cases at the end of the calendar month.
     ending_resolved_cases: Mapped[int] = mapped_column(
         Integer,
         nullable=False,
     )
 
-    # Number of closed compliance cases at the end of this snapshot day.
+    # Closed compliance cases at the end of the calendar month.
     ending_closed_cases: Mapped[int] = mapped_column(
         Integer,
         nullable=False,
     )
 
-    # Number of AML alerts that existed at the end of this snapshot day.
+    # AML alerts that existed at the end of the calendar month.
     ending_total_alerts: Mapped[int] = mapped_column(
         Integer,
         nullable=False,
     )
 
-    # Number of AML alerts created during this calendar day.
-    alerts_created_during_day: Mapped[int] = mapped_column(
-        Integer,
-        nullable=False,
-        default=0,
-    )
-
-    # AML alerts by severity at the end of this snapshot day.
-    ending_low_severity_alerts: Mapped[int] = mapped_column(
+    # AML alerts created during the calendar month.
+    alerts_created_during_month: Mapped[int] = mapped_column(
         Integer,
         nullable=False,
     )
 
-    ending_medium_severity_alerts: Mapped[int] = mapped_column(
-        Integer,
-        nullable=False,
-    )
-
-    ending_high_severity_alerts: Mapped[int] = mapped_column(
-        Integer,
-        nullable=False,
-    )
-
-    ending_critical_severity_alerts: Mapped[int] = mapped_column(
-        Integer,
-        nullable=False,
-    )
-
-    # Customer risk distribution at the end of this snapshot day.
+    # Risk distribution at the end of the calendar month.
     ending_low_risk_customers: Mapped[int] = mapped_column(
         Integer,
         nullable=False,

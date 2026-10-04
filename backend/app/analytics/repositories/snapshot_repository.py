@@ -1,6 +1,7 @@
 from datetime import date, datetime
+from typing import Any
 
-from sqlalchemy import case, func, select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.analytics.models.compliance_daily import ComplianceAnalyticsDaily
@@ -14,19 +15,80 @@ from app.models.task import Task
 from app.models.transaction_monitoring_result import (
     TransactionMonitoringResult,
 )
+from app.models.verification_case import IdentityVerificationCase
 from app.models.workflow import WorkflowExecution
 from app.utils.enums import (
+    AMLRuleSeverity,
     ComplianceCaseStatus,
     CustomerRiskLevel,
     CustomerStatus,
     SLAStatus,
     TaskStatus,
     TransactionMonitoringOutcome,
+    VerificationStatus,
     WorkflowExecutionStatus,
 )
 
 
 class AnalyticsSnapshotRepository:
+    """Persistence and state-metric collection for daily analytics snapshots."""
+
+    CUSTOMER_FIELDS = (
+        "ending_total_customers",
+        "customers_registered_during_day",
+        "verification_approvals_during_day",
+        "ending_pending_verification_customers",
+        "ending_verified_customers",
+        "ending_suspended_customers",
+        "ending_rejected_customers",
+    )
+
+    COMPLIANCE_FIELDS = (
+        "ending_total_cases",
+        "cases_created_during_day",
+        "ending_open_cases",
+        "ending_resolved_cases",
+        "ending_closed_cases",
+        "ending_total_alerts",
+        "alerts_created_during_day",
+        "ending_low_severity_alerts",
+        "ending_medium_severity_alerts",
+        "ending_high_severity_alerts",
+        "ending_critical_severity_alerts",
+        "ending_low_risk_customers",
+        "ending_medium_risk_customers",
+        "ending_high_risk_customers",
+        "ending_critical_risk_customers",
+    )
+
+    OPERATIONS_FIELDS = (
+        "ending_total_tasks",
+        "tasks_created_during_day",
+        "ending_open_tasks",
+        "ending_total_completed_tasks",
+        "tasks_completed_during_day",
+        "ending_overdue_tasks",
+        "ending_tasks_sla_within_target",
+        "ending_tasks_sla_approaching_deadline",
+        "ending_tasks_sla_breached",
+        "ending_tasks_sla_completed_on_time",
+        "tasks_completed_within_sla_during_day",
+        "tasks_completed_breached_sla_during_day",
+        "ending_total_workflows",
+        "workflows_started_during_day",
+        "ending_active_workflows",
+        "ending_total_completed_workflows",
+        "workflows_completed_during_day",
+        "ending_total_failed_workflows",
+        "workflows_failed_during_day",
+        "ending_workflows_sla_within_target",
+        "ending_workflows_sla_approaching_deadline",
+        "ending_workflows_sla_breached",
+        "ending_workflows_sla_completed_on_time",
+        "workflows_completed_within_sla_during_day",
+        "workflows_completed_breached_sla_during_day",
+    )
+
     def __init__(self, db: Session) -> None:
         self.db = db
 
@@ -39,80 +101,113 @@ class AnalyticsSnapshotRepository:
             microsecond=0,
         )
 
+    @staticmethod
+    def _row_to_metrics(row: Any, fields: tuple[str, ...]) -> dict[str, int]:
+        values = row._mapping
+
+        return {field: int(values[field] or 0) for field in fields}
+
+    @staticmethod
+    def _count_filter(
+        model: Any,
+        *conditions: Any,
+    ) -> Any:
+        return func.count(model.id).filter(*conditions)
+
     def collect_customer_metrics(
         self,
         *,
         as_of: datetime,
     ) -> dict[str, int]:
+        """Collect customer state and day-to-date activity."""
+
         day_start = self._day_start(as_of)
 
         statement = select(
-            func.count(Customer.id).label("total_customers"),
-            func.sum(
-                case(
-                    (
-                        Customer.created_at >= day_start,
-                        1,
-                    ),
-                    else_=0,
-                )
-            ).label("new_registrations"),
-            func.sum(
-                case(
-                    (
-                        Customer.status == CustomerStatus.PENDING_VERIFICATION,
-                        1,
-                    ),
-                    else_=0,
-                )
-            ).label("pending_verification"),
-            func.sum(
-                case(
-                    (
-                        Customer.status == CustomerStatus.VERIFIED,
-                        1,
-                    ),
-                    else_=0,
-                )
-            ).label("verified_customers"),
-            func.sum(
-                case(
-                    (
-                        Customer.status == CustomerStatus.SUSPENDED,
-                        1,
-                    ),
-                    else_=0,
-                )
-            ).label("suspended_customers"),
-            func.sum(
-                case(
-                    (
-                        Customer.status == CustomerStatus.REJECTED,
-                        1,
-                    ),
-                    else_=0,
-                )
-            ).label("rejected_customers"),
+            func.count(Customer.id).label(
+                "ending_total_customers",
+            ),
+            self._count_filter(
+                Customer,
+                Customer.created_at >= day_start,
+                Customer.created_at <= as_of,
+            ).label(
+                "customers_registered_during_day",
+            ),
+            func.count(Customer.id)
+            .filter(
+                Customer.status == CustomerStatus.PENDING_VERIFICATION,
+            )
+            .label(
+                "ending_pending_verification_customers",
+            ),
+            func.count(Customer.id)
+            .filter(
+                Customer.status == CustomerStatus.VERIFIED,
+            )
+            .label(
+                "ending_verified_customers",
+            ),
+            func.count(Customer.id)
+            .filter(
+                Customer.status == CustomerStatus.SUSPENDED,
+            )
+            .label(
+                "ending_suspended_customers",
+            ),
+            func.count(Customer.id)
+            .filter(
+                Customer.status == CustomerStatus.REJECTED,
+            )
+            .label(
+                "ending_rejected_customers",
+            ),
         ).where(
             Customer.created_at <= as_of,
         )
 
         row = self.db.execute(statement).one()
 
-        return {
-            "total_customers": int(row.total_customers or 0),
-            "new_registrations": int(row.new_registrations or 0),
-            "pending_verification": int(row.pending_verification or 0),
-            "verified_customers": int(row.verified_customers or 0),
-            "suspended_customers": int(row.suspended_customers or 0),
-            "rejected_customers": int(row.rejected_customers or 0),
-        }
+        verification_approvals = (
+            self.db.scalar(
+                select(
+                    func.count(IdentityVerificationCase.id),
+                ).where(
+                    IdentityVerificationCase.status == VerificationStatus.APPROVED,
+                    IdentityVerificationCase.completed_at >= day_start,
+                    IdentityVerificationCase.completed_at <= as_of,
+                )
+            )
+            or 0
+        )
+
+        metrics = self._row_to_metrics(
+            row,
+            (
+                "ending_total_customers",
+                "customers_registered_during_day",
+                "ending_pending_verification_customers",
+                "ending_verified_customers",
+                "ending_suspended_customers",
+                "ending_rejected_customers",
+            ),
+        )
+
+        metrics["verification_approvals_during_day"] = int(
+            verification_approvals,
+        )
+
+        return metrics
 
     def collect_compliance_metrics(
         self,
         *,
         as_of: datetime,
     ) -> dict[str, int]:
+        """Collect compliance, AML, and risk state and day-to-date activity."""
+
+        day_start = self._day_start(as_of)
+
         open_statuses = (
             ComplianceCaseStatus.OPEN,
             ComplianceCaseStatus.ASSIGNED,
@@ -121,34 +216,37 @@ class AnalyticsSnapshotRepository:
         )
 
         case_statement = select(
-            func.count(ComplianceCase.id).label("total_cases"),
-            func.sum(
-                case(
-                    (
-                        ComplianceCase.status.in_(open_statuses),
-                        1,
-                    ),
-                    else_=0,
-                )
-            ).label("open_cases"),
-            func.sum(
-                case(
-                    (
-                        ComplianceCase.status == ComplianceCaseStatus.RESOLVED,
-                        1,
-                    ),
-                    else_=0,
-                )
-            ).label("resolved_cases"),
-            func.sum(
-                case(
-                    (
-                        ComplianceCase.status == ComplianceCaseStatus.CLOSED,
-                        1,
-                    ),
-                    else_=0,
-                )
-            ).label("closed_cases"),
+            func.count(ComplianceCase.id).label(
+                "ending_total_cases",
+            ),
+            self._count_filter(
+                ComplianceCase,
+                ComplianceCase.created_at >= day_start,
+                ComplianceCase.created_at <= as_of,
+            ).label(
+                "cases_created_during_day",
+            ),
+            func.count(ComplianceCase.id)
+            .filter(
+                ComplianceCase.status.in_(open_statuses),
+            )
+            .label(
+                "ending_open_cases",
+            ),
+            func.count(ComplianceCase.id)
+            .filter(
+                ComplianceCase.status == ComplianceCaseStatus.RESOLVED,
+            )
+            .label(
+                "ending_resolved_cases",
+            ),
+            func.count(ComplianceCase.id)
+            .filter(
+                ComplianceCase.status == ComplianceCaseStatus.CLOSED,
+            )
+            .label(
+                "ending_closed_cases",
+            ),
         ).where(
             ComplianceCase.created_at <= as_of,
         )
@@ -157,43 +255,56 @@ class AnalyticsSnapshotRepository:
 
         alert_statement = (
             select(
-                func.count(TransactionMonitoringResult.id).label("total_alerts"),
-                func.sum(
-                    case(
-                        (
-                            AMLRule.severity == "LOW",
-                            1,
-                        ),
-                        else_=0,
-                    )
-                ).label("low_severity_alerts"),
-                func.sum(
-                    case(
-                        (
-                            AMLRule.severity == "MEDIUM",
-                            1,
-                        ),
-                        else_=0,
-                    )
-                ).label("medium_severity_alerts"),
-                func.sum(
-                    case(
-                        (
-                            AMLRule.severity == "HIGH",
-                            1,
-                        ),
-                        else_=0,
-                    )
-                ).label("high_severity_alerts"),
-                func.sum(
-                    case(
-                        (
-                            AMLRule.severity == "CRITICAL",
-                            1,
-                        ),
-                        else_=0,
-                    )
-                ).label("critical_severity_alerts"),
+                func.count(
+                    TransactionMonitoringResult.id,
+                ).label(
+                    "ending_total_alerts",
+                ),
+                self._count_filter(
+                    TransactionMonitoringResult,
+                    TransactionMonitoringResult.created_at >= day_start,
+                    TransactionMonitoringResult.created_at <= as_of,
+                    TransactionMonitoringResult.result
+                    == TransactionMonitoringOutcome.MATCHED,
+                ).label(
+                    "alerts_created_during_day",
+                ),
+                func.count(
+                    TransactionMonitoringResult.id,
+                )
+                .filter(
+                    AMLRule.severity == AMLRuleSeverity.LOW,
+                )
+                .label(
+                    "ending_low_severity_alerts",
+                ),
+                func.count(
+                    TransactionMonitoringResult.id,
+                )
+                .filter(
+                    AMLRule.severity == AMLRuleSeverity.MEDIUM,
+                )
+                .label(
+                    "ending_medium_severity_alerts",
+                ),
+                func.count(
+                    TransactionMonitoringResult.id,
+                )
+                .filter(
+                    AMLRule.severity == AMLRuleSeverity.HIGH,
+                )
+                .label(
+                    "ending_high_severity_alerts",
+                ),
+                func.count(
+                    TransactionMonitoringResult.id,
+                )
+                .filter(
+                    AMLRule.severity == AMLRuleSeverity.CRITICAL,
+                )
+                .label(
+                    "ending_critical_severity_alerts",
+                ),
             )
             .select_from(TransactionMonitoringResult)
             .join(
@@ -210,69 +321,88 @@ class AnalyticsSnapshotRepository:
         alert_row = self.db.execute(alert_statement).one()
 
         risk_statement = select(
-            func.sum(
-                case(
-                    (
-                        CustomerRiskProfile.risk_level == CustomerRiskLevel.LOW,
-                        1,
-                    ),
-                    else_=0,
-                )
-            ).label("low_risk_customers"),
-            func.sum(
-                case(
-                    (
-                        CustomerRiskProfile.risk_level == CustomerRiskLevel.MEDIUM,
-                        1,
-                    ),
-                    else_=0,
-                )
-            ).label("medium_risk_customers"),
-            func.sum(
-                case(
-                    (
-                        CustomerRiskProfile.risk_level == CustomerRiskLevel.HIGH,
-                        1,
-                    ),
-                    else_=0,
-                )
-            ).label("high_risk_customers"),
-            func.sum(
-                case(
-                    (
-                        CustomerRiskProfile.risk_level == CustomerRiskLevel.CRITICAL,
-                        1,
-                    ),
-                    else_=0,
-                )
-            ).label("critical_risk_customers"),
+            func.count(CustomerRiskProfile.id)
+            .filter(
+                CustomerRiskProfile.risk_level == CustomerRiskLevel.LOW,
+            )
+            .label(
+                "ending_low_risk_customers",
+            ),
+            func.count(CustomerRiskProfile.id)
+            .filter(
+                CustomerRiskProfile.risk_level == CustomerRiskLevel.MEDIUM,
+            )
+            .label(
+                "ending_medium_risk_customers",
+            ),
+            func.count(CustomerRiskProfile.id)
+            .filter(
+                CustomerRiskProfile.risk_level == CustomerRiskLevel.HIGH,
+            )
+            .label(
+                "ending_high_risk_customers",
+            ),
+            func.count(CustomerRiskProfile.id)
+            .filter(
+                CustomerRiskProfile.risk_level == CustomerRiskLevel.CRITICAL,
+            )
+            .label(
+                "ending_critical_risk_customers",
+            ),
         ).where(
             CustomerRiskProfile.assessed_at <= as_of,
         )
 
         risk_row = self.db.execute(risk_statement).one()
 
-        return {
-            "total_cases": int(case_row.total_cases or 0),
-            "open_cases": int(case_row.open_cases or 0),
-            "resolved_cases": int(case_row.resolved_cases or 0),
-            "closed_cases": int(case_row.closed_cases or 0),
-            "total_alerts": int(alert_row.total_alerts or 0),
-            "low_severity_alerts": int(alert_row.low_severity_alerts or 0),
-            "medium_severity_alerts": int(alert_row.medium_severity_alerts or 0),
-            "high_severity_alerts": int(alert_row.high_severity_alerts or 0),
-            "critical_severity_alerts": int(alert_row.critical_severity_alerts or 0),
-            "low_risk_customers": int(risk_row.low_risk_customers or 0),
-            "medium_risk_customers": int(risk_row.medium_risk_customers or 0),
-            "high_risk_customers": int(risk_row.high_risk_customers or 0),
-            "critical_risk_customers": int(risk_row.critical_risk_customers or 0),
-        }
+        metrics = self._row_to_metrics(
+            case_row,
+            (
+                "ending_total_cases",
+                "cases_created_during_day",
+                "ending_open_cases",
+                "ending_resolved_cases",
+                "ending_closed_cases",
+            ),
+        )
+
+        metrics.update(
+            self._row_to_metrics(
+                alert_row,
+                (
+                    "ending_total_alerts",
+                    "alerts_created_during_day",
+                    "ending_low_severity_alerts",
+                    "ending_medium_severity_alerts",
+                    "ending_high_severity_alerts",
+                    "ending_critical_severity_alerts",
+                ),
+            )
+        )
+
+        metrics.update(
+            self._row_to_metrics(
+                risk_row,
+                (
+                    "ending_low_risk_customers",
+                    "ending_medium_risk_customers",
+                    "ending_high_risk_customers",
+                    "ending_critical_risk_customers",
+                ),
+            )
+        )
+
+        return metrics
 
     def collect_operations_metrics(
         self,
         *,
         as_of: datetime,
     ) -> dict[str, int]:
+        """Collect task and workflow state and day-to-date activity."""
+
+        day_start = self._day_start(as_of)
+
         open_task_statuses = (
             TaskStatus.NEW,
             TaskStatus.ASSIGNED,
@@ -280,72 +410,93 @@ class AnalyticsSnapshotRepository:
         )
 
         task_statement = select(
-            func.count(Task.id).label("total_tasks"),
-            func.sum(
-                case(
-                    (
-                        Task.status.in_(open_task_statuses),
-                        1,
-                    ),
-                    else_=0,
-                )
-            ).label("open_tasks"),
-            func.sum(
-                case(
-                    (
-                        Task.status == TaskStatus.COMPLETED,
-                        1,
-                    ),
-                    else_=0,
-                )
-            ).label("completed_tasks"),
-            func.sum(
-                case(
-                    (
-                        Task.status.in_(open_task_statuses)
-                        & Task.due_date.is_not(None)
-                        & (Task.due_date < as_of),
-                        1,
-                    ),
-                    else_=0,
-                )
-            ).label("overdue_tasks"),
-            func.sum(
-                case(
-                    (
-                        Task.sla_status == SLAStatus.WITHIN_SLA,
-                        1,
-                    ),
-                    else_=0,
-                )
-            ).label("task_sla_within_sla"),
-            func.sum(
-                case(
-                    (
-                        Task.sla_status == SLAStatus.APPROACHING_DEADLINE,
-                        1,
-                    ),
-                    else_=0,
-                )
-            ).label("task_sla_approaching_deadline"),
-            func.sum(
-                case(
-                    (
-                        Task.sla_status == SLAStatus.BREACHED,
-                        1,
-                    ),
-                    else_=0,
-                )
-            ).label("task_sla_breached"),
-            func.sum(
-                case(
-                    (
-                        Task.sla_status == SLAStatus.COMPLETED,
-                        1,
-                    ),
-                    else_=0,
-                )
-            ).label("task_sla_completed"),
+            func.count(Task.id).label(
+                "ending_total_tasks",
+            ),
+            self._count_filter(
+                Task,
+                Task.created_at >= day_start,
+                Task.created_at <= as_of,
+            ).label(
+                "tasks_created_during_day",
+            ),
+            func.count(Task.id)
+            .filter(
+                Task.status.in_(open_task_statuses),
+            )
+            .label(
+                "ending_open_tasks",
+            ),
+            func.count(Task.id)
+            .filter(
+                Task.status == TaskStatus.COMPLETED,
+            )
+            .label(
+                "ending_total_completed_tasks",
+            ),
+            self._count_filter(
+                Task,
+                Task.completed_at >= day_start,
+                Task.completed_at <= as_of,
+                Task.status == TaskStatus.COMPLETED,
+            ).label(
+                "tasks_completed_during_day",
+            ),
+            func.count(Task.id)
+            .filter(
+                Task.status.in_(open_task_statuses),
+                Task.due_date.is_not(None),
+                Task.due_date < as_of,
+            )
+            .label(
+                "ending_overdue_tasks",
+            ),
+            func.count(Task.id)
+            .filter(
+                Task.sla_status == SLAStatus.WITHIN_SLA,
+            )
+            .label(
+                "ending_tasks_sla_within_target",
+            ),
+            func.count(Task.id)
+            .filter(
+                Task.sla_status == SLAStatus.APPROACHING_DEADLINE,
+            )
+            .label(
+                "ending_tasks_sla_approaching_deadline",
+            ),
+            func.count(Task.id)
+            .filter(
+                Task.sla_status == SLAStatus.BREACHED,
+            )
+            .label(
+                "ending_tasks_sla_breached",
+            ),
+            func.count(Task.id)
+            .filter(
+                Task.sla_status == SLAStatus.COMPLETED,
+            )
+            .label(
+                "ending_tasks_sla_completed_on_time",
+            ),
+            self._count_filter(
+                Task,
+                Task.completed_at >= day_start,
+                Task.completed_at <= as_of,
+                Task.status == TaskStatus.COMPLETED,
+                Task.sla_status == SLAStatus.COMPLETED,
+            ).label(
+                "tasks_completed_within_sla_during_day",
+            ),
+            self._count_filter(
+                Task,
+                Task.completed_at >= day_start,
+                Task.completed_at <= as_of,
+                Task.status == TaskStatus.COMPLETED,
+                Task.sla_status == SLAStatus.BREACHED,
+            ).label(
+                "tasks_completed_breached_sla_during_day",
+            ),
         ).where(
             Task.created_at <= as_of,
         )
@@ -353,98 +504,194 @@ class AnalyticsSnapshotRepository:
         task_row = self.db.execute(task_statement).one()
 
         workflow_statement = select(
-            func.count(WorkflowExecution.id).label("total_workflows"),
-            func.sum(
-                case(
-                    (
-                        WorkflowExecution.status == WorkflowExecutionStatus.IN_PROGRESS,
-                        1,
-                    ),
-                    else_=0,
-                )
-            ).label("active_workflows"),
-            func.sum(
-                case(
-                    (
-                        WorkflowExecution.status == WorkflowExecutionStatus.COMPLETED,
-                        1,
-                    ),
-                    else_=0,
-                )
-            ).label("completed_workflows"),
-            func.sum(
-                case(
-                    (
-                        WorkflowExecution.status == WorkflowExecutionStatus.FAILED,
-                        1,
-                    ),
-                    else_=0,
-                )
-            ).label("failed_workflows"),
-            func.sum(
-                case(
-                    (
-                        WorkflowExecution.sla_status == SLAStatus.WITHIN_SLA,
-                        1,
-                    ),
-                    else_=0,
-                )
-            ).label("workflow_sla_within_sla"),
-            func.sum(
-                case(
-                    (
-                        WorkflowExecution.sla_status == SLAStatus.APPROACHING_DEADLINE,
-                        1,
-                    ),
-                    else_=0,
-                )
-            ).label("workflow_sla_approaching_deadline"),
-            func.sum(
-                case(
-                    (
-                        WorkflowExecution.sla_status == SLAStatus.BREACHED,
-                        1,
-                    ),
-                    else_=0,
-                )
-            ).label("workflow_sla_breached"),
-            func.sum(
-                case(
-                    (
-                        WorkflowExecution.sla_status == SLAStatus.COMPLETED,
-                        1,
-                    ),
-                    else_=0,
-                )
-            ).label("workflow_sla_completed"),
+            func.count(
+                WorkflowExecution.id,
+            ).label(
+                "ending_total_workflows",
+            ),
+            self._count_filter(
+                WorkflowExecution,
+                WorkflowExecution.started_at >= day_start,
+                WorkflowExecution.started_at <= as_of,
+            ).label(
+                "workflows_started_during_day",
+            ),
+            func.count(
+                WorkflowExecution.id,
+            )
+            .filter(
+                WorkflowExecution.status == WorkflowExecutionStatus.IN_PROGRESS,
+            )
+            .label(
+                "ending_active_workflows",
+            ),
+            func.count(
+                WorkflowExecution.id,
+            )
+            .filter(
+                WorkflowExecution.status == WorkflowExecutionStatus.COMPLETED,
+            )
+            .label(
+                "ending_total_completed_workflows",
+            ),
+            self._count_filter(
+                WorkflowExecution,
+                WorkflowExecution.completed_at >= day_start,
+                WorkflowExecution.completed_at <= as_of,
+                WorkflowExecution.status == WorkflowExecutionStatus.COMPLETED,
+            ).label(
+                "workflows_completed_during_day",
+            ),
+            func.count(
+                WorkflowExecution.id,
+            )
+            .filter(
+                WorkflowExecution.status == WorkflowExecutionStatus.FAILED,
+            )
+            .label(
+                "ending_total_failed_workflows",
+            ),
+            self._count_filter(
+                WorkflowExecution,
+                WorkflowExecution.completed_at >= day_start,
+                WorkflowExecution.completed_at <= as_of,
+                WorkflowExecution.status == WorkflowExecutionStatus.FAILED,
+            ).label(
+                "workflows_failed_during_day",
+            ),
+            func.count(
+                WorkflowExecution.id,
+            )
+            .filter(
+                WorkflowExecution.sla_status == SLAStatus.WITHIN_SLA,
+            )
+            .label(
+                "ending_workflows_sla_within_target",
+            ),
+            func.count(
+                WorkflowExecution.id,
+            )
+            .filter(
+                WorkflowExecution.sla_status == SLAStatus.APPROACHING_DEADLINE,
+            )
+            .label(
+                "ending_workflows_sla_approaching_deadline",
+            ),
+            func.count(
+                WorkflowExecution.id,
+            )
+            .filter(
+                WorkflowExecution.sla_status == SLAStatus.BREACHED,
+            )
+            .label(
+                "ending_workflows_sla_breached",
+            ),
+            func.count(
+                WorkflowExecution.id,
+            )
+            .filter(
+                WorkflowExecution.sla_status == SLAStatus.COMPLETED,
+            )
+            .label(
+                "ending_workflows_sla_completed_on_time",
+            ),
+            self._count_filter(
+                WorkflowExecution,
+                WorkflowExecution.completed_at >= day_start,
+                WorkflowExecution.completed_at <= as_of,
+                WorkflowExecution.status == WorkflowExecutionStatus.COMPLETED,
+                WorkflowExecution.sla_status == SLAStatus.COMPLETED,
+            ).label(
+                "workflows_completed_within_sla_during_day",
+            ),
+            self._count_filter(
+                WorkflowExecution,
+                WorkflowExecution.completed_at >= day_start,
+                WorkflowExecution.completed_at <= as_of,
+                WorkflowExecution.status == WorkflowExecutionStatus.COMPLETED,
+                WorkflowExecution.sla_status == SLAStatus.BREACHED,
+            ).label(
+                "workflows_completed_breached_sla_during_day",
+            ),
         ).where(
             WorkflowExecution.started_at <= as_of,
         )
 
         workflow_row = self.db.execute(workflow_statement).one()
 
-        return {
-            "total_tasks": int(task_row.total_tasks or 0),
-            "open_tasks": int(task_row.open_tasks or 0),
-            "completed_tasks": int(task_row.completed_tasks or 0),
-            "overdue_tasks": int(task_row.overdue_tasks or 0),
-            "task_sla_within_sla": int(task_row.task_sla_within_sla or 0),
-            "task_sla_approaching_deadline": int(
-                task_row.task_sla_approaching_deadline or 0
+        metrics = self._row_to_metrics(
+            task_row,
+            (
+                "ending_total_tasks",
+                "tasks_created_during_day",
+                "ending_open_tasks",
+                "ending_total_completed_tasks",
+                "tasks_completed_during_day",
+                "ending_overdue_tasks",
+                "ending_tasks_sla_within_target",
+                "ending_tasks_sla_approaching_deadline",
+                "ending_tasks_sla_breached",
+                "ending_tasks_sla_completed_on_time",
+                "tasks_completed_within_sla_during_day",
+                "tasks_completed_breached_sla_during_day",
             ),
-            "task_sla_breached": int(task_row.task_sla_breached or 0),
-            "task_sla_completed": int(task_row.task_sla_completed or 0),
-            "total_workflows": int(workflow_row.total_workflows or 0),
-            "active_workflows": int(workflow_row.active_workflows or 0),
-            "completed_workflows": int(workflow_row.completed_workflows or 0),
-            "failed_workflows": int(workflow_row.failed_workflows or 0),
-            "workflow_sla_within_sla": int(workflow_row.workflow_sla_within_sla or 0),
-            "workflow_sla_approaching_deadline": int(
-                workflow_row.workflow_sla_approaching_deadline or 0
-            ),
-            "workflow_sla_breached": int(workflow_row.workflow_sla_breached or 0),
-            "workflow_sla_completed": int(workflow_row.workflow_sla_completed or 0),
-        }
+        )
+
+        metrics.update(
+            self._row_to_metrics(
+                workflow_row,
+                (
+                    "ending_total_workflows",
+                    "workflows_started_during_day",
+                    "ending_active_workflows",
+                    "ending_total_completed_workflows",
+                    "workflows_completed_during_day",
+                    "ending_total_failed_workflows",
+                    "workflows_failed_during_day",
+                    "ending_workflows_sla_within_target",
+                    "ending_workflows_sla_approaching_deadline",
+                    "ending_workflows_sla_breached",
+                    "ending_workflows_sla_completed_on_time",
+                    "workflows_completed_within_sla_during_day",
+                    "workflows_completed_breached_sla_during_day",
+                ),
+            )
+        )
+
+        return metrics
+
+    def _save_snapshot(
+        self,
+        *,
+        model: Any,
+        snapshot_date: date,
+        captured_at: datetime,
+        metrics: dict[str, int],
+        fields: tuple[str, ...],
+    ) -> Any:
+        snapshot = self.db.get(
+            model,
+            snapshot_date,
+        )
+
+        if snapshot is None:
+            snapshot = model(
+                snapshot_date=snapshot_date,
+            )
+            self.db.add(snapshot)
+
+        for field in fields:
+            setattr(
+                snapshot,
+                field,
+                int(metrics.get(field, 0) or 0),
+            )
+
+        snapshot.captured_at = captured_at
+
+        self.db.flush()
+
+        return snapshot
 
     def save_customer_snapshot(
         self,
@@ -452,29 +699,14 @@ class AnalyticsSnapshotRepository:
         snapshot_date: date,
         captured_at: datetime,
         metrics: dict[str, int],
-    ) -> CustomerAnalyticsDaily:
-        snapshot = self.db.get(
-            CustomerAnalyticsDaily,
-            snapshot_date,
+    ) -> Any:
+        return self._save_snapshot(
+            model=CustomerAnalyticsDaily,
+            snapshot_date=snapshot_date,
+            captured_at=captured_at,
+            metrics=metrics,
+            fields=self.CUSTOMER_FIELDS,
         )
-
-        if snapshot is None:
-            snapshot = CustomerAnalyticsDaily(
-                snapshot_date=snapshot_date,
-            )
-            self.db.add(snapshot)
-
-        snapshot.total_customers = metrics["total_customers"]
-        snapshot.new_registrations = metrics["new_registrations"]
-        snapshot.pending_verification = metrics["pending_verification"]
-        snapshot.verified_customers = metrics["verified_customers"]
-        snapshot.suspended_customers = metrics["suspended_customers"]
-        snapshot.rejected_customers = metrics["rejected_customers"]
-        snapshot.captured_at = captured_at
-
-        self.db.flush()
-
-        return snapshot
 
     def save_compliance_snapshot(
         self,
@@ -482,40 +714,14 @@ class AnalyticsSnapshotRepository:
         snapshot_date: date,
         captured_at: datetime,
         metrics: dict[str, int],
-    ) -> ComplianceAnalyticsDaily:
-        snapshot = self.db.get(
-            ComplianceAnalyticsDaily,
-            snapshot_date,
+    ) -> Any:
+        return self._save_snapshot(
+            model=ComplianceAnalyticsDaily,
+            snapshot_date=snapshot_date,
+            captured_at=captured_at,
+            metrics=metrics,
+            fields=self.COMPLIANCE_FIELDS,
         )
-
-        if snapshot is None:
-            snapshot = ComplianceAnalyticsDaily(
-                snapshot_date=snapshot_date,
-            )
-            self.db.add(snapshot)
-
-        for field in (
-            "total_cases",
-            "open_cases",
-            "resolved_cases",
-            "closed_cases",
-            "total_alerts",
-            "low_severity_alerts",
-            "medium_severity_alerts",
-            "high_severity_alerts",
-            "critical_severity_alerts",
-            "low_risk_customers",
-            "medium_risk_customers",
-            "high_risk_customers",
-            "critical_risk_customers",
-        ):
-            setattr(snapshot, field, metrics[field])
-
-        snapshot.captured_at = captured_at
-
-        self.db.flush()
-
-        return snapshot
 
     def save_operations_snapshot(
         self,
@@ -523,40 +729,11 @@ class AnalyticsSnapshotRepository:
         snapshot_date: date,
         captured_at: datetime,
         metrics: dict[str, int],
-    ) -> OperationsAnalyticsDaily:
-        snapshot = self.db.get(
-            OperationsAnalyticsDaily,
-            snapshot_date,
+    ) -> Any:
+        return self._save_snapshot(
+            model=OperationsAnalyticsDaily,
+            snapshot_date=snapshot_date,
+            captured_at=captured_at,
+            metrics=metrics,
+            fields=self.OPERATIONS_FIELDS,
         )
-
-        if snapshot is None:
-            snapshot = OperationsAnalyticsDaily(
-                snapshot_date=snapshot_date,
-            )
-            self.db.add(snapshot)
-
-        for field in (
-            "total_tasks",
-            "open_tasks",
-            "completed_tasks",
-            "overdue_tasks",
-            "task_sla_within_sla",
-            "task_sla_approaching_deadline",
-            "task_sla_breached",
-            "task_sla_completed",
-            "total_workflows",
-            "active_workflows",
-            "completed_workflows",
-            "failed_workflows",
-            "workflow_sla_within_sla",
-            "workflow_sla_approaching_deadline",
-            "workflow_sla_breached",
-            "workflow_sla_completed",
-        ):
-            setattr(snapshot, field, metrics[field])
-
-        snapshot.captured_at = captured_at
-
-        self.db.flush()
-
-        return snapshot
