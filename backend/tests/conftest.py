@@ -1,5 +1,5 @@
 import os
-from datetime import date
+from datetime import date, datetime
 from uuid import UUID
 
 import pytest
@@ -7,6 +7,9 @@ from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
+from app.analytics.models.compliance_daily import ComplianceAnalyticsDaily
+from app.analytics.models.customer_daily import CustomerAnalyticsDaily
+from app.analytics.models.operations_daily import OperationsAnalyticsDaily
 from app.core.config import settings
 from app.core.database import get_db
 from app.core.security import hash_password
@@ -201,6 +204,7 @@ def create_test_customer():
         email: str | None = None,
         phone_number: str = "+249123456789",
         status: CustomerStatus = CustomerStatus.NEW,
+        created_at: datetime | None = None,
     ):
         db = TestSessionLocal()
 
@@ -214,6 +218,7 @@ def create_test_customer():
             email=email,
             phone_number=phone_number,
             status=status,
+            created_at=created_at,
         )
 
         db.add(customer)
@@ -881,5 +886,42 @@ def cleanup_workflow_audit_logs(db_session):
         ).delete(
             synchronize_session=False,
         )
+
+    db_session.commit()
+
+
+@pytest.fixture
+def cleanup_analytics_snapshots(db_session):
+    existing_customer_dates = {
+        row.snapshot_date for row in db_session.query(CustomerAnalyticsDaily).all()
+    }
+
+    existing_compliance_dates = {
+        row.snapshot_date for row in db_session.query(ComplianceAnalyticsDaily).all()
+    }
+
+    existing_operations_dates = {
+        row.snapshot_date for row in db_session.query(OperationsAnalyticsDaily).all()
+    }
+
+    yield
+
+    current_customer_rows = db_session.query(CustomerAnalyticsDaily).all()
+
+    for row in current_customer_rows:
+        if row.snapshot_date not in existing_customer_dates:
+            db_session.delete(row)
+
+    current_compliance_rows = db_session.query(ComplianceAnalyticsDaily).all()
+
+    for row in current_compliance_rows:
+        if row.snapshot_date not in existing_compliance_dates:
+            db_session.delete(row)
+
+    current_operations_rows = db_session.query(OperationsAnalyticsDaily).all()
+
+    for row in current_operations_rows:
+        if row.snapshot_date not in existing_operations_dates:
+            db_session.delete(row)
 
     db_session.commit()
