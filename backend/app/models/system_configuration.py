@@ -3,7 +3,14 @@ from datetime import datetime
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import DateTime, Enum, ForeignKey, String, func
+from sqlalchemy import (
+    DateTime,
+    Enum,
+    ForeignKey,
+    String,
+    UniqueConstraint,
+    func,
+)
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.dialects.postgresql import UUID as PostgreSQLUUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -76,4 +83,11 @@ class SystemConfiguration(Base):
     updated_by_user = relationship(
         "User",
         foreign_keys=[updated_by],
+    )
+
+    __table_args__ = (
+        UniqueConstraint(
+            "key",
+            name="uq_system_configurations_key",
+        ),
     )

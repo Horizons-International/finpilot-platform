@@ -52,3 +52,4 @@ from app.models.workflow import (
     WorkflowStep,  # noqa: F401
     WorkflowStepExecution,  # noqa: F401
 )
+from app.models.workflow_audit_log import WorkflowAuditLog  # noqa: F401

@@ -58,6 +58,7 @@ from app.models.workflow import (
     WorkflowExecution,
     WorkflowStepExecution,
 )
+from app.models.workflow_audit_log import WorkflowAuditLog
 from app.ocr.providers.base import OCRProvider
 from app.ocr.services.dependencies import get_ocr_service
 from app.ocr.services.ocr_service import OCRService
@@ -853,6 +854,30 @@ def cleanup_system_configurations(db_session):
     if new_ids:
         db_session.query(SystemConfiguration).filter(
             SystemConfiguration.id.in_(new_ids)
+        ).delete(
+            synchronize_session=False,
+        )
+
+    db_session.commit()
+
+
+@pytest.fixture
+def cleanup_workflow_audit_logs(db_session):
+    existing_ids = {
+        audit_log.id for audit_log in db_session.query(WorkflowAuditLog).all()
+    }
+
+    yield
+
+    current_logs = db_session.query(WorkflowAuditLog).all()
+
+    new_ids = [
+        audit_log.id for audit_log in current_logs if audit_log.id not in existing_ids
+    ]
+
+    if new_ids:
+        db_session.query(WorkflowAuditLog).filter(
+            WorkflowAuditLog.id.in_(new_ids)
         ).delete(
             synchronize_session=False,
         )

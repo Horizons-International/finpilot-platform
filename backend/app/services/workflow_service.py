@@ -9,6 +9,10 @@ from app.models.workflow import (
     WorkflowStep,
     WorkflowStepExecution,
 )
+from app.models.workflow_audit_log import WorkflowAuditLog
+from app.repositories.workflow_audit_log_repository import (
+    WorkflowAuditLogRepository,
+)
 from app.repositories.workflow_execution_repository import (
     WorkflowExecutionRepository,
 )
@@ -28,6 +32,7 @@ from app.utils.date_time import to_utc, utc_now
 from app.utils.enums import (
     AuditEventType,
     UserRole,
+    WorkflowAuditAction,
     WorkflowExecutionStatus,
     WorkflowStatus,
     WorkflowStepExecutionStatus,
@@ -63,6 +68,7 @@ class WorkflowService:
         self.repository = WorkflowRepository(db)
         self.execution_repository = WorkflowExecutionRepository(db)
         self.audit_service = AuditService(db)
+        self.workflow_audit_repository = WorkflowAuditLogRepository(db)
 
     # ------------------------------------------------------------------
     # Workflow definitions
@@ -563,6 +569,15 @@ class WorkflowService:
                 step_execution,
             )
 
+        self._record_workflow_audit(
+            workflow_id=execution.id,
+            step_name=steps[0].name,
+            action=WorkflowAuditAction.WORKFLOW_STARTED,
+            old_status=None,
+            new_status=WorkflowExecutionStatus.IN_PROGRESS.value,
+            user_id=user_id,
+        )
+
         self.audit_service.log_event(
             event_type=AuditEventType.WORKFLOW_EXECUTION_STARTED,
             user_id=user_id,
@@ -648,6 +663,16 @@ class WorkflowService:
         current_step.notes = data.notes
         current_step.result = data.result
 
+        self._record_workflow_audit(
+            workflow_id=execution.id,
+            step_name=current_step.step_name,
+            action=WorkflowAuditAction.STEP_COMPLETED,
+            old_status=WorkflowStepExecutionStatus.IN_PROGRESS.value,
+            new_status=WorkflowStepExecutionStatus.COMPLETED.value,
+            user_id=user_id,
+            comments=data.notes,
+        )
+
         step_executions = self.execution_repository.get_step_executions(
             execution.id,
         )
@@ -677,6 +702,16 @@ class WorkflowService:
             execution.current_step_id = None
             execution.completed_at = now
 
+            self._record_workflow_audit(
+                workflow_id=execution.id,
+                step_name=current_step.step_name,
+                action=WorkflowAuditAction.WORKFLOW_COMPLETED,
+                old_status=WorkflowExecutionStatus.IN_PROGRESS.value,
+                new_status=WorkflowExecutionStatus.COMPLETED.value,
+                user_id=user_id,
+                comments=data.notes,
+            )
+
             self.sla_service.evaluate_workflow(
                 execution,
                 now=now,
@@ -695,6 +730,15 @@ class WorkflowService:
             next_step.status = WorkflowStepExecutionStatus.IN_PROGRESS
             next_step.started_at = now
             execution.current_step_id = next_step.workflow_step_id
+
+            self._record_workflow_audit(
+                workflow_id=execution.id,
+                step_name=next_step.step_name,
+                action=WorkflowAuditAction.STEP_STARTED,
+                old_status=WorkflowStepExecutionStatus.PENDING.value,
+                new_status=WorkflowStepExecutionStatus.IN_PROGRESS.value,
+                user_id=user_id,
+            )
 
         self.db.commit()
 
@@ -743,6 +787,26 @@ class WorkflowService:
             current_step.status = WorkflowStepExecutionStatus.SKIPPED
             current_step.completed_at = execution.completed_at
             current_step.notes = data.notes
+
+            self._record_workflow_audit(
+                workflow_id=execution.id,
+                step_name=current_step.step_name,
+                action=WorkflowAuditAction.STEP_SKIPPED,
+                old_status=WorkflowStepExecutionStatus.IN_PROGRESS.value,
+                new_status=WorkflowStepExecutionStatus.SKIPPED.value,
+                user_id=user_id,
+                comments=data.notes,
+            )
+
+        self._record_workflow_audit(
+            workflow_id=execution.id,
+            step_name=current_step.step_name if current_step else None,
+            action=WorkflowAuditAction.WORKFLOW_CANCELLED,
+            old_status=WorkflowExecutionStatus.IN_PROGRESS.value,
+            new_status=WorkflowExecutionStatus.CANCELLED.value,
+            user_id=user_id,
+            comments=data.notes,
+        )
 
         self.audit_service.log_event(
             event_type=AuditEventType.WORKFLOW_EXECUTION_CANCELLED,
@@ -866,13 +930,26 @@ class WorkflowService:
             actor_role,
         )
 
+        now = utc_now()
+
         current_step.status = WorkflowStepExecutionStatus.FAILED
         current_step.notes = notes
-        current_step.completed_at = utc_now()
+        current_step.completed_at = now
 
         execution.status = WorkflowExecutionStatus.FAILED
+        execution.completed_at = now
 
         self.db.flush()
+
+        self._record_workflow_audit(
+            workflow_id=execution.id,
+            step_name=current_step.step_name,
+            action=WorkflowAuditAction.STEP_FAILED,
+            old_status=WorkflowStepExecutionStatus.IN_PROGRESS.value,
+            new_status=WorkflowStepExecutionStatus.FAILED.value,
+            user_id=user_id,
+            comments=notes,
+        )
 
         self.audit_service.log_event(
             event_type=AuditEventType.WORKFLOW_STEP_FAILED,
@@ -882,6 +959,16 @@ class WorkflowService:
             user_agent=user_agent,
             resource_type="workflow_step_execution",
             resource_id=current_step.id,
+        )
+
+        self._record_workflow_audit(
+            workflow_id=execution.id,
+            step_name=current_step.step_name,
+            action=WorkflowAuditAction.WORKFLOW_FAILED,
+            old_status=WorkflowExecutionStatus.IN_PROGRESS.value,
+            new_status=WorkflowExecutionStatus.FAILED.value,
+            user_id=user_id,
+            comments=notes,
         )
 
         self.audit_service.log_event(
@@ -963,3 +1050,43 @@ class WorkflowService:
         self.db.refresh(execution)
 
         return execution
+
+    def _record_workflow_audit(
+        self,
+        *,
+        workflow_id: UUID,
+        step_name: str | None,
+        action: WorkflowAuditAction,
+        old_status: str | None,
+        new_status: str | None,
+        user_id: UUID | None,
+        comments: str | None = None,
+    ) -> None:
+        audit_log = WorkflowAuditLog(
+            workflow_id=workflow_id,
+            step_name=step_name,
+            action=action.value,
+            old_status=old_status,
+            new_status=new_status,
+            user_id=user_id,
+            comments=comments,
+        )
+
+        self.workflow_audit_repository.create(
+            audit_log,
+        )
+
+    def get_audit_history(
+        self,
+        execution_id: UUID,
+    ) -> list[WorkflowAuditLog]:
+        execution = self.execution_repository.get_by_id(
+            execution_id,
+        )
+
+        if execution is None:
+            raise not_found("Workflow execution")
+
+        return self.workflow_audit_repository.get_by_workflow_id(
+            execution_id,
+        )
