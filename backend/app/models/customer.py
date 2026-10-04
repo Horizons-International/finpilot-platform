@@ -52,6 +52,7 @@ class Customer(Base):
     country_of_residence: Mapped[str | None] = mapped_column(
         String(100),
         nullable=True,
+        index=True,
     )
 
     email: Mapped[str] = mapped_column(
@@ -75,6 +76,7 @@ class Customer(Base):
         DateTime(timezone=True),
         server_default=func.now(),
         nullable=False,
+        index=True,
     )
 
     updated_at: Mapped[datetime] = mapped_column(

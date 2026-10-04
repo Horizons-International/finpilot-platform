@@ -61,6 +61,7 @@ class User(Base):
     role: Mapped[UserRole] = mapped_column(
         String(50),
         nullable=False,
+        index=True,
     )
 
     department: Mapped[str | None] = mapped_column(

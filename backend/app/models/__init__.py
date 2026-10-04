@@ -28,6 +28,7 @@ from app.models.notification import (
 from app.models.ocr_result import OCRResult  # noqa: F401
 from app.models.risk_score_threshold import RiskScoreThreshold  # noqa: F401
 from app.models.risk_scoring_rule import RiskScoringRule  # noqa: F401
+from app.models.system_configuration import SystemConfiguration  # noqa: F401
 from app.models.task import (
     Task,  # noqa: F401
     TaskComment,  # noqa: F401

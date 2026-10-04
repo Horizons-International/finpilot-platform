@@ -226,6 +226,7 @@ class WorkflowExecution(Base):
         DateTime(timezone=True),
         server_default=func.now(),
         nullable=False,
+        index=True,
     )
 
     due_date: Mapped[datetime | None] = mapped_column(

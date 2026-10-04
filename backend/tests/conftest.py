@@ -39,6 +39,7 @@ from app.models.notification import (
 )
 from app.models.risk_score_threshold import RiskScoreThreshold
 from app.models.risk_scoring_rule import RiskScoringRule
+from app.models.system_configuration import SystemConfiguration
 from app.models.task import (
     Task,
     TaskComment,
@@ -828,5 +829,32 @@ def cleanup_communication_logs(db_session):
     for log in current_logs:
         if log.id not in existing_log_ids:
             db_session.delete(log)
+
+    db_session.commit()
+
+
+@pytest.fixture
+def cleanup_system_configurations(db_session):
+    existing_ids = {
+        configuration.id
+        for configuration in db_session.query(SystemConfiguration).all()
+    }
+
+    yield
+
+    current_configurations = db_session.query(SystemConfiguration).all()
+
+    new_ids = [
+        configuration.id
+        for configuration in current_configurations
+        if configuration.id not in existing_ids
+    ]
+
+    if new_ids:
+        db_session.query(SystemConfiguration).filter(
+            SystemConfiguration.id.in_(new_ids)
+        ).delete(
+            synchronize_session=False,
+        )
 
     db_session.commit()
