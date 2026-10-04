@@ -277,6 +277,13 @@ class WorkflowExecution(Base):
         order_by="WorkflowStepExecution.order_number",
     )
 
+    audit_logs = relationship(
+        "WorkflowAuditLog",
+        back_populates="workflow_execution",
+        cascade="all, delete-orphan",
+        order_by="WorkflowAuditLog.created_at",
+    )
+
 
 class WorkflowStepExecution(Base):
     __tablename__ = "workflow_step_executions"

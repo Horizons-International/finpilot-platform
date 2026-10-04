@@ -8,6 +8,7 @@ from app.core.responses import APIResponse
 from app.core.security import require_roles
 from app.schemas.workflow import (
     WorkflowAdvanceRequest,
+    WorkflowAuditLogResponse,
     WorkflowCreate,
     WorkflowExecutionCancelRequest,
     WorkflowExecutionCreate,
@@ -218,6 +219,44 @@ def cancel_workflow_execution(
         data=WorkflowExecutionResponse.model_validate(
             execution,
         ),
+    )
+
+
+@router.get(
+    "/executions/{execution_id}/audit-logs",
+    response_model=APIResponse[list[WorkflowAuditLogResponse]],
+    status_code=status.HTTP_200_OK,
+    summary="Get workflow audit history",
+    description="Retrieve the complete audit history for a workflow execution.",
+)
+def get_workflow_audit_history(
+    execution_id: UUID,
+    service: WorkflowService = Depends(
+        get_workflow_service,
+    ),
+    _: dict[str, Any] = Depends(
+        require_roles(
+            UserRole.ADMINISTRATOR,
+            UserRole.COMPLIANCE_OFFICER,
+            UserRole.REVIEWER,
+            UserRole.AUDITOR,
+            resource_type="workflow_execution",
+        )
+    ),
+) -> APIResponse[list[WorkflowAuditLogResponse]]:
+    history = service.get_audit_history(
+        execution_id,
+    )
+
+    return APIResponse(
+        success=True,
+        message="Workflow audit history retrieved successfully.",
+        data=[
+            WorkflowAuditLogResponse.model_validate(
+                item,
+            )
+            for item in history
+        ],
     )
 
 

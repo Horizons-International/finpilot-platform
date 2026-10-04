@@ -164,3 +164,19 @@ class WorkflowExecutionResponse(BaseModel):
     sla_status: SLAStatus | None
     created_at: datetime
     step_executions: list[WorkflowStepExecutionResponse]
+
+
+class WorkflowAuditLogResponse(BaseModel):
+    model_config = ConfigDict(
+        from_attributes=True,
+    )
+
+    id: UUID
+    workflow_id: UUID
+    step_name: str | None
+    action: str
+    old_status: str | None
+    new_status: str | None
+    user_id: UUID | None
+    comments: str | None
+    created_at: datetime
