@@ -214,33 +214,33 @@ def test_capture_snapshot_creates_customer_compliance_and_operations_rows(
     )
 
     assert customer_snapshot.snapshot_date == as_of.date()
-    assert customer_snapshot.new_registrations >= 2
-    assert customer_snapshot.pending_verification >= 1
-    assert customer_snapshot.verified_customers >= 2
+    assert customer_snapshot.customers_registered_during_day >= 2
+    assert customer_snapshot.ending_pending_verification_customers >= 1
+    assert customer_snapshot.ending_verified_customers >= 2
 
     assert compliance_snapshot.snapshot_date == as_of.date()
-    assert compliance_snapshot.total_cases >= 1
-    assert compliance_snapshot.open_cases >= 1
-    assert compliance_snapshot.total_alerts >= 1
-    assert compliance_snapshot.high_severity_alerts >= 1
-    assert compliance_snapshot.high_risk_customers >= 1
+    assert compliance_snapshot.ending_total_cases >= 1
+    assert compliance_snapshot.ending_open_cases >= 1
+    assert compliance_snapshot.ending_total_alerts >= 1
+    assert compliance_snapshot.ending_high_severity_alerts >= 1
+    assert compliance_snapshot.ending_high_risk_customers >= 1
 
     assert operations_snapshot.snapshot_date == as_of.date()
-    assert operations_snapshot.total_tasks >= 3
-    assert operations_snapshot.open_tasks >= 2
-    assert operations_snapshot.completed_tasks >= 1
-    assert operations_snapshot.overdue_tasks >= 1
-    assert operations_snapshot.task_sla_within_sla >= 1
-    assert operations_snapshot.task_sla_breached >= 1
-    assert operations_snapshot.task_sla_completed >= 1
+    assert operations_snapshot.ending_total_tasks >= 3
+    assert operations_snapshot.ending_open_tasks >= 2
+    assert operations_snapshot.ending_total_completed_tasks >= 1
+    assert operations_snapshot.ending_overdue_tasks >= 1
+    assert operations_snapshot.ending_tasks_sla_within_target >= 1
+    assert operations_snapshot.ending_tasks_sla_breached >= 1
+    assert operations_snapshot.ending_tasks_sla_completed_on_time >= 1
 
-    assert operations_snapshot.total_workflows >= 3
-    assert operations_snapshot.active_workflows >= 1
-    assert operations_snapshot.completed_workflows >= 1
-    assert operations_snapshot.failed_workflows >= 1
-    assert operations_snapshot.workflow_sla_within_sla >= 1
-    assert operations_snapshot.workflow_sla_breached >= 1
-    assert operations_snapshot.workflow_sla_completed >= 1
+    assert operations_snapshot.ending_total_workflows >= 3
+    assert operations_snapshot.ending_active_workflows >= 1
+    assert operations_snapshot.ending_total_completed_workflows >= 1
+    assert operations_snapshot.ending_total_failed_workflows >= 1
+    assert operations_snapshot.ending_workflows_sla_within_target >= 1
+    assert operations_snapshot.ending_workflows_sla_breached >= 1
+    assert operations_snapshot.ending_workflows_sla_completed_on_time >= 1
 
 
 def test_capture_snapshot_is_idempotent_for_same_day(

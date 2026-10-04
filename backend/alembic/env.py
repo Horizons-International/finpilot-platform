@@ -7,8 +7,11 @@ from sqlalchemy import engine_from_config, pool
 from alembic import context
 from app.analytics.models import (
     ComplianceAnalyticsDaily,  # noqa: F401
+    ComplianceAnalyticsMonthly,  # noqa: F401
     CustomerAnalyticsDaily,  # noqa: F401
+    CustomerAnalyticsMonthly,  # noqa: F401
     OperationsAnalyticsDaily,  # noqa: F401
+    OperationsAnalyticsMonthly,  # noqa: F401
 )
 from app.core.config import settings
 from app.core.database import Base

@@ -8,8 +8,11 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 from app.analytics.models.compliance_daily import ComplianceAnalyticsDaily
+from app.analytics.models.compliance_monthly import ComplianceAnalyticsMonthly
 from app.analytics.models.customer_daily import CustomerAnalyticsDaily
+from app.analytics.models.customer_monthly import CustomerAnalyticsMonthly
 from app.analytics.models.operations_daily import OperationsAnalyticsDaily
+from app.analytics.models.operations_monthly import OperationsAnalyticsMonthly
 from app.core.config import settings
 from app.core.database import get_db
 from app.core.security import hash_password
@@ -922,6 +925,61 @@ def cleanup_analytics_snapshots(db_session):
 
     for row in current_operations_rows:
         if row.snapshot_date not in existing_operations_dates:
+            db_session.delete(row)
+
+    db_session.commit()
+
+
+@pytest.fixture
+def cleanup_analytics_aggregations(db_session):
+    existing_customer_daily = {
+        row.snapshot_date for row in db_session.query(CustomerAnalyticsDaily).all()
+    }
+
+    existing_customer_monthly = {
+        row.month_start for row in db_session.query(CustomerAnalyticsMonthly).all()
+    }
+
+    existing_compliance_daily = {
+        row.snapshot_date for row in db_session.query(ComplianceAnalyticsDaily).all()
+    }
+
+    existing_compliance_monthly = {
+        row.month_start for row in db_session.query(ComplianceAnalyticsMonthly).all()
+    }
+
+    existing_operations_daily = {
+        row.snapshot_date for row in db_session.query(OperationsAnalyticsDaily).all()
+    }
+
+    existing_operations_monthly = {
+        row.month_start for row in db_session.query(OperationsAnalyticsMonthly).all()
+    }
+
+    yield
+
+    for row in db_session.query(CustomerAnalyticsDaily).all():
+        if row.snapshot_date not in existing_customer_daily:
+            db_session.delete(row)
+
+    for row in db_session.query(CustomerAnalyticsMonthly).all():
+        if row.month_start not in existing_customer_monthly:
+            db_session.delete(row)
+
+    for row in db_session.query(ComplianceAnalyticsDaily).all():
+        if row.snapshot_date not in existing_compliance_daily:
+            db_session.delete(row)
+
+    for row in db_session.query(ComplianceAnalyticsMonthly).all():
+        if row.month_start not in existing_compliance_monthly:
+            db_session.delete(row)
+
+    for row in db_session.query(OperationsAnalyticsDaily).all():
+        if row.snapshot_date not in existing_operations_daily:
+            db_session.delete(row)
+
+    for row in db_session.query(OperationsAnalyticsMonthly).all():
+        if row.month_start not in existing_operations_monthly:
             db_session.delete(row)
 
     db_session.commit()

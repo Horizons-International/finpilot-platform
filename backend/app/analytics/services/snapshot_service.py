@@ -12,6 +12,8 @@ from app.utils.date_time import utc_now
 
 
 class AnalyticsSnapshotService:
+    """Coordinates creation of daily analytics snapshots."""
+
     def __init__(self, db: Session) -> None:
         self.db = db
         self.repository = AnalyticsSnapshotRepository(db)
@@ -33,6 +35,7 @@ class AnalyticsSnapshotService:
         self,
         *,
         as_of: datetime | None = None,
+        commit: bool = True,
     ) -> tuple[
         CustomerAnalyticsDaily,
         ComplianceAnalyticsDaily,
@@ -71,11 +74,14 @@ class AnalyticsSnapshotService:
             metrics=operations_metrics,
         )
 
-        self.db.commit()
+        self.db.flush()
 
-        self.db.refresh(customer_snapshot)
-        self.db.refresh(compliance_snapshot)
-        self.db.refresh(operations_snapshot)
+        if commit:
+            self.db.commit()
+
+            self.db.refresh(customer_snapshot)
+            self.db.refresh(compliance_snapshot)
+            self.db.refresh(operations_snapshot)
 
         return (
             customer_snapshot,

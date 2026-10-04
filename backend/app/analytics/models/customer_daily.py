@@ -14,32 +14,49 @@ class CustomerAnalyticsDaily(Base):
         primary_key=True,
     )
 
-    total_customers: Mapped[int] = mapped_column(
+    # Number of customers that existed at the end of this snapshot day.
+    ending_total_customers: Mapped[int] = mapped_column(
         Integer,
         nullable=False,
     )
 
-    new_registrations: Mapped[int] = mapped_column(
+    # Number of customers registered during this calendar day.
+    customers_registered_during_day: Mapped[int] = mapped_column(
         Integer,
         nullable=False,
     )
 
-    pending_verification: Mapped[int] = mapped_column(
+    # Number of verification cases approved during this calendar day.
+    verification_approvals_during_day: Mapped[int] = mapped_column(
+        Integer,
+        nullable=False,
+        default=0,
+    )
+
+    # Number of customers with PENDING_VERIFICATION status
+    # at the end of this snapshot day.
+    ending_pending_verification_customers: Mapped[int] = mapped_column(
         Integer,
         nullable=False,
     )
 
-    verified_customers: Mapped[int] = mapped_column(
+    # Number of customers with VERIFIED status
+    # at the end of this snapshot day.
+    ending_verified_customers: Mapped[int] = mapped_column(
         Integer,
         nullable=False,
     )
 
-    suspended_customers: Mapped[int] = mapped_column(
+    # Number of customers with SUSPENDED status
+    # at the end of this snapshot day.
+    ending_suspended_customers: Mapped[int] = mapped_column(
         Integer,
         nullable=False,
     )
 
-    rejected_customers: Mapped[int] = mapped_column(
+    # Number of customers with REJECTED status
+    # at the end of this snapshot day.
+    ending_rejected_customers: Mapped[int] = mapped_column(
         Integer,
         nullable=False,
     )
