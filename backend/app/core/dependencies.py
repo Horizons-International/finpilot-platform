@@ -29,6 +29,9 @@ from app.services.knowledge_document_service import (
 from app.services.knowledge_indexing_service import KnowledgeIndexingService
 from app.services.notification_service import NotificationService
 from app.services.risk_scoring_service import RiskScoringService
+from app.services.system_configuration_service import (
+    SystemConfigurationService,
+)
 from app.services.task_assignment_service import (
     TaskAssignmentService,
 )
@@ -191,3 +194,9 @@ def get_dashboard_service(
     db: Session = Depends(get_db),
 ) -> DashboardService:
     return DashboardService(db)
+
+
+def get_system_configuration_service(
+    db: Session = Depends(get_db),
+) -> SystemConfigurationService:
+    return SystemConfigurationService(db)

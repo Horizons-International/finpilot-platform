@@ -6,6 +6,7 @@ from sqlalchemy import (
     DateTime,
     Enum,
     ForeignKey,
+    Index,
     String,
     Text,
     UniqueConstraint,
@@ -107,6 +108,15 @@ class Notification(Base):
         back_populates="notification",
         cascade="all, delete-orphan",
         order_by="NotificationDelivery.created_at",
+    )
+
+    __table_args__ = (
+        Index(
+            "ix_notifications_user_status_created",
+            "user_id",
+            "status",
+            "created_at",
+        ),
     )
 
 
