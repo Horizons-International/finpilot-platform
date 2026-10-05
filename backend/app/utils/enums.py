@@ -439,3 +439,19 @@ class WorkflowAuditAction(str, Enum):
     WORKFLOW_CANCELLED = "WORKFLOW_CANCELLED"
     STEP_FAILED = "STEP_FAILED"
     WORKFLOW_FAILED = "WORKFLOW_FAILED"
+
+
+class MetricCategory(str, Enum):
+    CUSTOMER = "CUSTOMER"
+    COMPLIANCE = "COMPLIANCE"
+    OPERATIONS = "OPERATIONS"
+
+
+class MetricStatus(str, Enum):
+    ACTIVE = "ACTIVE"
+    INACTIVE = "INACTIVE"
+
+
+class MetricValueType(str, Enum):
+    PERCENTAGE = "PERCENTAGE"
+    SECONDS = "SECONDS"

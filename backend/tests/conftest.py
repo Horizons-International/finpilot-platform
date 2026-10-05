@@ -11,6 +11,8 @@ from app.analytics.models.compliance_daily import ComplianceAnalyticsDaily
 from app.analytics.models.compliance_monthly import ComplianceAnalyticsMonthly
 from app.analytics.models.customer_daily import CustomerAnalyticsDaily
 from app.analytics.models.customer_monthly import CustomerAnalyticsMonthly
+from app.analytics.models.metric_definition import MetricDefinition
+from app.analytics.models.metric_result import MetricResult
 from app.analytics.models.operations_daily import OperationsAnalyticsDaily
 from app.analytics.models.operations_monthly import OperationsAnalyticsMonthly
 from app.core.config import settings
@@ -981,5 +983,67 @@ def cleanup_analytics_aggregations(db_session):
     for row in db_session.query(OperationsAnalyticsMonthly).all():
         if row.month_start not in existing_operations_monthly:
             db_session.delete(row)
+
+    db_session.commit()
+
+
+@pytest.fixture
+def cleanup_metric_definitions(db_session):
+    """
+    Remove metric definitions created during a test while preserving
+    metric definitions that existed before the test.
+    """
+    existing_definition_ids = {
+        definition.id for definition in db_session.query(MetricDefinition).all()
+    }
+
+    yield
+
+    current_definitions = db_session.query(MetricDefinition).all()
+
+    new_definition_ids = [
+        definition.id
+        for definition in current_definitions
+        if definition.id not in existing_definition_ids
+    ]
+
+    if new_definition_ids:
+        db_session.query(MetricResult).filter(
+            MetricResult.metric_definition_id.in_(new_definition_ids)
+        ).delete(
+            synchronize_session=False,
+        )
+
+        db_session.query(MetricDefinition).filter(
+            MetricDefinition.id.in_(new_definition_ids)
+        ).delete(
+            synchronize_session=False,
+        )
+
+    db_session.commit()
+
+
+@pytest.fixture
+def cleanup_metric_results(db_session):
+    """
+    Remove metric results created during a test while preserving
+    results that existed before the test.
+    """
+    existing_result_ids = {result.id for result in db_session.query(MetricResult).all()}
+
+    yield
+
+    current_results = db_session.query(MetricResult).all()
+
+    new_result_ids = [
+        result.id for result in current_results if result.id not in existing_result_ids
+    ]
+
+    if new_result_ids:
+        db_session.query(MetricResult).filter(
+            MetricResult.id.in_(new_result_ids)
+        ).delete(
+            synchronize_session=False,
+        )
 
     db_session.commit()
