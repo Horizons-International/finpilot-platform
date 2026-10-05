@@ -26,6 +26,9 @@ from app.api.customers import router as customer_router
 from app.api.dashboard import router as dashboard_router
 from app.api.document_review import router as document_review_router
 from app.api.documents import router as documents_router
+from app.api.executive_dashboard import (
+    router as executive_dashboard_router,
+)
 from app.api.extraction import router as extraction_router
 from app.api.files import router as files_router
 from app.api.health import router as health_router
@@ -124,6 +127,7 @@ app.include_router(profile_router)
 app.include_router(users_router)
 app.include_router(system_configurations_router)
 app.include_router(dashboard_router)
+app.include_router(executive_dashboard_router)
 app.include_router(metrics_router)
 app.include_router(reports_router)
 app.include_router(compliance_cases_router)

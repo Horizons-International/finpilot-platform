@@ -98,7 +98,7 @@ def test_vector_search_returns_closest_active_chunk(
     embed = type(
         "FakeEmbeddingService",
         (),
-        {"embed_query": lambda self, query: ([1.0] + [0.0] * 1535)},
+        {"embed_query": lambda self, query: [1.0] + [0.0] * 1535},
     )()
 
     service = RetrievalService(
@@ -168,7 +168,7 @@ def test_vector_search_excludes_inactive_documents(
     embed = type(
         "FakeEmbeddingService",
         (),
-        {"embed_query": lambda self, query: ([1.0] + [0.0] * 1535)},
+        {"embed_query": lambda self, query: [1.0] + [0.0] * 1535},
     )()
 
     service = RetrievalService(
@@ -231,7 +231,7 @@ def test_vector_search_filters_by_category(
     embed = type(
         "FakeEmbeddingService",
         (),
-        {"embed_query": lambda self, query: ([1.0] + [0.0] * 1535)},
+        {"embed_query": lambda self, query: [1.0] + [0.0] * 1535},
     )()
 
     service = RetrievalService(
