@@ -37,7 +37,6 @@ def upgrade() -> None:
                 "ACTIVE",
                 "INACTIVE",
                 name="knowledge_document_status",
-                create_type=False,
             ),
             nullable=False,
         ),
