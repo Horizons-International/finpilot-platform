@@ -1,6 +1,9 @@
 from fastapi import Depends
 from sqlalchemy.orm import Session
 
+from app.analytics.services.executive_dashboard_service import (
+    ExecutiveDashboardService,
+)
 from app.analytics.services.metric_service import MetricService
 from app.communication.providers.base import EmailProvider, SMSProvider
 from app.communication.providers.factory import (
@@ -207,3 +210,9 @@ def get_metric_service(
     db: Session = Depends(get_db),
 ) -> MetricService:
     return MetricService(db)
+
+
+def get_executive_dashboard_service(
+    db: Session = Depends(get_db),
+) -> ExecutiveDashboardService:
+    return ExecutiveDashboardService(db)

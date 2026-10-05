@@ -140,8 +140,7 @@ Providers implement the `AIProvider` interface.
 ```python
 class AIProvider(ABC):
     @abstractmethod
-    def generate(self, request: AIRequest) -> AIResponse:
-        ...
+    def generate(self, request: AIRequest) -> AIResponse: ...
 ```
 
 The current implementation is:
