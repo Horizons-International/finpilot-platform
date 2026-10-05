@@ -1,6 +1,7 @@
 from fastapi import Depends
 from sqlalchemy.orm import Session
 
+from app.analytics.services.metric_service import MetricService
 from app.communication.providers.base import EmailProvider, SMSProvider
 from app.communication.providers.factory import (
     get_email_provider,
@@ -200,3 +201,9 @@ def get_system_configuration_service(
     db: Session = Depends(get_db),
 ) -> SystemConfigurationService:
     return SystemConfigurationService(db)
+
+
+def get_metric_service(
+    db: Session = Depends(get_db),
+) -> MetricService:
+    return MetricService(db)

@@ -35,6 +35,7 @@ from app.api.investigation_notes import (
 from app.api.knowledge_documents import (
     router as knowledge_documents_router,
 )
+from app.api.metrics import router as metrics_router
 from app.api.notifications import router as notifications_router
 from app.api.ocr import router as ocr_router
 from app.api.profile import router as profile_router
@@ -123,6 +124,8 @@ app.include_router(profile_router)
 app.include_router(users_router)
 app.include_router(system_configurations_router)
 app.include_router(dashboard_router)
+app.include_router(metrics_router)
+app.include_router(reports_router)
 app.include_router(compliance_cases_router)
 app.include_router(files_router)
 app.include_router(customer_router)
@@ -154,7 +157,6 @@ app.include_router(ai_usage_router)
 app.include_router(documents_router)
 app.include_router(knowledge_documents_router)
 app.include_router(verification_reports_router)
-app.include_router(reports_router)
 app.include_router(ocr_router)
 app.include_router(extraction_router)
 app.include_router(document_review_router)

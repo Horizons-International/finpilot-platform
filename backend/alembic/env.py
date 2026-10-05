@@ -10,6 +10,8 @@ from app.analytics.models import (
     ComplianceAnalyticsMonthly,  # noqa: F401
     CustomerAnalyticsDaily,  # noqa: F401
     CustomerAnalyticsMonthly,  # noqa: F401
+    MetricDefinition,  # noqa: F401
+    MetricResult,  # noqa: F401
     OperationsAnalyticsDaily,  # noqa: F401
     OperationsAnalyticsMonthly,  # noqa: F401
 )
