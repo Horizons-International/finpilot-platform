@@ -1,6 +1,7 @@
 from fastapi import Depends
 from sqlalchemy.orm import Session
 
+from app.ai.exceptions import AIConfigurationError
 from app.analytics.services.compliance_analytics_service import (
     ComplianceAnalyticsService,
 )
@@ -23,6 +24,9 @@ from app.core.config import settings
 from app.core.database import get_db
 from app.rag.embeddings import EmbeddingService
 from app.rag.retrieval import RetrievalService
+from app.services.ai_analytics_assistant_service import (
+    AIAnalyticsAssistantService,
+)
 from app.services.ai_compliance_service import (
     AIComplianceService,
 )
@@ -243,3 +247,24 @@ def get_operations_analytics_service(
     db: Session = Depends(get_db),
 ) -> OperationsAnalyticsService:
     return OperationsAnalyticsService(db)
+
+
+def get_optional_retrieval_service(
+    db: Session = Depends(get_db),
+) -> RetrievalService | None:
+    try:
+        return RetrievalService(db)
+    except AIConfigurationError:
+        return None
+
+
+def get_ai_analytics_assistant_service(
+    db: Session = Depends(get_db),
+    retrieval_service: RetrievalService | None = Depends(
+        get_optional_retrieval_service,
+    ),
+) -> AIAnalyticsAssistantService:
+    return AIAnalyticsAssistantService(
+        db=db,
+        retrieval_service=retrieval_service,
+    )

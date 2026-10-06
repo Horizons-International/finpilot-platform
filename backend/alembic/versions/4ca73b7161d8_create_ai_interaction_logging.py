@@ -31,6 +31,11 @@ def upgrade() -> None:
         "ALTER TYPE ai_function ADD VALUE IF NOT EXISTS 'DOCUMENT_REVIEW_SUMMARY'"
     )
 
+    op.execute("""
+        ALTER TYPE ai_function
+        ADD VALUE IF NOT EXISTS 'ANALYTICS_ASSISTANT'
+        """)
+
     op.execute("ALTER TYPE ai_function ADD VALUE IF NOT EXISTS 'COMPLIANCE_NOTES'")
 
     op.create_table(
@@ -52,6 +57,7 @@ def upgrade() -> None:
                 "CUSTOMER",
                 "VERIFICATION_CASE",
                 "DOCUMENT",
+                "ANALYTICS",
                 name="ai_resource_type",
                 create_constraint=True,
             ),

@@ -47,6 +47,30 @@ COMPLIANCE_RESPONSE_SCHEMA = {
     "additionalProperties": False,
 }
 
+ANALYTICS_RESPONSE_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "summary": {
+            "type": "string",
+        },
+        "suggested_insights": {
+            "type": "array",
+            "items": {
+                "type": "string",
+            },
+        },
+        "confidence": {
+            "type": "number",
+        },
+    },
+    "required": [
+        "summary",
+        "suggested_insights",
+        "confidence",
+    ],
+    "additionalProperties": False,
+}
+
 
 class OpenAIProvider(AIProvider):
     def __init__(self, config: AIConfig) -> None:
@@ -69,9 +93,20 @@ class OpenAIProvider(AIProvider):
         if not request.prompt.strip():
             raise AIProviderError("AI prompt cannot be empty.")
 
-        if request.request_type != AIRequestType.COMPLIANCE_ASSISTANT:
+        if request.request_type == AIRequestType.COMPLIANCE_ASSISTANT:
+            response_schema = COMPLIANCE_RESPONSE_SCHEMA
+            response_name = "compliance_assistant_response"
+            response_description = "Structured compliance assistant response."
+
+        elif request.request_type == AIRequestType.ANALYTICS_ASSISTANT:
+            response_schema = ANALYTICS_RESPONSE_SCHEMA
+            response_name = "analytics_assistant_response"
+            response_description = "Structured business analytics response."
+
+        else:
             raise AIProviderError(
-                "OpenAI provider currently supports compliance assistant requests only."
+                "OpenAI provider currently supports compliance "
+                "and analytics assistant requests only."
             )
 
         try:
@@ -82,26 +117,32 @@ class OpenAIProvider(AIProvider):
                 text={
                     "format": {
                         "type": "json_schema",
-                        "name": "compliance_assistant_response",
-                        "description": ("Structured compliance assistant response."),
+                        "name": response_name,
+                        "description": response_description,
                         "strict": True,
-                        "schema": COMPLIANCE_RESPONSE_SCHEMA,
+                        "schema": response_schema,
                     }
                 },
             )
         except Exception as exc:
-            raise AIProviderError("OpenAI provider request failed.") from exc
+            raise AIProviderError(
+                "OpenAI provider request failed.",
+            ) from exc
 
         content = response.output_text
 
         if not content:
-            raise AIProviderError("OpenAI provider returned an empty response.")
+            raise AIProviderError(
+                "OpenAI provider returned an empty response.",
+            )
 
         try:
-            structured_data = json.loads(content)
+            structured_data = json.loads(
+                content,
+            )
         except json.JSONDecodeError as exc:
             raise AIProviderError(
-                "OpenAI provider returned invalid structured data."
+                "OpenAI provider returned invalid structured data.",
             ) from exc
 
         usage = response.usage
