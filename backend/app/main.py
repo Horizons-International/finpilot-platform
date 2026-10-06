@@ -47,6 +47,9 @@ from app.api.knowledge_documents import (
 from app.api.metrics import router as metrics_router
 from app.api.notifications import router as notifications_router
 from app.api.ocr import router as ocr_router
+from app.api.operations_analytics import (
+    router as operations_analytics_router,
+)
 from app.api.profile import router as profile_router
 from app.api.rag import router as rag_router
 from app.api.reports import router as reports_router
@@ -138,6 +141,7 @@ app.include_router(metrics_router)
 app.include_router(reports_router)
 app.include_router(customer_analytics_router)
 app.include_router(compliance_analytics_router)
+app.include_router(operations_analytics_router)
 app.include_router(compliance_cases_router)
 app.include_router(files_router)
 app.include_router(customer_router)
