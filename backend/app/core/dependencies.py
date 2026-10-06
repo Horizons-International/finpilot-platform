@@ -1,6 +1,9 @@
 from fastapi import Depends
 from sqlalchemy.orm import Session
 
+from app.analytics.services.compliance_analytics_service import (
+    ComplianceAnalyticsService,
+)
 from app.analytics.services.executive_dashboard_service import (
     ExecutiveDashboardService,
 )
@@ -216,3 +219,9 @@ def get_executive_dashboard_service(
     db: Session = Depends(get_db),
 ) -> ExecutiveDashboardService:
     return ExecutiveDashboardService(db)
+
+
+def get_compliance_analytics_service(
+    db: Session = Depends(get_db),
+) -> ComplianceAnalyticsService:
+    return ComplianceAnalyticsService(db)
