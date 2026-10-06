@@ -3,6 +3,9 @@ from datetime import date, datetime, time, timedelta, timezone
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
+from app.analytics.models.customer_daily import (
+    CustomerAnalyticsDaily,
+)
 from app.models.customer import Customer
 from app.models.verification_case import IdentityVerificationCase
 from app.models.workflow import Workflow, WorkflowExecution
@@ -77,6 +80,45 @@ class CustomerAnalyticsRepository:
             )
 
         return filters
+
+    def get_daily_snapshots(
+        self,
+        *,
+        start_date: date,
+        end_date: date,
+    ) -> list[CustomerAnalyticsDaily]:
+        statement = (
+            select(CustomerAnalyticsDaily)
+            .where(
+                CustomerAnalyticsDaily.snapshot_date >= start_date,
+                CustomerAnalyticsDaily.snapshot_date <= end_date,
+            )
+            .order_by(
+                CustomerAnalyticsDaily.snapshot_date,
+            )
+        )
+
+        return list(
+            self.db.scalars(statement).all(),
+        )
+
+    def get_latest_snapshot(
+        self,
+        *,
+        end_date: date,
+    ) -> CustomerAnalyticsDaily | None:
+        statement = (
+            select(CustomerAnalyticsDaily)
+            .where(
+                CustomerAnalyticsDaily.snapshot_date <= end_date,
+            )
+            .order_by(
+                CustomerAnalyticsDaily.snapshot_date.desc(),
+            )
+            .limit(1)
+        )
+
+        return self.db.scalars(statement).first()
 
     def get_customer_population_metrics(
         self,

@@ -72,6 +72,25 @@ AI_PROMPTS = (
         ),
         "ai_function": AIFunction.COMPLIANCE_NOTES,
     },
+    {
+        "name": "analytics-assistant",
+        "purpose": (
+            "Answer business analytics questions using platform analytics data "
+            "and provide grounded business insights"
+        ),
+        "prompt_text": (
+            "You are FinPilot's business analytics assistant. "
+            "Answer business questions using only the analytics context provided. "
+            "Use exact values supplied by the analytics system. "
+            "Clearly distinguish current-period values from comparison-period values. "
+            "Explain meaningful changes in plain business language. "
+            "Suggest concise, actionable insights when the data supports them. "
+            "Do not invent numbers, trends, or business facts. "
+            "Do not treat missing information as known. "
+            "Return a concise structured analytics response."
+        ),
+        "ai_function": AIFunction.ANALYTICS_ASSISTANT,
+    },
 )
 
 

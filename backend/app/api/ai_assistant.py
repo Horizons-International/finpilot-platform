@@ -1,17 +1,24 @@
 from typing import Any
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, Query, Request, status
 
 from app.ai.exceptions import AIProviderError
-from app.core.dependencies import get_ai_compliance_service
+from app.core.dependencies import (
+    get_ai_analytics_assistant_service,
+    get_ai_compliance_service,
+)
 from app.core.responses import APIResponse
 from app.core.security import require_roles
+from app.schemas.ai_analytics_assistant import (
+    AIAnalyticsResponse,
+)
 from app.schemas.ai_assistant import (
     AIComplianceRequest,
     AIComplianceResponse,
     AIInteractionResponse,
 )
+from app.services.ai_analytics_assistant_service import AIAnalyticsAssistantService
 from app.services.ai_compliance_service import AIComplianceService
 from app.utils.enums import UserRole
 from app.utils.errors import service_unavailable
@@ -122,4 +129,58 @@ def get_my_ai_interactions(
             AIInteractionResponse.model_validate(interaction)
             for interaction in interactions
         ],
+    )
+
+
+@router.post(
+    "/analytics/ask",
+    response_model=APIResponse[AIAnalyticsResponse],
+    status_code=status.HTTP_201_CREATED,
+    summary="Ask analytics AI assistant",
+    description=(
+        "Ask a natural-language business analytics question "
+        "and receive grounded analytics insights."
+    ),
+)
+def ask_analytics_assistant(
+    request: Request,
+    question: str = Query(
+        min_length=1,
+        max_length=4000,
+        description="Natural-language analytics question.",
+    ),
+    retrieval_limit: int = Query(
+        default=5,
+        ge=1,
+        le=20,
+        description="Maximum number of RAG results to include.",
+    ),
+    current_user: dict[str, Any] = Depends(
+        require_roles(
+            UserRole.ADMINISTRATOR,
+            UserRole.COMPLIANCE_OFFICER,
+            UserRole.AUDITOR,
+            resource_type="ai-analytics-assistant",
+        )
+    ),
+    service: AIAnalyticsAssistantService = Depends(
+        get_ai_analytics_assistant_service,
+    ),
+) -> APIResponse[AIAnalyticsResponse]:
+    try:
+        response = service.ask(
+            question=question,
+            user_id=UUID(current_user["sub"]),
+            retrieval_limit=retrieval_limit,
+        )
+
+    except AIProviderError as exc:
+        raise service_unavailable(
+            "AI service is temporarily unavailable.",
+        ) from exc
+
+    return APIResponse(
+        success=True,
+        message="Analytics question answered successfully.",
+        data=response,
     )

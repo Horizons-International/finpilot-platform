@@ -227,6 +227,8 @@ class AIFunction(str, Enum):
     DOCUMENT_REVIEW_SUMMARY = "DOCUMENT_REVIEW_SUMMARY"
     COMPLIANCE_NOTES = "COMPLIANCE_NOTES"
 
+    ANALYTICS_ASSISTANT = "ANALYTICS_ASSISTANT"
+
 
 class AIInteractionStatus(str, Enum):
     PENDING = "PENDING"
@@ -238,6 +240,7 @@ class AIResourceType(str, Enum):
     CUSTOMER = "CUSTOMER"
     VERIFICATION_CASE = "VERIFICATION_CASE"
     DOCUMENT = "DOCUMENT"
+    ANALYTICS = "ANALYTICS"
 
 
 class KnowledgeDocumentCategory(str, Enum):
