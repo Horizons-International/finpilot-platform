@@ -11,6 +11,9 @@ from app.analytics.services.executive_dashboard_service import (
     ExecutiveDashboardService,
 )
 from app.analytics.services.metric_service import MetricService
+from app.analytics.services.operations_analytics_service import (
+    OperationsAnalyticsService,
+)
 from app.communication.providers.base import EmailProvider, SMSProvider
 from app.communication.providers.factory import (
     get_email_provider,
@@ -234,3 +237,9 @@ def get_customer_analytics_service(
     db: Session = Depends(get_db),
 ) -> CustomerAnalyticsService:
     return CustomerAnalyticsService(db)
+
+
+def get_operations_analytics_service(
+    db: Session = Depends(get_db),
+) -> OperationsAnalyticsService:
+    return OperationsAnalyticsService(db)
