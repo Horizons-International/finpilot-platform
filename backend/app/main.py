@@ -17,6 +17,9 @@ from app.api.compliance_analytics import (
 )
 from app.api.compliance_cases import router as compliance_cases_router
 from app.api.customer_addresses import router as customer_addresses_router
+from app.api.customer_analytics import (
+    router as customer_analytics_router,
+)
 from app.api.customer_audit_logs import router as customer_audit_logs_router
 from app.api.customer_contacts import router as customer_contacts_router
 from app.api.customer_onboarding import (
@@ -133,6 +136,7 @@ app.include_router(dashboard_router)
 app.include_router(executive_dashboard_router)
 app.include_router(metrics_router)
 app.include_router(reports_router)
+app.include_router(customer_analytics_router)
 app.include_router(compliance_analytics_router)
 app.include_router(compliance_cases_router)
 app.include_router(files_router)

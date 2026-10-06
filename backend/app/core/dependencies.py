@@ -4,6 +4,9 @@ from sqlalchemy.orm import Session
 from app.analytics.services.compliance_analytics_service import (
     ComplianceAnalyticsService,
 )
+from app.analytics.services.customer_analytics_service import (
+    CustomerAnalyticsService,
+)
 from app.analytics.services.executive_dashboard_service import (
     ExecutiveDashboardService,
 )
@@ -225,3 +228,9 @@ def get_compliance_analytics_service(
     db: Session = Depends(get_db),
 ) -> ComplianceAnalyticsService:
     return ComplianceAnalyticsService(db)
+
+
+def get_customer_analytics_service(
+    db: Session = Depends(get_db),
+) -> CustomerAnalyticsService:
+    return CustomerAnalyticsService(db)
