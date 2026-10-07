@@ -45,6 +45,9 @@ from app.services.knowledge_document_service import (
 )
 from app.services.knowledge_indexing_service import KnowledgeIndexingService
 from app.services.notification_service import NotificationService
+from app.services.report_export_service import (
+    ReportExportService,
+)
 from app.services.risk_prediction_service import (
     RiskPredictionService,
 )
@@ -277,3 +280,13 @@ def get_risk_prediction_service(
     db: Session = Depends(get_db),
 ) -> RiskPredictionService:
     return RiskPredictionService(db)
+
+
+def get_report_export_service(
+    db: Session = Depends(get_db),
+    storage: BaseStorage = Depends(get_storage),
+) -> ReportExportService:
+    return ReportExportService(
+        db=db,
+        storage=storage,
+    )
