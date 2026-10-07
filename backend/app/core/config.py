@@ -84,5 +84,21 @@ class Settings(BaseSettings):
         gt=0,
     )
 
+    # Reporting Exports
+    REPORT_ASYNC_ROW_THRESHOLD: int = Field(
+        default=5000,
+        gt=0,
+    )
+
+    REPORT_MAX_ROWS: int = Field(
+        default=100_000,
+        gt=0,
+    )
+
+    REPORT_EXPORT_INTERVAL_SECONDS: int = Field(
+        default=5,
+        gt=0,
+    )
+
 
 settings = Settings()  # type: ignore[call-arg]

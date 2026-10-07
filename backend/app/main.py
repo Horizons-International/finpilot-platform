@@ -52,6 +52,9 @@ from app.api.operations_analytics import (
 )
 from app.api.profile import router as profile_router
 from app.api.rag import router as rag_router
+from app.api.report_exports import (
+    router as report_exports_router,
+)
 from app.api.reports import router as reports_router
 from app.api.risk_predictions import (
     router as risk_predictions_router,
@@ -142,6 +145,7 @@ app.include_router(dashboard_router)
 app.include_router(executive_dashboard_router)
 app.include_router(metrics_router)
 app.include_router(reports_router)
+app.include_router(report_exports_router)
 app.include_router(customer_analytics_router)
 app.include_router(compliance_analytics_router)
 app.include_router(operations_analytics_router)

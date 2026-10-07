@@ -45,6 +45,7 @@ from app.models.notification import (
     Notification,
     NotificationDelivery,
 )
+from app.models.report_export import ReportExport
 from app.models.risk_prediction import RiskPrediction
 from app.models.risk_score_threshold import RiskScoreThreshold
 from app.models.risk_scoring_rule import RiskScoringRule
@@ -1063,5 +1064,22 @@ def cleanup_risk_predictions(db_session):
     for prediction in current_predictions:
         if prediction.id not in existing_prediction_ids:
             db_session.delete(prediction)
+
+    db_session.commit()
+
+
+@pytest.fixture
+def cleanup_report_exports(db_session):
+    existing_export_ids = {
+        report_export.id for report_export in db_session.query(ReportExport).all()
+    }
+
+    yield
+
+    current_exports = db_session.query(ReportExport).all()
+
+    for report_export in current_exports:
+        if report_export.id not in existing_export_ids:
+            db_session.delete(report_export)
 
     db_session.commit()

@@ -26,6 +26,7 @@ from app.models.notification import (
     NotificationDelivery,  # noqa: F401
 )
 from app.models.ocr_result import OCRResult  # noqa: F401
+from app.models.report_export import ReportExport  # noqa: F401
 from app.models.risk_score_threshold import RiskScoreThreshold  # noqa: F401
 from app.models.risk_scoring_rule import RiskScoringRule  # noqa: F401
 from app.models.system_configuration import SystemConfiguration  # noqa: F401
