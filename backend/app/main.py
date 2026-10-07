@@ -53,6 +53,9 @@ from app.api.operations_analytics import (
 from app.api.profile import router as profile_router
 from app.api.rag import router as rag_router
 from app.api.reports import router as reports_router
+from app.api.risk_predictions import (
+    router as risk_predictions_router,
+)
 from app.api.risk_scoring import router as risk_scoring_router
 from app.api.risk_scoring_rules import router as risk_scoring_rules_router
 from app.api.system_configurations import (
@@ -157,6 +160,7 @@ app.include_router(customer_addresses_router)
 app.include_router(customer_risk_profiles_router)
 app.include_router(customer_audit_logs_router)
 app.include_router(risk_scoring_router)
+app.include_router(risk_predictions_router)
 app.include_router(risk_scoring_rules_router)
 app.include_router(aml_rules_router)
 app.include_router(transaction_monitoring_router)

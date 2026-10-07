@@ -45,6 +45,9 @@ from app.services.knowledge_document_service import (
 )
 from app.services.knowledge_indexing_service import KnowledgeIndexingService
 from app.services.notification_service import NotificationService
+from app.services.risk_prediction_service import (
+    RiskPredictionService,
+)
 from app.services.risk_scoring_service import RiskScoringService
 from app.services.system_configuration_service import (
     SystemConfigurationService,
@@ -268,3 +271,9 @@ def get_ai_analytics_assistant_service(
         db=db,
         retrieval_service=retrieval_service,
     )
+
+
+def get_risk_prediction_service(
+    db: Session = Depends(get_db),
+) -> RiskPredictionService:
+    return RiskPredictionService(db)

@@ -45,6 +45,7 @@ from app.models.notification import (
     Notification,
     NotificationDelivery,
 )
+from app.models.risk_prediction import RiskPrediction
 from app.models.risk_score_threshold import RiskScoreThreshold
 from app.models.risk_scoring_rule import RiskScoringRule
 from app.models.system_configuration import SystemConfiguration
@@ -1045,5 +1046,22 @@ def cleanup_metric_results(db_session):
         ).delete(
             synchronize_session=False,
         )
+
+    db_session.commit()
+
+
+@pytest.fixture
+def cleanup_risk_predictions(db_session):
+    existing_prediction_ids = {
+        prediction.id for prediction in db_session.query(RiskPrediction).all()
+    }
+
+    yield
+
+    current_predictions = db_session.query(RiskPrediction).all()
+
+    for prediction in current_predictions:
+        if prediction.id not in existing_prediction_ids:
+            db_session.delete(prediction)
 
     db_session.commit()
