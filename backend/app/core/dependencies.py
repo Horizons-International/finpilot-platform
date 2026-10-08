@@ -50,6 +50,7 @@ from app.services.knowledge_document_service import (
 )
 from app.services.knowledge_indexing_service import KnowledgeIndexingService
 from app.services.notification_service import NotificationService
+from app.services.organization_service import OrganizationService
 from app.services.report_export_service import (
     ReportExportService,
 )
@@ -355,6 +356,16 @@ def get_customer_service(
     current_user: User = Depends(get_current_user),
 ) -> CustomerService:
     return CustomerService(
+        db=db,
+        tenant_id=current_user.tenant_id,
+    )
+
+
+def get_organization_service(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> OrganizationService:
+    return OrganizationService(
         db=db,
         tenant_id=current_user.tenant_id,
     )
