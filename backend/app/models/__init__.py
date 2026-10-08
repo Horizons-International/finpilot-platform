@@ -43,6 +43,7 @@ from app.models.tenant import Tenant  # noqa: F401
 from app.models.transaction_monitoring_result import (
     TransactionMonitoringResult,  # noqa: F401
 )
+from app.models.user_invitation import UserInvitation  # noqa: F401
 from app.models.verification_case import IdentityVerificationCase  # noqa: F401
 from app.models.verification_case_assignment_history import (
     VerificationCaseAssignmentHistory,  # noqa: F401

@@ -65,3 +65,14 @@ class MeResponse(BaseModel):
     last_name: str
     email: EmailStr
     role: UserRole
+
+
+class AcceptInvitationRequest(BaseModel):
+    token: str = Field(
+        min_length=1,
+    )
+
+    password: str = Field(
+        min_length=8,
+        max_length=128,
+    )

@@ -117,3 +117,39 @@ class ProfileResponse(BaseModel):
     phone_number: str | None
     status: UserStatus
     role: UserRole
+
+
+class UserInvitationCreate(
+    NameFieldValidatorMixin,
+    EmailFieldValidatorMixin,
+    BaseModel,
+):
+    first_name: str = Field(
+        min_length=1,
+        max_length=100,
+    )
+
+    last_name: str = Field(
+        min_length=1,
+        max_length=100,
+    )
+
+    email: EmailStr
+
+    role: UserRole
+
+    department: str | None = Field(
+        default=None,
+        max_length=100,
+    )
+
+
+class UserInvitationResponse(BaseModel):
+    id: UUID
+    email: EmailStr
+    first_name: str
+    last_name: str
+    role: UserRole
+    department: str | None
+    invitation_token: str
+    expires_at: datetime

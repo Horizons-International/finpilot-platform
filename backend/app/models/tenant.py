@@ -87,3 +87,9 @@ class Tenant(Base):
         uselist=False,
         cascade="all, delete-orphan",
     )
+
+    user_invitations = relationship(
+        "UserInvitation",
+        back_populates="tenant",
+        cascade="all, delete-orphan",
+    )

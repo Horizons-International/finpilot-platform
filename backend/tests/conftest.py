@@ -60,6 +60,7 @@ from app.models.task_assignment_rule import TaskAssignmentRule
 from app.models.tenant import Tenant
 from app.models.transaction_monitoring_result import TransactionMonitoringResult
 from app.models.user import User
+from app.models.user_invitation import UserInvitation
 from app.models.verification_case import IdentityVerificationCase
 from app.models.verification_case_assignment_history import (
     VerificationCaseAssignmentHistory,
@@ -1201,6 +1202,32 @@ def cleanup_organizations(db_session):
     if new_ids:
         db_session.query(Organization).filter(
             Organization.id.in_(new_ids),
+        ).delete(
+            synchronize_session=False,
+        )
+
+    db_session.commit()
+
+
+@pytest.fixture
+def cleanup_user_invitations(db_session):
+    existing_ids = {
+        invitation.id for invitation in db_session.query(UserInvitation).all()
+    }
+
+    yield
+
+    current_invitations = db_session.query(UserInvitation).all()
+
+    new_ids = [
+        invitation.id
+        for invitation in current_invitations
+        if invitation.id not in existing_ids
+    ]
+
+    if new_ids:
+        db_session.query(UserInvitation).filter(
+            UserInvitation.id.in_(new_ids),
         ).delete(
             synchronize_session=False,
         )
