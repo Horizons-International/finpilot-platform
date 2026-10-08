@@ -138,6 +138,10 @@ class AuditEventType(str, Enum):
     ORGANIZATION_CREATED = "ORGANIZATION_CREATED"
     ORGANIZATION_UPDATED = "ORGANIZATION_UPDATED"
 
+    USER_INVITED = "USER_INVITED"
+    USER_INVITATION_ACCEPTED = "USER_INVITATION_ACCEPTED"
+    USER_ROLE_CHANGED = "USER_ROLE_CHANGED"
+
 
 class UserStatus(str, Enum):
     ACTIVE = "active"
@@ -146,9 +150,19 @@ class UserStatus(str, Enum):
 
 
 class UserRole(str, Enum):
+    # Existing role retained for backward compatibility.
     ADMINISTRATOR = "Administrator"
-    REVIEWER = "Reviewer"
+
+    # Enterprise organization administrator.
+    ORGANIZATION_ADMIN = "Organization Admin"
+
+    COMPLIANCE_MANAGER = "Compliance Manager"
     COMPLIANCE_OFFICER = "Compliance Officer"
+    REVIEWER = "Reviewer"
+    ANALYST = "Analyst"
+    VIEWER = "Viewer"
+
+    # Existing platform/system role retained.
     AUDITOR = "Auditor"
 
 

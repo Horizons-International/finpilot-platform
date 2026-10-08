@@ -246,6 +246,16 @@ def require_platform_admin(
     }
 
 
+def require_organization_admin(
+    resource_type: str | None = None,
+) -> Callable[..., Any]:
+    return require_roles(
+        UserRole.ADMINISTRATOR,
+        UserRole.ORGANIZATION_ADMIN,
+        resource_type=resource_type,
+    )
+
+
 # ---------------------------------------------------------------------------
 # RBAC
 # ---------------------------------------------------------------------------

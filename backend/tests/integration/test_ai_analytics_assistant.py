@@ -15,6 +15,7 @@ from app.models.verification_case import (
 from app.models.verification_review import (
     VerificationReview,
 )
+from app.utils.date_time import utc_now
 from app.utils.enums import (
     AIFunction,
     AIResourceType,
@@ -88,7 +89,7 @@ def test_ai_analytics_assistant_answers_pending_verification(
         admin,
     )
 
-    today = date.today()
+    today = utc_now().date()
 
     current_month_start = today.replace(day=1)
 
@@ -185,7 +186,7 @@ def test_ai_analytics_interaction_stores_supporting_data(
         admin,
     )
 
-    today = date.today()
+    today = utc_now().date()
 
     make_customer_snapshot(
         db_session,
@@ -371,7 +372,7 @@ def test_ai_analytics_assistant_includes_rag_context(
         admin,
     )
 
-    today = date.today()
+    today = utc_now().date()
 
     make_customer_snapshot(
         db_session,

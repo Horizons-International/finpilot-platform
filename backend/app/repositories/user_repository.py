@@ -1,25 +1,55 @@
 from uuid import UUID
 
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Query, Session
 
 from app.models.user import User
 from app.repositories.base_repository import BaseRepository
-from app.utils.enums import UserStatus
+from app.utils.enums import UserRole, UserStatus
 
 
 class UserRepository(BaseRepository[User]):
-    def __init__(self, db: Session) -> None:
-        super().__init__(db, User)
+    def __init__(
+        self,
+        db: Session,
+        tenant_id: UUID | None = None,
+    ) -> None:
+        super().__init__(
+            db,
+            User,
+        )
+
+        self.tenant_id = tenant_id
+
+    def _tenant_filter(
+        self,
+        query: Query[User],
+    ) -> Query[User]:
+        if self.tenant_id is not None:
+            query = query.filter(
+                User.tenant_id == self.tenant_id,
+            )
+
+        return query
 
     def get_by_id(
         self,
         user_id: UUID,
         include_deleted: bool = False,
     ) -> User | None:
-        query = self.db.query(User).filter(User.id == user_id)
+        query = self.db.query(User).filter(
+            User.id == user_id,
+        )
+
+        query = self._tenant_filter(query)
 
         if not include_deleted:
-            query = query.filter(User.is_deleted.is_(False))
+            query = query.filter(
+                User.is_deleted.is_(False),
+            )
+
+        query = query.filter(
+            User.is_platform_admin.is_(False),
+        )
 
         return query.first()
 
@@ -28,10 +58,16 @@ class UserRepository(BaseRepository[User]):
         email: str,
         include_deleted: bool = False,
     ) -> User | None:
-        query = self.db.query(User).filter(User.email == email)
+        query = self.db.query(User).filter(
+            User.email == email,
+        )
+
+        query = self._tenant_filter(query)
 
         if not include_deleted:
-            query = query.filter(User.is_deleted.is_(False))
+            query = query.filter(
+                User.is_deleted.is_(False),
+            )
 
         return query.first()
 
@@ -96,12 +132,39 @@ class UserRepository(BaseRepository[User]):
     ) -> tuple[list[User], int]:
         query = self.db.query(User).filter(
             User.is_deleted.is_(False),
+            User.is_platform_admin.is_(False),
         )
+
+        query = self._tenant_filter(query)
 
         total = query.count()
 
         offset = (page - 1) * page_size
 
-        users = query.offset(offset).limit(page_size).all()
+        users = (
+            query.order_by(
+                User.created_at.desc(),
+            )
+            .offset(offset)
+            .limit(page_size)
+            .all()
+        )
 
         return users, total
+
+    def count_active_organization_admins(self) -> int:
+        query = self.db.query(User).filter(
+            User.status == UserStatus.ACTIVE,
+            User.is_deleted.is_(False),
+            User.is_platform_admin.is_(False),
+            User.role.in_(
+                [
+                    UserRole.ADMINISTRATOR,
+                    UserRole.ORGANIZATION_ADMIN,
+                ],
+            ),
+        )
+
+        query = self._tenant_filter(query)
+
+        return query.count()

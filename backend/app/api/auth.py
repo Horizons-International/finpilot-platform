@@ -4,10 +4,15 @@ from fastapi import APIRouter, Depends, Request, status
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
+from app.core.dependencies import get_user_invitation_service
 from app.core.responses import APIResponse
-from app.core.security import get_current_user, require_roles
+from app.core.security import (
+    get_current_user,
+    require_roles,
+)
 from app.models.user import User
 from app.schemas.auth import (
+    AcceptInvitationRequest,
     ChangePasswordRequest,
     LoginRequest,
     LoginResponse,
@@ -15,6 +20,9 @@ from app.schemas.auth import (
     RefreshTokenResponse,
 )
 from app.services.auth_service import AuthService
+from app.services.user_invitation_service import (
+    UserInvitationService,
+)
 from app.utils.enums import UserRole
 
 router = APIRouter(
@@ -115,4 +123,31 @@ def change_password(
         success=True,
         message="Password changed successfully.",
         data={"message": "Password changed successfully."},
+    )
+
+
+@router.post(
+    "/accept-invitation",
+    response_model=APIResponse[dict[str, str]],
+    status_code=status.HTTP_201_CREATED,
+    summary="Accept user invitation",
+)
+def accept_invitation(
+    payload: AcceptInvitationRequest,
+    service: UserInvitationService = Depends(
+        get_user_invitation_service,
+    ),
+) -> APIResponse[dict[str, str]]:
+    user = service.accept(
+        token=payload.token,
+        password=payload.password,
+    )
+
+    return APIResponse(
+        success=True,
+        message="Invitation accepted successfully.",
+        data={
+            "user_id": str(user.id),
+            "email": user.email,
+        },
     )

@@ -100,5 +100,12 @@ class Settings(BaseSettings):
         gt=0,
     )
 
+    # User Invitations
+    USER_INVITATION_EXPIRE_HOURS: int = Field(
+        default=48,
+        gt=0,
+        le=168,
+    )
+
 
 settings = Settings()  # type: ignore[call-arg]

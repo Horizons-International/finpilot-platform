@@ -51,6 +51,9 @@ from app.services.knowledge_document_service import (
 from app.services.knowledge_indexing_service import KnowledgeIndexingService
 from app.services.notification_service import NotificationService
 from app.services.organization_service import OrganizationService
+from app.services.organization_user_service import (
+    OrganizationUserService,
+)
 from app.services.report_export_service import (
     ReportExportService,
 )
@@ -66,6 +69,9 @@ from app.services.task_assignment_service import (
 )
 from app.services.task_service import TaskService
 from app.services.tenant_service import TenantService
+from app.services.user_invitation_service import (
+    UserInvitationService,
+)
 from app.services.verification_review_service import VerificationReviewService
 from app.services.verification_service import VerificationService
 from app.services.workflow_service import WorkflowService
@@ -368,4 +374,22 @@ def get_organization_service(
     return OrganizationService(
         db=db,
         tenant_id=current_user.tenant_id,
+    )
+
+
+def get_organization_user_service(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> OrganizationUserService:
+    return OrganizationUserService(
+        db=db,
+        tenant_id=current_user.tenant_id,
+    )
+
+
+def get_user_invitation_service(
+    db: Session = Depends(get_db),
+) -> UserInvitationService:
+    return UserInvitationService(
+        db=db,
     )
