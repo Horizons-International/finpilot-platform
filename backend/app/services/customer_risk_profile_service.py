@@ -14,10 +14,24 @@ from app.utils.errors import bad_request, not_found
 
 
 class CustomerRiskProfileService:
-    def __init__(self, db: Session) -> None:
+    def __init__(
+        self,
+        db: Session,
+        tenant_id: UUID,
+    ) -> None:
         self.db = db
-        self.repository = CustomerRiskProfileRepository(db)
-        self.customer_repository = CustomerRepository(db)
+        self.tenant_id = tenant_id
+
+        self.repository = CustomerRiskProfileRepository(
+            db,
+            tenant_id=tenant_id,
+        )
+
+        self.customer_repository = CustomerRepository(
+            db,
+            tenant_id=tenant_id,
+        )
+
         self.audit_service = AuditService(db)
 
     def create_profile(

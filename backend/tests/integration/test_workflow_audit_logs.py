@@ -385,6 +385,7 @@ def test_workflow_cancellation_is_audited(
 def test_workflow_failure_is_audited(
     client,
     db_session,
+    create_test_tenant,
     create_test_user,
     cleanup_workflows,
     cleanup_workflow_executions,
@@ -412,6 +413,7 @@ def test_workflow_failure_is_audited(
 
     service = WorkflowService(
         db_session,
+        tenant_id=admin.tenant_id,
     )
 
     execution = service.fail_execution(

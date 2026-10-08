@@ -12,6 +12,7 @@ from app.core.security import (
     validate_password,
     verify_password,
 )
+from app.models.tenant import Tenant
 from app.models.user import User
 from app.repositories.user_repository import UserRepository
 from app.schemas.auth import (
@@ -95,10 +96,16 @@ class AuthService:
             "sub": str(user.id),
             "email": user.email,
             "role": user.role,
+            "tenant_id": str(user.tenant_id),
         }
 
         access_token = create_access_token(data=token_data)
         refresh_token = create_refresh_token(data=token_data)
+
+        tenant = self.db.query(Tenant).filter(Tenant.id == user.tenant_id).first()
+
+        if tenant is None:
+            raise unauthorized("Tenant not found")
 
         self.audit_service.log_event(
             event_type=AuditEventType.LOGIN_SUCCESS,
@@ -122,6 +129,8 @@ class AuthService:
                 email=user.email,
                 status=user.status.value,
                 role=user.role,
+                tenant_id=str(tenant.id),
+                tenant_code=tenant.code,
             ),
         )
 
@@ -160,6 +169,7 @@ class AuthService:
             "sub": str(user.id),
             "email": user.email,
             "role": user.role,
+            "tenant_id": str(user.tenant_id),
         }
 
         access_token = create_access_token(

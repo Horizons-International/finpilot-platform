@@ -2,9 +2,8 @@ from typing import Any
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Request, status
-from sqlalchemy.orm import Session
 
-from app.core.database import get_db
+from app.core.dependencies import get_customer_risk_profile_service
 from app.core.responses import APIResponse
 from app.core.security import require_roles
 from app.schemas.customer_risk_profile import (
@@ -20,12 +19,6 @@ router = APIRouter(
     prefix="/api/v1/customer-risk-profiles",
     tags=["Customer Risk Profiles"],
 )
-
-
-def get_customer_risk_profile_service(
-    db: Session = Depends(get_db),
-) -> CustomerRiskProfileService:
-    return CustomerRiskProfileService(db)
 
 
 @router.post(

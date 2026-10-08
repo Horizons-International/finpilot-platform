@@ -3,14 +3,20 @@ from uuid import UUID
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.models.customer import Customer
 from app.models.customer_risk_assessment_history import (
     CustomerRiskAssessmentHistory,
 )
 
 
 class CustomerRiskAssessmentHistoryRepository:
-    def __init__(self, db: Session) -> None:
+    def __init__(
+        self,
+        db: Session,
+        tenant_id: UUID,
+    ) -> None:
         self.db = db
+        self.tenant_id = tenant_id
 
     def create(
         self,
@@ -28,8 +34,13 @@ class CustomerRiskAssessmentHistoryRepository:
     ) -> list[CustomerRiskAssessmentHistory]:
         statement = (
             select(CustomerRiskAssessmentHistory)
+            .join(
+                Customer,
+                Customer.id == CustomerRiskAssessmentHistory.customer_id,
+            )
             .where(
                 CustomerRiskAssessmentHistory.customer_id == customer_id,
+                Customer.tenant_id == self.tenant_id,
             )
             .order_by(
                 CustomerRiskAssessmentHistory.assessed_at.asc(),

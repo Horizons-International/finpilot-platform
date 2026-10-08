@@ -9,23 +9,37 @@ from app.utils.enums import CustomerStatus
 
 
 class CustomerRepository(BaseRepository[Customer]):
-    def __init__(self, db: Session) -> None:
+    def __init__(
+        self,
+        db: Session,
+        tenant_id: UUID | None = None,
+    ) -> None:
         super().__init__(db, Customer)
+        self.tenant_id = tenant_id
 
-    def get_by_id(self, customer_id: UUID) -> Customer | None:
+    def get_by_id(
+        self,
+        customer_id: UUID,
+    ) -> Customer | None:
         return (
             self.db.query(Customer)
             .filter(
                 Customer.id == customer_id,
+                Customer.tenant_id == self.tenant_id,
             )
             .first()
         )
 
-    def get_by_email(self, email: str | None) -> Customer | None:
+    def get_by_email(
+        self,
+        email: str | None,
+        tenant_id: UUID,
+    ) -> Customer | None:
         return (
             self.db.query(Customer)
             .filter(
                 Customer.email == email,
+                Customer.tenant_id == tenant_id,
             )
             .first()
         )
@@ -33,6 +47,7 @@ class CustomerRepository(BaseRepository[Customer]):
     def search(
         self,
         customer_id: UUID | None = None,
+        tenant_id: UUID | None = None,
         name: str | None = None,
         phone_number: str | None = None,
         email: str | None = None,
@@ -42,7 +57,9 @@ class CustomerRepository(BaseRepository[Customer]):
         sort_by: str = "created_at",
         sort_order: str = "desc",
     ) -> tuple[list[Customer], int]:
-        query = self.db.query(Customer)
+        query = self.db.query(Customer).filter(
+            Customer.tenant_id == tenant_id,
+        )
 
         if customer_id is not None:
             query = query.filter(Customer.id == customer_id)

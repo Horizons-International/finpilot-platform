@@ -32,6 +32,8 @@ class AuthUserResponse(BaseModel):
     email: EmailStr
     status: UserStatus
     role: UserRole
+    tenant_id: str
+    tenant_code: str
 
 
 class LoginResponse(BaseModel):

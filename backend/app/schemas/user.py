@@ -35,6 +35,7 @@ class UserCreate(NameFieldValidatorMixin, EmailFieldValidatorMixin, BaseModel):
         default=None,
         max_length=100,
     )
+    tenant_id: UUID | None = None
 
 
 class UserUpdate(NameFieldValidatorMixin, EmailFieldValidatorMixin, BaseModel):
@@ -73,6 +74,8 @@ class UserResponse(BaseModel):
     is_deleted: bool
     created_at: datetime
     updated_at: datetime
+    tenant_id: UUID
+    is_platform_admin: bool
 
 
 class UserListResponse(BaseModel):

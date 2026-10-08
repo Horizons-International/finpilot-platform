@@ -12,10 +12,11 @@ from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.core.database import get_db
+from app.models.tenant import Tenant
 from app.models.user import User
 from app.services.audit_service import AuditService
 from app.utils.date_time import utc_now
-from app.utils.enums import AuditEventType, UserRole, UserStatus
+from app.utils.enums import AuditEventType, TenantStatus, UserRole, UserStatus
 from app.utils.errors import unauthorized
 
 ALGORITHM = "HS256"
@@ -210,7 +211,39 @@ def get_current_user(
     if user.status != UserStatus.ACTIVE:
         raise unauthorized("User account is not active")
 
+    tenant = (
+        db.query(Tenant)
+        .filter(
+            Tenant.id == user.tenant_id,
+        )
+        .first()
+    )
+
+    if tenant is None:
+        raise unauthorized("Tenant not found")
+
+    if tenant.status != TenantStatus.ACTIVE:
+        raise unauthorized("Tenant is not active")
+
     return user
+
+
+def require_platform_admin(
+    current_user: User = Depends(get_current_user),
+) -> dict[str, Any]:
+    if not current_user.is_platform_admin:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=("Platform administrator access is required."),
+        )
+
+    return {
+        "sub": str(current_user.id),
+        "email": current_user.email,
+        "role": current_user.role,
+        "tenant_id": str(current_user.tenant_id),
+        "is_platform_admin": True,
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -261,6 +294,8 @@ def require_roles(
             "sub": str(current_user.id),
             "email": current_user.email,
             "role": current_user.role,
+            "tenant_id": str(current_user.tenant_id),
+            "is_platform_admin": current_user.is_platform_admin,
         }
 
     return role_checker

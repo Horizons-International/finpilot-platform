@@ -41,9 +41,17 @@ ALLOWED_STATUS_TRANSITIONS = {
 
 
 class CustomerService:
-    def __init__(self, db: Session) -> None:
+    def __init__(
+        self,
+        db: Session,
+        tenant_id: UUID,
+    ) -> None:
         self.db = db
-        self.repository = CustomerRepository(db)
+        self.tenant_id = tenant_id
+        self.repository = CustomerRepository(
+            db,
+            tenant_id=tenant_id,
+        )
         self.audit_service = AuditService(db)
         self.customer_audit_service = CustomerAuditLogService(db)
 
@@ -57,12 +65,14 @@ class CustomerService:
     ) -> Customer:
         existing_customer = self.repository.get_by_email(
             customer_data.email,
+            self.tenant_id,
         )
 
         if existing_customer:
             raise bad_request("Email is already registered.")
 
         customer = Customer(
+            tenant_id=self.tenant_id,
             first_name=customer_data.first_name,
             middle_name=customer_data.middle_name,
             last_name=customer_data.last_name,
@@ -121,7 +131,9 @@ class CustomerService:
         self,
         customer_id: UUID,
     ) -> Customer:
-        customer = self.repository.get_by_id(customer_id)
+        customer = self.repository.get_by_id(
+            customer_id,
+        )
 
         if not customer:
             raise not_found("Customer")
@@ -170,6 +182,7 @@ class CustomerService:
         if "email" in changed_field_names:
             existing_customer = self.repository.get_by_email(
                 update_data["email"],
+                self.tenant_id,
             )
 
             if existing_customer and existing_customer.id != customer_id:
@@ -277,6 +290,7 @@ class CustomerService:
 
         try:
             customers, total = self.repository.search(
+                tenant_id=self.tenant_id,
                 customer_id=customer_id,
                 name=name,
                 phone_number=phone_number,

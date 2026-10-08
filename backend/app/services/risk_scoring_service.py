@@ -28,12 +28,23 @@ from app.utils.errors import not_found
 
 
 class RiskScoringService:
-    def __init__(self, db: Session) -> None:
+    def __init__(
+        self,
+        db: Session,
+        tenant_id: UUID,
+    ) -> None:
         self.db = db
+        self.tenant_id = tenant_id
 
-        self.customer_repository = CustomerRepository(db)
+        self.customer_repository = CustomerRepository(
+            db,
+            tenant_id=tenant_id,
+        )
 
-        self.profile_repository = CustomerRiskProfileRepository(db)
+        self.profile_repository = CustomerRiskProfileRepository(
+            db,
+            tenant_id=tenant_id,
+        )
 
         self.rule_repository = RiskScoringRuleRepository(db)
 
@@ -43,7 +54,10 @@ class RiskScoringService:
 
         self.engine = RiskScoringEngine()
 
-        self.history_repository = CustomerRiskAssessmentHistoryRepository(db)
+        self.history_repository = CustomerRiskAssessmentHistoryRepository(
+            db,
+            tenant_id=tenant_id,
+        )
 
     def calculate_and_store(
         self,

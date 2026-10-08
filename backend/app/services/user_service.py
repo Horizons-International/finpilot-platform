@@ -3,8 +3,10 @@ from uuid import UUID
 from sqlalchemy.orm import Session
 
 from app.core.security import hash_password
+from app.models.tenant import Tenant
 from app.models.user import User
 from app.repositories.user_repository import UserRepository
+from app.schemas.tenant import TenantStatus
 from app.schemas.user import (
     UserCreate,
     UserListResponse,
@@ -14,7 +16,7 @@ from app.schemas.user import (
 )
 from app.services.audit_service import AuditService
 from app.utils.enums import AuditEventType, UserStatus
-from app.utils.errors import bad_request, not_found
+from app.utils.errors import bad_request, forbidden, not_found
 from app.utils.pagination import Pagination, validate_pagination
 
 
@@ -27,6 +29,9 @@ class UserService:
     def create_user(
         self,
         user_data: UserCreate,
+        *,
+        actor_tenant_id: UUID,
+        actor_is_platform_admin: bool,
         ip_address: str | None = None,
         user_agent: str | None = None,
     ) -> User:
@@ -37,6 +42,28 @@ class UserService:
         if existing_user:
             raise bad_request("Email is already registered")
 
+        target_tenant_id = (
+            user_data.tenant_id if user_data.tenant_id is not None else actor_tenant_id
+        )
+
+        if target_tenant_id != actor_tenant_id and not actor_is_platform_admin:
+            raise forbidden(
+                "You cannot create a user in another tenant.",
+            )
+
+        tenant = self.db.get(
+            Tenant,
+            target_tenant_id,
+        )
+
+        if tenant is None:
+            raise not_found("Tenant")
+
+        if tenant.status != TenantStatus.ACTIVE:
+            raise bad_request(
+                "Cannot create a user in an inactive tenant.",
+            )
+
         user = User(
             first_name=user_data.first_name,
             last_name=user_data.last_name,
@@ -45,12 +72,13 @@ class UserService:
             status=UserStatus.ACTIVE,
             role=user_data.role,
             department=(user_data.department.strip() if user_data.department else None),
+            tenant_id=target_tenant_id,
+            is_platform_admin=False,
             is_deleted=False,
         )
 
         user = self.repository.create(user)
 
-        # Make sure the generated user ID is available
         self.db.flush()
 
         self.audit_service.log_event(

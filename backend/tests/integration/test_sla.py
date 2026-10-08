@@ -90,6 +90,7 @@ def test_task_sla_breach_updates_status_and_creates_notification(
 
 def test_workflow_sla_breach_updates_status_and_notifies_user(
     db_session,
+    create_test_tenant,
     create_test_user,
     cleanup_workflows,
     cleanup_notifications,
@@ -99,9 +100,15 @@ def test_workflow_sla_breach_updates_status_and_notifies_user(
         email=f"sla-workflow-{uuid4()}@example.com",
     )
 
+    tenant = create_test_tenant(
+        name="Tenant B",
+        code=f"TENANT-B-{uuid4().hex[:6].upper()}",
+    )
+
     workflow = Workflow(
         name=f"SLA workflow {uuid4()}",
         description="SLA test workflow.",
+        tenant_id=tenant.id,
     )
 
     db_session.add(workflow)

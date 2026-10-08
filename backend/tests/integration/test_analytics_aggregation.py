@@ -98,6 +98,7 @@ def cleanup_analytics_aggregations(db_session):
 
 def test_daily_aggregation_stores_event_metrics(
     db_session,
+    create_test_tenant,
     cleanup_analytics_aggregations,
     cleanup_test_customers,
     cleanup_compliance_cases,
@@ -115,7 +116,13 @@ def test_daily_aggregation_stores_event_metrics(
         tzinfo=timezone.utc,
     )
 
+    tenant = create_test_tenant(
+        name="Tenant B",
+        code=f"TENANT-B-{uuid4().hex[:6].upper()}",
+    )
+
     customer = Customer(
+        tenant_id=tenant.id,
         first_name="Analytics",
         last_name="Customer",
         email=f"analytics-{uuid4()}@example.com",
@@ -185,6 +192,7 @@ def test_daily_aggregation_stores_event_metrics(
     )
 
     workflow = Workflow(
+        tenant_id=tenant.id,
         name=f"Analytics Workflow {uuid4()}",
         description="Analytics aggregation test workflow.",
         status=WorkflowStatus.ACTIVE,

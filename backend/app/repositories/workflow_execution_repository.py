@@ -4,6 +4,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.models.workflow import (
+    Workflow,
     WorkflowExecution,
     WorkflowStepExecution,
 )
@@ -14,11 +15,16 @@ from app.utils.enums import WorkflowExecutionStatus, WorkflowStepExecutionStatus
 class WorkflowExecutionRepository(
     BaseRepository[WorkflowExecution],
 ):
-    def __init__(self, db: Session) -> None:
+    def __init__(
+        self,
+        db: Session,
+        tenant_id: UUID,
+    ) -> None:
         super().__init__(
             db,
             WorkflowExecution,
         )
+        self.tenant_id = tenant_id
 
     def get_by_id(
         self,
@@ -26,8 +32,13 @@ class WorkflowExecutionRepository(
     ) -> WorkflowExecution | None:
         return (
             self.db.query(WorkflowExecution)
+            .join(
+                Workflow,
+                Workflow.id == WorkflowExecution.workflow_id,
+            )
             .filter(
                 WorkflowExecution.id == execution_id,
+                Workflow.tenant_id == self.tenant_id,
             )
             .first()
         )
@@ -38,8 +49,13 @@ class WorkflowExecutionRepository(
     ) -> WorkflowExecution | None:
         return (
             self.db.query(WorkflowExecution)
+            .join(
+                Workflow,
+                Workflow.id == WorkflowExecution.workflow_id,
+            )
             .filter(
                 WorkflowExecution.id == execution_id,
+                Workflow.tenant_id == self.tenant_id,
             )
             .with_for_update()
             .first()

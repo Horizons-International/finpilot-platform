@@ -15,8 +15,10 @@ class SystemConfigurationRepository:
     def __init__(
         self,
         db: Session,
+        tenant_id: UUID,
     ) -> None:
         self.db = db
+        self.tenant_id = tenant_id
 
     def create(
         self,
@@ -35,6 +37,7 @@ class SystemConfigurationRepository:
         for_update: bool = False,
     ) -> SystemConfiguration | None:
         statement = select(SystemConfiguration).where(
+            SystemConfiguration.tenant_id == self.tenant_id,
             SystemConfiguration.id == configuration_id,
         )
 
@@ -49,6 +52,7 @@ class SystemConfigurationRepository:
     ) -> SystemConfiguration | None:
         return self.db.scalar(
             select(SystemConfiguration).where(
+                SystemConfiguration.tenant_id == self.tenant_id,
                 SystemConfiguration.key == key,
             )
         )
@@ -59,7 +63,9 @@ class SystemConfigurationRepository:
         category: SystemConfigurationCategory | None = None,
         status: SystemConfigurationStatus | None = None,
     ) -> list[SystemConfiguration]:
-        filters = []
+        filters = [
+            SystemConfiguration.tenant_id == self.tenant_id,
+        ]
 
         if category is not None:
             filters.append(

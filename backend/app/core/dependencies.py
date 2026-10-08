@@ -22,6 +22,9 @@ from app.communication.providers.factory import (
 )
 from app.core.config import settings
 from app.core.database import get_db
+from app.core.security import get_current_user
+from app.models.tenant import Tenant
+from app.models.user import User
 from app.rag.embeddings import EmbeddingService
 from app.rag.retrieval import RetrievalService
 from app.services.ai_analytics_assistant_service import (
@@ -36,6 +39,8 @@ from app.services.compliance_service import ComplianceService
 from app.services.customer_onboarding import (
     CustomerOnboardingService,
 )
+from app.services.customer_risk_profile_service import CustomerRiskProfileService
+from app.services.customer_service import CustomerService
 from app.services.dashboard_service import DashboardService
 from app.services.document_review_service import DocumentReviewService
 from app.services.document_service import DocumentService
@@ -59,11 +64,13 @@ from app.services.task_assignment_service import (
     TaskAssignmentService,
 )
 from app.services.task_service import TaskService
+from app.services.tenant_service import TenantService
 from app.services.verification_review_service import VerificationReviewService
 from app.services.verification_service import VerificationService
 from app.services.workflow_service import WorkflowService
 from app.storages.base_storage import BaseStorage
 from app.storages.local_storage import LocalStorage
+from app.utils.errors import unauthorized
 
 
 def get_storage() -> BaseStorage:
@@ -143,8 +150,12 @@ def get_compliance_service(
 
 def get_document_review_service(
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ) -> DocumentReviewService:
-    return DocumentReviewService(db)
+    return DocumentReviewService(
+        db=db,
+        tenant_id=current_user.tenant_id,
+    )
 
 
 def get_ai_compliance_service(
@@ -161,14 +172,32 @@ def get_ai_compliance_service(
 
 def get_risk_scoring_service(
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ) -> RiskScoringService:
-    return RiskScoringService(db)
+    return RiskScoringService(
+        db=db,
+        tenant_id=current_user.tenant_id,
+    )
+
+
+def get_customer_risk_profile_service(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> CustomerRiskProfileService:
+    return CustomerRiskProfileService(
+        db=db,
+        tenant_id=current_user.tenant_id,
+    )
 
 
 def get_workflow_service(
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ) -> WorkflowService:
-    return WorkflowService(db)
+    return WorkflowService(
+        db=db,
+        tenant_id=current_user.tenant_id,
+    )
 
 
 def get_customer_onboarding_service(
@@ -176,10 +205,12 @@ def get_customer_onboarding_service(
     workflow_service: WorkflowService = Depends(
         get_workflow_service,
     ),
+    current_user: User = Depends(get_current_user),
 ) -> CustomerOnboardingService:
     return CustomerOnboardingService(
         db=db,
         workflow_service=workflow_service,
+        tenant_id=current_user.tenant_id,
     )
 
 
@@ -221,8 +252,12 @@ def get_dashboard_service(
 
 def get_system_configuration_service(
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ) -> SystemConfigurationService:
-    return SystemConfigurationService(db)
+    return SystemConfigurationService(
+        db=db,
+        tenant_id=current_user.tenant_id,
+    )
 
 
 def get_metric_service(
@@ -285,8 +320,41 @@ def get_risk_prediction_service(
 def get_report_export_service(
     db: Session = Depends(get_db),
     storage: BaseStorage = Depends(get_storage),
+    current_user: User = Depends(get_current_user),
 ) -> ReportExportService:
     return ReportExportService(
         db=db,
         storage=storage,
+        tenant_id=current_user.tenant_id,
+    )
+
+
+def get_tenant_service(
+    db: Session = Depends(get_db),
+) -> TenantService:
+    return TenantService(db)
+
+
+def get_tenant_context(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> Tenant:
+    tenant = db.get(
+        Tenant,
+        current_user.tenant_id,
+    )
+
+    if tenant is None:
+        raise unauthorized("Tenant not found")
+
+    return tenant
+
+
+def get_customer_service(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> CustomerService:
+    return CustomerService(
+        db=db,
+        tenant_id=current_user.tenant_id,
     )

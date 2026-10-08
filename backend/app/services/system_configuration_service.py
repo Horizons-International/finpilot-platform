@@ -28,9 +28,14 @@ class SystemConfigurationService:
     def __init__(
         self,
         db: Session,
+        tenant_id: UUID,
     ) -> None:
         self.db = db
-        self.repository = SystemConfigurationRepository(db)
+        self.tenant_id = tenant_id
+        self.repository = SystemConfigurationRepository(
+            db,
+            tenant_id,
+        )
         self.audit_service = AuditService(db)
 
     def create(
@@ -59,6 +64,7 @@ class SystemConfigurationService:
             raise bad_request(str(exc)) from exc
 
         configuration = SystemConfiguration(
+            tenant_id=self.tenant_id,
             key=key,
             value=validated_value,
             category=data.category,

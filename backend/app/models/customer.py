@@ -2,7 +2,7 @@ import uuid
 from datetime import date, datetime
 from typing import TYPE_CHECKING
 
-from sqlalchemy import Date, DateTime, String, func
+from sqlalchemy import Date, DateTime, ForeignKey, String, func
 from sqlalchemy import Enum as SQLAlchemyEnum
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -22,6 +22,16 @@ class Customer(Base):
         UUID(as_uuid=True),
         primary_key=True,
         default=uuid.uuid4,
+    )
+
+    tenant_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey(
+            "tenants.id",
+            ondelete="CASCADE",
+        ),
+        nullable=False,
+        index=True,
     )
 
     first_name: Mapped[str] = mapped_column(
@@ -121,4 +131,9 @@ class Customer(Base):
         back_populates="customer",
         uselist=False,
         cascade="all, delete-orphan",
+    )
+
+    tenant = relationship(
+        "Tenant",
+        back_populates="customers",
     )

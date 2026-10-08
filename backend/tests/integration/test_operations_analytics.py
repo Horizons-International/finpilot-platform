@@ -1,4 +1,5 @@
 from datetime import date, datetime, timedelta, timezone
+from uuid import uuid4
 
 from app.analytics.models.operations_daily import OperationsAnalyticsDaily
 from app.models.task import Task
@@ -10,26 +11,7 @@ from app.utils.enums import (
     WorkflowExecutionStatus,
     WorkflowStatus,
 )
-
-
-def authenticate_client(client, user):
-    response = client.post(
-        "/api/v1/auth/login",
-        json={
-            "email": user.email,
-            "password": "Password123!",
-        },
-    )
-
-    assert response.status_code == 200
-
-    token = response.json()["data"]["access_token"]
-
-    client.headers.update(
-        {
-            "Authorization": f"Bearer {token}",
-        }
-    )
+from tests.helpers import authenticate_client
 
 
 def make_operations_snapshot(
@@ -80,6 +62,7 @@ def make_operations_snapshot(
 def test_operations_performance_returns_accurate_metrics(
     client,
     db_session,
+    create_test_tenant,
     create_test_user,
     cleanup_analytics_snapshots,
     cleanup_tasks,
@@ -94,6 +77,11 @@ def test_operations_performance_returns_accurate_metrics(
     reviewer = create_test_user(
         UserRole.REVIEWER,
         "operations-analytics-reviewer@example.com",
+    )
+
+    tenant = create_test_tenant(
+        name="Tenant B",
+        code=f"TENANT-B-{uuid4().hex[:6].upper()}",
     )
 
     admin.department = "Operations"
@@ -155,6 +143,7 @@ def test_operations_performance_returns_accurate_metrics(
     )
 
     workflow = Workflow(
+        tenant_id=tenant.id,
         name="Operations Analytics Test Workflow",
         description="Operations analytics test",
         status=WorkflowStatus.ACTIVE,

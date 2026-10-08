@@ -28,6 +28,7 @@ def authenticate_client(client, user) -> None:
 
 def create_customer_with_data(client, **overrides):
     """POST a new customer, merging `overrides` onto a valid default payload."""
+    unique_id = uuid4()
     data = {
         "first_name": "John",
         "middle_name": "Michael",
@@ -35,8 +36,8 @@ def create_customer_with_data(client, **overrides):
         "date_of_birth": "1990-05-15",
         "nationality": "US",
         "country_of_residence": "US",
-        "email": "john.smith@example.com",
-        "phone_number": "+249912345678",
+        "email": f"john.smith-{unique_id}@example.com",
+        "phone_number": f"+249912{unique_id.int % 10**6:06d}",
         "status": "new",
     }
 

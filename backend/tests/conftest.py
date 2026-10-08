@@ -1,10 +1,10 @@
 import os
 from datetime import date, datetime
-from uuid import UUID
+from uuid import UUID, uuid4
 
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, select
 from sqlalchemy.orm import sessionmaker
 
 from app.analytics.models.compliance_daily import ComplianceAnalyticsDaily
@@ -56,6 +56,7 @@ from app.models.task import (
     TaskStatusHistory,
 )
 from app.models.task_assignment_rule import TaskAssignmentRule
+from app.models.tenant import Tenant
 from app.models.transaction_monitoring_result import TransactionMonitoringResult
 from app.models.user import User
 from app.models.verification_case import IdentityVerificationCase
@@ -75,7 +76,7 @@ from app.ocr.services.ocr_service import OCRService
 from app.repositories.ai_prompt_repository import AIPromptRepository
 from app.repositories.customer_repository import CustomerRepository
 from app.storages.local_storage import LocalStorage
-from app.utils.enums import CustomerRiskLevel, CustomerStatus, UserStatus
+from app.utils.enums import CustomerRiskLevel, CustomerStatus, TenantStatus, UserStatus
 
 os.environ.setdefault(
     "TEST_DATABASE_URL",
@@ -121,8 +122,26 @@ def db_session():
 def create_test_user():
     created_user_ids = []
 
-    def _create_test_user(role: str, email: str):
+    def _create_test_user(
+        role: str,
+        email: str,
+        tenant_id: UUID | None = None,
+        is_platform_admin: bool = False,
+    ):
         db = TestSessionLocal()
+
+        if tenant_id is None:
+            default_tenant = (
+                db.query(Tenant)
+                .filter(
+                    Tenant.code == "DEFAULT",
+                )
+                .first()
+            )
+
+            assert default_tenant is not None
+
+            tenant_id = default_tenant.id
 
         try:
             user = User(
@@ -132,6 +151,8 @@ def create_test_user():
                 password_hash=hash_password("Password123!"),
                 status=UserStatus.ACTIVE,
                 role=role,
+                tenant_id=tenant_id,
+                is_platform_admin=is_platform_admin,
                 is_deleted=False,
             )
 
@@ -212,10 +233,25 @@ def create_test_customer():
         phone_number: str = "+249123456789",
         status: CustomerStatus = CustomerStatus.NEW,
         created_at: datetime | None = None,
+        tenant_id: UUID | None = None,
     ):
         db = TestSessionLocal()
 
+        if tenant_id is None:
+            default_tenant = (
+                db.query(Tenant)
+                .filter(
+                    Tenant.code == "DEFAULT",
+                )
+                .first()
+            )
+
+            assert default_tenant is not None
+
+            tenant_id = default_tenant.id
+
         customer = Customer(
+            tenant_id=tenant_id,
             first_name=first_name,
             middle_name=middle_name,
             last_name=last_name,
@@ -1083,3 +1119,63 @@ def cleanup_report_exports(db_session):
             db_session.delete(report_export)
 
     db_session.commit()
+
+
+@pytest.fixture
+def create_test_tenant():
+    created_tenant_ids = []
+
+    def _create_test_tenant(
+        name: str | None = None,
+        code: str | None = None,
+    ):
+        db = TestSessionLocal()
+
+        try:
+            tenant = Tenant(
+                name=name or f"Test Tenant {uuid4()}",
+                code=code or f"TEST-{uuid4().hex[:8].upper()}",
+                status=TenantStatus.ACTIVE,
+            )
+
+            db.add(tenant)
+            db.commit()
+            db.refresh(tenant)
+
+            created_tenant_ids.append(tenant.id)
+
+            return tenant
+
+        finally:
+            db.close()
+
+    yield _create_test_tenant
+
+    db = TestSessionLocal()
+
+    try:
+        for tenant_id in created_tenant_ids:
+            tenant_user_ids = select(User.id).where(
+                User.tenant_id == tenant_id,
+            )
+
+            db.query(AuditLog).filter(AuditLog.user_id.in_(tenant_user_ids)).delete(
+                synchronize_session=False,
+            )
+
+            db.query(User).filter(
+                User.tenant_id == tenant_id,
+            ).delete(
+                synchronize_session=False,
+            )
+
+            db.query(Tenant).filter(
+                Tenant.id == tenant_id,
+            ).delete(
+                synchronize_session=False,
+            )
+
+        db.commit()
+
+    finally:
+        db.close()
