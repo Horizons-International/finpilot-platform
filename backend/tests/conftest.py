@@ -45,6 +45,7 @@ from app.models.notification import (
     Notification,
     NotificationDelivery,
 )
+from app.models.organization import Organization
 from app.models.report_export import ReportExport
 from app.models.risk_prediction import RiskPrediction
 from app.models.risk_score_threshold import RiskScoreThreshold
@@ -1179,3 +1180,29 @@ def create_test_tenant():
 
     finally:
         db.close()
+
+
+@pytest.fixture
+def cleanup_organizations(db_session):
+    existing_ids = {
+        organization.id for organization in db_session.query(Organization).all()
+    }
+
+    yield
+
+    current_organizations = db_session.query(Organization).all()
+
+    new_ids = [
+        organization.id
+        for organization in current_organizations
+        if organization.id not in existing_ids
+    ]
+
+    if new_ids:
+        db_session.query(Organization).filter(
+            Organization.id.in_(new_ids),
+        ).delete(
+            synchronize_session=False,
+        )
+
+    db_session.commit()

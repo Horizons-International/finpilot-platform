@@ -2,7 +2,7 @@ import uuid
 from datetime import datetime
 from uuid import UUID
 
-from sqlalchemy import DateTime, Enum, String, func
+from sqlalchemy import DateTime, Enum, String, UniqueConstraint, func
 from sqlalchemy.dialects.postgresql import UUID as PostgreSQLUUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -12,6 +12,13 @@ from app.utils.enums import TenantStatus
 
 class Tenant(Base):
     __tablename__ = "tenants"
+
+    __table_args__ = (
+        UniqueConstraint(
+            "code",
+            name="uq_tenants_code",
+        ),
+    )
 
     id: Mapped[UUID] = mapped_column(
         PostgreSQLUUID(as_uuid=True),
@@ -72,4 +79,11 @@ class Tenant(Base):
     report_exports = relationship(
         "ReportExport",
         back_populates="tenant",
+    )
+
+    organization = relationship(
+        "Organization",
+        back_populates="tenant",
+        uselist=False,
+        cascade="all, delete-orphan",
     )

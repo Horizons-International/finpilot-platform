@@ -48,3 +48,12 @@ def service_unavailable(
         status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
         detail=message,
     )
+
+
+def conflict(
+    message: str,
+) -> HTTPException:
+    return HTTPException(
+        status_code=status.HTTP_409_CONFLICT,
+        detail=message,
+    )

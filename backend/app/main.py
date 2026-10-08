@@ -50,6 +50,7 @@ from app.api.ocr import router as ocr_router
 from app.api.operations_analytics import (
     router as operations_analytics_router,
 )
+from app.api.organizations import router as organizations_router
 from app.api.profile import router as profile_router
 from app.api.rag import router as rag_router
 from app.api.report_exports import (
@@ -142,6 +143,7 @@ app.include_router(health_router)
 app.include_router(profile_router)
 app.include_router(users_router)
 app.include_router(tenants_router)
+app.include_router(organizations_router)
 app.include_router(system_configurations_router)
 app.include_router(dashboard_router)
 app.include_router(executive_dashboard_router)

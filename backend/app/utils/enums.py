@@ -135,6 +135,9 @@ class AuditEventType(str, Enum):
 
     RISK_PREDICTION_CREATED = "RISK_PREDICTION_CREATED"
 
+    ORGANIZATION_CREATED = "ORGANIZATION_CREATED"
+    ORGANIZATION_UPDATED = "ORGANIZATION_UPDATED"
+
 
 class UserStatus(str, Enum):
     ACTIVE = "active"
@@ -498,6 +501,12 @@ class ReportExportStatus(str, Enum):
 
 
 class TenantStatus(str, Enum):
+    ACTIVE = "ACTIVE"
+    SUSPENDED = "SUSPENDED"
+    INACTIVE = "INACTIVE"
+
+
+class OrganizationStatus(str, Enum):
     ACTIVE = "ACTIVE"
     SUSPENDED = "SUSPENDED"
     INACTIVE = "INACTIVE"
