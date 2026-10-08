@@ -68,6 +68,7 @@ from app.api.task_assignment_rules import (
     router as task_assignment_rules_router,
 )
 from app.api.tasks import router as tasks_router
+from app.api.tenants import router as tenants_router
 from app.api.transaction_monitoring import (
     router as transaction_monitoring_router,
 )
@@ -140,6 +141,7 @@ app.include_router(auth_router)
 app.include_router(health_router)
 app.include_router(profile_router)
 app.include_router(users_router)
+app.include_router(tenants_router)
 app.include_router(system_configurations_router)
 app.include_router(dashboard_router)
 app.include_router(executive_dashboard_router)
@@ -151,18 +153,18 @@ app.include_router(compliance_analytics_router)
 app.include_router(operations_analytics_router)
 app.include_router(compliance_cases_router)
 app.include_router(files_router)
-app.include_router(customer_router)
 app.include_router(tasks_router)
 app.include_router(
     task_assignment_rules_router,
 )
-app.include_router(customer_onboarding_router)
 app.include_router(workflows_router)
 app.include_router(notifications_router)
+app.include_router(customer_router)
 app.include_router(customer_contacts_router)
 app.include_router(customer_addresses_router)
 app.include_router(customer_risk_profiles_router)
 app.include_router(customer_audit_logs_router)
+app.include_router(customer_onboarding_router)
 app.include_router(risk_scoring_router)
 app.include_router(risk_predictions_router)
 app.include_router(risk_scoring_rules_router)

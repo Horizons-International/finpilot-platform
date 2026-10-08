@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 from app.core.security import hash_password
 from app.models.ai_prompt import AIPrompt
 from app.models.ai_prompt_assignment import AIPromptAssignment
+from app.models.tenant import Tenant
 from app.models.user import User
 from app.utils.enums import (
     AIFunction,
@@ -100,8 +101,16 @@ def get_or_create_ai_system_user(db: Session) -> User:
     if user is not None:
         return user
 
+    tenant = db.query(Tenant).filter(Tenant.code == "DEFAULT").first()
+
+    if tenant is None:
+        raise RuntimeError(
+            "Default tenant is required before seeding the AI system user.",
+        )
+
     user = User(
         id=UUID("00000000-0000-0000-0000-000000000010"),
+        tenant_id=tenant.id,
         first_name="AI",
         last_name="System",
         email=AI_SYSTEM_USER_EMAIL,
@@ -109,6 +118,7 @@ def get_or_create_ai_system_user(db: Session) -> User:
         status=UserStatus.INACTIVE,
         role=UserRole.ADMINISTRATOR,
         is_deleted=False,
+        is_platform_admin=False,
     )
 
     db.add(user)

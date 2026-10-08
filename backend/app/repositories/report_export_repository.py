@@ -9,8 +9,13 @@ from app.utils.enums import ReportExportStatus
 
 
 class ReportExportRepository:
-    def __init__(self, db: Session) -> None:
+    def __init__(
+        self,
+        db: Session,
+        tenant_id: UUID | None = None,
+    ) -> None:
         self.db = db
+        self.tenant_id = tenant_id
 
     def create(
         self,
@@ -26,9 +31,16 @@ class ReportExportRepository:
         self,
         export_id: UUID,
     ) -> ReportExport | None:
-        statement = select(ReportExport).where(
+        filters = [
             ReportExport.id == export_id,
-        )
+        ]
+
+        if self.tenant_id is not None:
+            filters.append(
+                ReportExport.tenant_id == self.tenant_id,
+            )
+
+        statement = select(ReportExport).where(*filters)
 
         return self.db.scalars(statement).first()
 
@@ -40,20 +52,34 @@ class ReportExportRepository:
     ) -> tuple[list[ReportExport], int]:
         offset = (page - 1) * page_size
 
+        filters = []
+
+        if self.tenant_id is not None:
+            filters.append(
+                ReportExport.tenant_id == self.tenant_id,
+            )
+
         statement = (
             select(ReportExport)
+            .where(*filters)
             .order_by(ReportExport.created_at.desc())
             .offset(offset)
             .limit(page_size)
         )
 
-        exports = list(self.db.scalars(statement).all())
+        exports = list(
+            self.db.scalars(statement).all(),
+        )
+
+        count_statement = select(
+            func.count(ReportExport.id),
+        )
+
+        if filters:
+            count_statement = count_statement.where(*filters)
 
         total = int(
-            self.db.scalar(
-                select(func.count(ReportExport.id)),
-            )
-            or 0
+            self.db.scalar(count_statement) or 0,
         )
 
         return exports, total

@@ -287,7 +287,7 @@ def test_customer_audit_history_customer_not_found(
 
     authenticate_client(client, user)
 
-    customer_id = "00000000-0000-0000-0000-000000000000"
+    customer_id = "00100000-0000-0000-0000-000000000000"
 
     response = client.get(
         f"/api/v1/customers/{customer_id}/audit-history",

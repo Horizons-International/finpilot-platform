@@ -33,7 +33,7 @@ def create_user(
     user_data: UserCreate,
     request: Request,
     db: Session = Depends(get_db),
-    _: dict = Depends(
+    current_user: dict = Depends(
         require_roles(
             UserRole.ADMINISTRATOR,
             resource_type="user",
@@ -44,6 +44,12 @@ def create_user(
 
     user = service.create_user(
         user_data,
+        actor_tenant_id=UUID(
+            current_user["tenant_id"],
+        ),
+        actor_is_platform_admin=bool(
+            current_user["is_platform_admin"],
+        ),
         ip_address=(request.client.host if request.client else None),
         user_agent=request.headers.get("user-agent"),
     )

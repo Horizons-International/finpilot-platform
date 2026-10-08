@@ -26,13 +26,27 @@ class CustomerOnboardingService:
         self,
         db: Session,
         workflow_service: WorkflowService,
+        tenant_id: UUID,
     ) -> None:
         self.db = db
         self.workflow_service = workflow_service
+        self.tenant_id = tenant_id
 
-        self.customer_repository = CustomerRepository(db)
-        self.workflow_repository = WorkflowRepository(db)
-        self.execution_repository = WorkflowExecutionRepository(db)
+        self.customer_repository = CustomerRepository(
+            db,
+            tenant_id=tenant_id,
+        )
+
+        self.workflow_repository = WorkflowRepository(
+            db,
+            tenant_id=tenant_id,
+        )
+
+        self.execution_repository = WorkflowExecutionRepository(
+            db,
+            tenant_id=tenant_id,
+        )
+
         self.audit_service = AuditService(db)
 
     def _get_customer(

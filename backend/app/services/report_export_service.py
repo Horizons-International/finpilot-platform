@@ -28,10 +28,22 @@ class ReportExportService:
         self,
         db: Session,
         storage: BaseStorage,
+        tenant_id: UUID | None = None,
     ) -> None:
         self.db = db
-        self.repository = ReportExportRepository(db)
-        self.data_service = ReportingDataService(db)
+        self.tenant_id = tenant_id
+        self.repository = ReportExportRepository(
+            db,
+            tenant_id,
+        )
+        self.data_service = (
+            ReportingDataService(
+                db,
+                tenant_id,
+            )
+            if tenant_id is not None
+            else None
+        )
         self.generator = ReportGenerator()
         self.storage = storage
         self.notification_service = NotificationService(db)
@@ -42,6 +54,14 @@ class ReportExportService:
         request: ReportExportRequest,
         requested_by: UUID,
     ) -> ReportExport:
+        if self.tenant_id is None:
+            raise RuntimeError(
+                "A tenant context is required to request a report export."
+            )
+
+        if self.data_service is None:
+            raise RuntimeError("Reporting data service is not configured.")
+
         row_count = self.data_service.count_rows(
             report_type=request.report_type,
             filters=request.filters,
@@ -55,6 +75,7 @@ class ReportExportService:
             )
 
         report_export = ReportExport(
+            tenant_id=self.tenant_id,
             report_type=request.report_type,
             format=request.format,
             requested_by=requested_by,
@@ -125,7 +146,14 @@ class ReportExportService:
                 report_export.filters,
             )
 
-            table = self.data_service.build_report(
+            tenant_id = report_export.tenant_id
+
+            data_service = ReportingDataService(
+                self.db,
+                tenant_id,
+            )
+
+            table = data_service.build_report(
                 report_type=report_export.report_type,
                 filters=filters,
             )

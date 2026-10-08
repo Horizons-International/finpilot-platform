@@ -1,4 +1,5 @@
 from datetime import datetime, timedelta, timezone
+from uuid import uuid4
 
 from app.models.compliance_case import ComplianceCase
 from app.models.customer_risk_profile import CustomerRiskProfile
@@ -18,31 +19,13 @@ from app.utils.enums import (
     WorkflowExecutionStatus,
     WorkflowStatus,
 )
-
-
-def authenticate_client(client, user):
-    response = client.post(
-        "/api/v1/auth/login",
-        json={
-            "email": user.email,
-            "password": "Password123!",
-        },
-    )
-
-    assert response.status_code == 200
-
-    token = response.json()["data"]["access_token"]
-
-    client.headers.update(
-        {
-            "Authorization": f"Bearer {token}",
-        }
-    )
+from tests.helpers import authenticate_client
 
 
 def test_operations_dashboard_returns_accurate_metrics(
     client,
     db_session,
+    create_test_tenant,
     create_test_user,
     create_test_customer,
     cleanup_test_customers,
@@ -61,6 +44,11 @@ def test_operations_dashboard_returns_accurate_metrics(
         "dashboard-reviewer@example.com",
     )
 
+    tenant = create_test_tenant(
+        name="Tenant B",
+        code=f"TENANT-B-{uuid4().hex[:6].upper()}",
+    )
+
     authenticate_client(
         client,
         admin,
@@ -69,21 +57,25 @@ def test_operations_dashboard_returns_accurate_metrics(
     customer_1 = create_test_customer(
         country_of_residence="Sudan",
         status=CustomerStatus.NEW,
+        tenant_id=tenant.id,
     )
 
     customer_2 = create_test_customer(
         country_of_residence="Sudan",
         status=CustomerStatus.PENDING_VERIFICATION,
+        tenant_id=tenant.id,
     )
 
     customer_3 = create_test_customer(
         country_of_residence="United Kingdom",
         status=CustomerStatus.VERIFIED,
+        tenant_id=tenant.id,
     )
 
     customer_4 = create_test_customer(
         country_of_residence="Sudan",
         status=CustomerStatus.VERIFIED,
+        tenant_id=tenant.id,
     )
 
     risk_profile = CustomerRiskProfile(
@@ -111,6 +103,7 @@ def test_operations_dashboard_returns_accurate_metrics(
         name="Dashboard Test Workflow",
         description="Dashboard test workflow",
         status=WorkflowStatus.ACTIVE,
+        tenant_id=tenant.id,
     )
 
     db_session.add(workflow)
@@ -239,6 +232,7 @@ def test_operations_dashboard_returns_accurate_metrics(
 def test_operations_dashboard_filters_by_country(
     client,
     db_session,
+    create_test_tenant,
     create_test_user,
     create_test_customer,
     cleanup_test_customers,
@@ -256,17 +250,25 @@ def test_operations_dashboard_filters_by_country(
         admin,
     )
 
+    tenant = create_test_tenant(
+        name="Tenant B",
+        code=f"TENANT-B-{uuid4().hex[:6].upper()}",
+    )
+
     sudan_customer = create_test_customer(
         country_of_residence="Sudan",
         status=CustomerStatus.NEW,
+        tenant_id=tenant.id,
     )
 
     uk_customer = create_test_customer(
         country_of_residence="United Kingdom",
         status=CustomerStatus.NEW,
+        tenant_id=tenant.id,
     )
 
     workflow = Workflow(
+        tenant_id=tenant.id,
         name="Dashboard Country Workflow",
         status=WorkflowStatus.ACTIVE,
     )

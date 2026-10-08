@@ -31,10 +31,19 @@ class SystemConfiguration(Base):
         default=uuid.uuid4,
     )
 
+    tenant_id: Mapped[UUID] = mapped_column(
+        PostgreSQLUUID(as_uuid=True),
+        ForeignKey(
+            "tenants.id",
+            ondelete="CASCADE",
+        ),
+        nullable=False,
+        index=True,
+    )
+
     key: Mapped[str] = mapped_column(
         String(200),
         nullable=False,
-        unique=True,
         index=True,
     )
 
@@ -85,9 +94,15 @@ class SystemConfiguration(Base):
         foreign_keys=[updated_by],
     )
 
+    tenant = relationship(
+        "Tenant",
+        back_populates="system_configurations",
+    )
+
     __table_args__ = (
         UniqueConstraint(
+            "tenant_id",
             "key",
-            name="uq_system_configurations_key",
+            name="uq_system_configurations_tenant_key",
         ),
     )

@@ -27,11 +27,18 @@ from app.utils.errors import bad_request, not_found
 
 
 class DocumentReviewService:
-    def __init__(self, db: Session) -> None:
+    def __init__(
+        self,
+        db: Session,
+        tenant_id: UUID,
+    ) -> None:
         self.db = db
         self.audit_service = AuditService(db)
         self.review_log_service = DocumentExtractionReviewLogService(db)
-        self.customer_service = CustomerService(db)
+        self.customer_service = CustomerService(
+            db,
+            tenant_id,
+        )
         self.notification_service = NotificationService(db)
 
     def get_review(

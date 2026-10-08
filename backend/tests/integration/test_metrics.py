@@ -4,9 +4,13 @@ from uuid import uuid4
 from app.analytics.models.metric_definition import MetricDefinition
 from app.analytics.models.metric_result import MetricResult
 from app.analytics.services.metric_service import MetricService
+from app.models.compliance_case import ComplianceCase
 from app.models.customer import Customer
 from app.schemas.metrics import MetricCalculationRequest
 from app.utils.enums import (
+    ComplianceCasePriority,
+    ComplianceCaseStatus,
+    ComplianceCaseType,
     CustomerStatus,
     MetricCategory,
     MetricStatus,
@@ -118,6 +122,7 @@ def test_admin_can_create_custom_metric(
 def test_customer_registration_rate_is_calculated_correctly(
     client,
     db_session,
+    create_test_tenant,
     create_test_user,
     cleanup_metric_results,
     cleanup_test_customers,
@@ -130,6 +135,11 @@ def test_customer_registration_rate_is_calculated_correctly(
     authenticate_client(
         client,
         admin,
+    )
+
+    tenant = create_test_tenant(
+        name="Tenant B",
+        code=f"TENANT-B-{uuid4().hex[:6].upper()}",
     )
 
     period_start = datetime(
@@ -145,6 +155,7 @@ def test_customer_registration_rate_is_calculated_correctly(
     for index in range(10):
         db_session.add(
             Customer(
+                tenant_id=tenant.id,
                 first_name="Existing",
                 last_name=f"Customer {index}",
                 email=f"existing-{uuid4()}@example.com",
@@ -158,6 +169,7 @@ def test_customer_registration_rate_is_calculated_correctly(
     for index in range(2):
         db_session.add(
             Customer(
+                tenant_id=tenant.id,
                 first_name="New",
                 last_name=f"Customer {index}",
                 email=f"new-{uuid4()}@example.com",
@@ -192,6 +204,7 @@ def test_customer_registration_rate_is_calculated_correctly(
 def test_average_compliance_review_time_is_calculated_correctly(
     client,
     db_session,
+    create_test_tenant,
     create_test_user,
     cleanup_metric_results,
     cleanup_test_customers,
@@ -207,6 +220,11 @@ def test_average_compliance_review_time_is_calculated_correctly(
         admin,
     )
 
+    tenant = create_test_tenant(
+        name="Tenant B",
+        code=f"TENANT-B-{uuid4().hex[:6].upper()}",
+    )
+
     start = datetime(
         2030,
         2,
@@ -217,6 +235,7 @@ def test_average_compliance_review_time_is_calculated_correctly(
     )
 
     customer_one = Customer(
+        tenant_id=tenant.id,
         first_name="Duration",
         last_name="One",
         email=f"duration-one-{uuid4()}@example.com",
@@ -226,6 +245,7 @@ def test_average_compliance_review_time_is_calculated_correctly(
     )
 
     customer_two = Customer(
+        tenant_id=tenant.id,
         first_name="Duration",
         last_name="Two",
         email=f"duration-two-{uuid4()}@example.com",
@@ -242,13 +262,6 @@ def test_average_compliance_review_time_is_calculated_correctly(
     )
 
     db_session.flush()
-
-    from app.models.compliance_case import ComplianceCase
-    from app.utils.enums import (
-        ComplianceCasePriority,
-        ComplianceCaseStatus,
-        ComplianceCaseType,
-    )
 
     db_session.add_all(
         [

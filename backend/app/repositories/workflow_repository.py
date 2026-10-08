@@ -8,11 +8,16 @@ from app.utils.enums import WorkflowStatus
 
 
 class WorkflowRepository(BaseRepository[Workflow]):
-    def __init__(self, db: Session) -> None:
+    def __init__(
+        self,
+        db: Session,
+        tenant_id: UUID,
+    ) -> None:
         super().__init__(
             db,
             Workflow,
         )
+        self.tenant_id = tenant_id
 
     def get_by_name(
         self,
@@ -22,6 +27,7 @@ class WorkflowRepository(BaseRepository[Workflow]):
             self.db.query(Workflow)
             .filter(
                 Workflow.name == name,
+                Workflow.tenant_id == self.tenant_id,
             )
             .first()
         )
@@ -31,7 +37,9 @@ class WorkflowRepository(BaseRepository[Workflow]):
         *,
         status: WorkflowStatus | None = None,
     ) -> list[Workflow]:
-        query = self.db.query(Workflow)
+        query = self.db.query(Workflow).filter(
+            Workflow.tenant_id == self.tenant_id,
+        )
 
         if status is not None:
             query = query.filter(
@@ -79,3 +87,16 @@ class WorkflowRepository(BaseRepository[Workflow]):
             query = query.with_for_update()
 
         return query.first()
+
+    def get_by_id(
+        self,
+        workflow_id: UUID,
+    ) -> Workflow | None:
+        return (
+            self.db.query(Workflow)
+            .filter(
+                Workflow.id == workflow_id,
+                Workflow.tenant_id == self.tenant_id,
+            )
+            .first()
+        )

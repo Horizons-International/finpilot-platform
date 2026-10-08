@@ -62,11 +62,19 @@ class WorkflowService:
     def __init__(
         self,
         db: Session,
+        tenant_id: UUID,
     ) -> None:
         self.db = db
+        self.tenant_id = tenant_id
         self.sla_service = SLAService(db)
-        self.repository = WorkflowRepository(db)
-        self.execution_repository = WorkflowExecutionRepository(db)
+        self.repository = WorkflowRepository(
+            db,
+            tenant_id,
+        )
+        self.execution_repository = WorkflowExecutionRepository(
+            db,
+            tenant_id,
+        )
         self.audit_service = AuditService(db)
         self.workflow_audit_repository = WorkflowAuditLogRepository(db)
 
@@ -94,6 +102,7 @@ class WorkflowService:
             )
 
         workflow = Workflow(
+            tenant_id=self.tenant_id,
             name=name,
             description=data.description,
             status=WorkflowStatus.DRAFT,

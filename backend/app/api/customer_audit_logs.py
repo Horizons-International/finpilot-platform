@@ -5,6 +5,7 @@ from fastapi import APIRouter, Depends, status
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
+from app.core.dependencies import get_customer_service
 from app.core.responses import APIResponse
 from app.core.security import require_roles
 from app.schemas.customer_audit_log import (
@@ -31,6 +32,9 @@ router = APIRouter(
 def get_customer_audit_history(
     customer_id: UUID,
     db: Session = Depends(get_db),
+    service: CustomerService = Depends(
+        get_customer_service,
+    ),
     _: dict[str, Any] = Depends(
         require_roles(
             UserRole.ADMINISTRATOR,
@@ -39,9 +43,8 @@ def get_customer_audit_history(
         ),
     ),
 ) -> APIResponse[CustomerAuditLogListResponse]:
-    customer_service = CustomerService(db)
 
-    customer_service.get_customer(customer_id)
+    service.get_customer(customer_id)
 
     audit_service = CustomerAuditLogService(db)
 

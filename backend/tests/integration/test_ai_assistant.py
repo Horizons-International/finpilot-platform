@@ -96,7 +96,7 @@ def test_compliance_officer_can_send_ai_request(
 
     response = create_customer_with_data(
         client,
-        name="officer",
+        first_name="Officer",
     )
 
     customer_id = response.json()["data"]["id"]
@@ -158,7 +158,7 @@ def test_ai_request_returns_structured_response(
 
     response = create_customer_with_data(
         client,
-        name="officer",
+        first_name="Officer",
     )
 
     customer_id = response.json()["data"]["id"]
@@ -231,7 +231,7 @@ def test_ai_request_is_logged(
 
     response = create_customer_with_data(
         client,
-        name="officer",
+        first_name="Officer",
     )
 
     customer_id = response.json()["data"]["id"]
@@ -301,7 +301,7 @@ def test_ai_request_uses_assigned_prompt(
 
     response = create_customer_with_data(
         client,
-        name="officer",
+        first_name="Officer",
     )
 
     customer_id = response.json()["data"]["id"]
@@ -388,7 +388,7 @@ def test_ai_request_allowed_roles(
 
     response = create_customer_with_data(
         client,
-        name="officer",
+        first_name="Officer",
     )
 
     customer_id = response.json()["data"]["id"]
@@ -439,7 +439,7 @@ def test_auditor_cannot_send_ai_request(
 
     response = create_customer_with_data(
         client,
-        name="officer",
+        first_name="Officer",
     )
 
     customer_id = response.json()["data"]["id"]
@@ -483,7 +483,7 @@ def test_ai_interaction_can_be_retrieved(
 
     response = create_customer_with_data(
         client,
-        name="officer",
+        first_name="Officer",
     )
 
     customer_id = response.json()["data"]["id"]
@@ -559,7 +559,7 @@ def test_ai_interaction_belongs_to_requesting_user(
 
     response = create_customer_with_data(
         client,
-        name="officer",
+        first_name="Officer",
     )
 
     customer_id = response.json()["data"]["id"]

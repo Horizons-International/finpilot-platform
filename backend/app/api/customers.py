@@ -12,6 +12,7 @@ from pydantic import EmailStr
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
+from app.core.dependencies import get_customer_service
 from app.core.responses import APIResponse
 from app.core.security import require_roles
 from app.schemas.customer import (
@@ -43,6 +44,9 @@ def create_customer(
     request: Request,
     customer_data: CustomerCreate,
     db: Session = Depends(get_db),
+    service: CustomerService = Depends(
+        get_customer_service,
+    ),
     current_user: dict[str, Any] = Depends(
         require_roles(
             UserRole.ADMINISTRATOR,
@@ -50,8 +54,6 @@ def create_customer(
         )
     ),
 ):
-    service = CustomerService(db)
-
     customer = service.create_customer(
         customer_data=customer_data,
         created_by=UUID(current_user["sub"]),
@@ -78,6 +80,9 @@ def update_customer(
     request: Request,
     customer_id: UUID,
     customer_data: CustomerUpdate,
+    service: CustomerService = Depends(
+        get_customer_service,
+    ),
     db: Session = Depends(get_db),
     current_user: dict[str, Any] = Depends(
         require_roles(
@@ -86,8 +91,6 @@ def update_customer(
         )
     ),
 ):
-    service = CustomerService(db)
-
     customer = service.update_customer(
         customer_id=customer_id,
         customer_data=customer_data,
@@ -115,6 +118,9 @@ def update_customer_status(
     request: Request,
     customer_id: UUID,
     status_data: CustomerStatusUpdate,
+    service: CustomerService = Depends(
+        get_customer_service,
+    ),
     db: Session = Depends(get_db),
     current_user: dict[str, Any] = Depends(
         require_roles(
@@ -123,8 +129,6 @@ def update_customer_status(
         )
     ),
 ):
-    service = CustomerService(db)
-
     customer = service.update_status(
         customer_id=customer_id,
         new_status=status_data.status,
@@ -193,9 +197,10 @@ def search_customers(
             resource_type="customer",
         )
     ),
+    service: CustomerService = Depends(
+        get_customer_service,
+    ),
 ):
-    service = CustomerService(db)
-
     result = service.search_customers(
         customer_id=customer_id,
         name=name,
@@ -225,6 +230,9 @@ def search_customers(
 def get_customer(
     customer_id: UUID,
     db: Session = Depends(get_db),
+    service: CustomerService = Depends(
+        get_customer_service,
+    ),
     _: dict[str, Any] = Depends(
         require_roles(
             UserRole.ADMINISTRATOR,
@@ -234,8 +242,6 @@ def get_customer(
         )
     ),
 ):
-    service = CustomerService(db)
-
     customer = service.get_customer(
         customer_id=customer_id,
     )

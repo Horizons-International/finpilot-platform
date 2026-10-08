@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 from datetime import datetime, time, timedelta, timezone
 from typing import Any, cast
+from uuid import UUID
 
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
@@ -24,8 +25,13 @@ class ReportTable:
 
 
 class ReportingDataService:
-    def __init__(self, db: Session) -> None:
+    def __init__(
+        self,
+        db: Session,
+        tenant_id: UUID,
+    ) -> None:
         self.db = db
+        self.tenant_id = tenant_id
 
     @staticmethod
     def _date_bounds(
@@ -146,6 +152,10 @@ class ReportingDataService:
             statement = statement.where(
                 CustomerRiskProfile.risk_level == filters.risk_level,
             )
+
+        statement = statement.where(
+            Customer.tenant_id == self.tenant_id,
+        )
 
         return cast(Select[Any], statement)
 
@@ -283,6 +293,10 @@ class ReportingDataService:
                 IdentityVerificationCase.verification_type == filters.verification_type,
             )
 
+        statement = statement.where(
+            Customer.tenant_id == self.tenant_id,
+        )
+
         return cast(Select[Any], statement)
 
     def _count_verification_rows(
@@ -410,6 +424,10 @@ class ReportingDataService:
                 ComplianceCase.status == filters.compliance_status,
             )
 
+        statement = statement.where(
+            Customer.tenant_id == self.tenant_id,
+        )
+
         return cast(Select[Any], statement)
 
     def _count_compliance_rows(
@@ -521,20 +539,30 @@ class ReportingDataService:
         filters: ReportFilters,
         *,
         count_only: bool = False,
-    ):
+    ) -> Select[Any]:
         start, end = self._date_bounds(filters)
 
-        statement = (
-            select(func.count(WorkflowExecution.id))
-            if count_only
-            else select(
-                WorkflowExecution,
-                Workflow,
-            ).join(
-                Workflow,
-                Workflow.id == WorkflowExecution.workflow_id,
+        if count_only:
+            statement = cast(
+                Select[Any],
+                select(func.count(WorkflowExecution.id))
+                .select_from(WorkflowExecution)
+                .join(
+                    Workflow,
+                    Workflow.id == WorkflowExecution.workflow_id,
+                ),
             )
-        )
+        else:
+            statement = cast(
+                Select[Any],
+                select(
+                    WorkflowExecution,
+                    Workflow,
+                ).join(
+                    Workflow,
+                    Workflow.id == WorkflowExecution.workflow_id,
+                ),
+            )
 
         if start is not None:
             statement = statement.where(
@@ -550,6 +578,10 @@ class ReportingDataService:
             statement = statement.where(
                 WorkflowExecution.status == filters.workflow_status,
             )
+
+        statement = statement.where(
+            Workflow.tenant_id == self.tenant_id,
+        )
 
         return statement
 

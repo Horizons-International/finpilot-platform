@@ -31,8 +31,9 @@ class Workflow(Base):
 
     __table_args__ = (
         UniqueConstraint(
+            "tenant_id",
             "name",
-            name="uq_workflows_name",
+            name="uq_workflows_tenant_name",
         ),
     )
 
@@ -40,6 +41,16 @@ class Workflow(Base):
         PostgreSQLUUID(as_uuid=True),
         primary_key=True,
         default=uuid.uuid4,
+    )
+
+    tenant_id: Mapped[UUID] = mapped_column(
+        PostgreSQLUUID(as_uuid=True),
+        ForeignKey(
+            "tenants.id",
+            ondelete="CASCADE",
+        ),
+        nullable=False,
+        index=True,
     )
 
     name: Mapped[str] = mapped_column(
@@ -87,6 +98,11 @@ class Workflow(Base):
     executions = relationship(
         "WorkflowExecution",
         back_populates="workflow",
+    )
+
+    tenant = relationship(
+        "Tenant",
+        back_populates="workflows",
     )
 
 

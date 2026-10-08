@@ -1,4 +1,5 @@
 from datetime import datetime, timedelta, timezone
+from uuid import uuid4
 
 from app.analytics.models.compliance_daily import ComplianceAnalyticsDaily
 from app.analytics.models.customer_daily import CustomerAnalyticsDaily
@@ -32,6 +33,7 @@ from app.utils.enums import (
 
 def test_capture_snapshot_creates_customer_compliance_and_operations_rows(
     db_session,
+    create_test_tenant,
     create_test_customer,
     create_test_user,
     cleanup_test_customers,
@@ -47,6 +49,11 @@ def test_capture_snapshot_creates_customer_compliance_and_operations_rows(
         email="analytics-admin@example.com",
     )
 
+    tenant = create_test_tenant(
+        name="Tenant B",
+        code=f"TENANT-B-{uuid4().hex[:6].upper()}",
+    )
+
     as_of = datetime(
         2026,
         10,
@@ -59,16 +66,19 @@ def test_capture_snapshot_creates_customer_compliance_and_operations_rows(
     old_customer = create_test_customer(
         status=CustomerStatus.VERIFIED,
         created_at=as_of - timedelta(days=10),
+        tenant_id=tenant.id,
     )
 
     new_customer = create_test_customer(
         status=CustomerStatus.PENDING_VERIFICATION,
         created_at=as_of - timedelta(hours=1),
+        tenant_id=tenant.id,
     )
 
     risk_customer = create_test_customer(
         status=CustomerStatus.VERIFIED,
         created_at=as_of - timedelta(hours=2),
+        tenant_id=tenant.id,
     )
 
     db_session.add(
@@ -116,6 +126,7 @@ def test_capture_snapshot_creates_customer_compliance_and_operations_rows(
     )
 
     workflow = Workflow(
+        tenant_id=tenant.id,
         name="Analytics Workflow",
         description="Analytics test workflow",
         status=WorkflowStatus.ACTIVE,
