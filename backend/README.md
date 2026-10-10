@@ -8,7 +8,8 @@ This README covers running the backend locally, initializing the database, tryin
 
 - [Features](#features)
 - [Technology and prerequisites](#technology-and-prerequisites)
-- [Quick start: run the API locally](#quick-start-run-the-api-locally)
+- [Quick start (recommended): Docker Compose](#quick-start-recommended-docker-compose)
+- [Alternative: run with a local PostgreSQL installation](#alternative-run-with-a-local-postgresql-installation)
 - [Environment configuration](#environment-configuration)
 - [Open the API documentation and sign in](#open-the-api-documentation-and-sign-in)
 - [Try the main features](#try-the-main-features)
@@ -44,34 +45,126 @@ Available routes and request/response schemas are defined in the running OpenAPI
 
 The database must support PostgreSQL's **vector** extension because the migration history includes pgvector. The supplied Docker Compose configuration uses the **pgvector/pgvector** PostgreSQL image.
 
-## Quick start: run the API locally
+## Quick start (recommended): Docker Compose
 
-These instructions run FastAPI on your computer and PostgreSQL in Docker. Run the Docker commands from the repository root.
+**Recommended for most reviewers:** use Docker Compose to run the API, PostgreSQL with pgvector, and the background workers. You do not need to install PostgreSQL or build/install the pgvector extension on your computer.
 
-### 1. Clone the repository
+### 1. Install Docker and clone the repository
+
+Install Docker Desktop (Windows/macOS) or Docker Engine with the Compose plugin (Linux), then run:
 
 ~~~bash
 git clone https://github.com/Horizons-International/finpilot-platform.git
 cd finpilot-platform
 ~~~
 
-### 2. Start PostgreSQL
+### 2. Configure the Docker environment
+
+Open **docker/.env**. Ensure it contains the settings below. The Docker database hostname must be **postgres**, not **localhost**, because the API container connects to PostgreSQL over the Compose network.
+
+~~~dotenv
+DATABASE_URL=postgresql+psycopg://user:123789@postgres:5432/customers
+SECRET_KEY=replace-with-a-long-random-local-secret
+ADMIN_EMAIL=admin@example.com
+ADMIN_PASSWORD=ChangeThis_Local_Only_123!
+ENVIRONMENT=development
+~~~
+
+The repository environment file may contain only the database URL, so add any missing required settings. Change the example administrator password and secret to local-only values. Never use these examples in production or commit real credentials to Git.
+
+### 3. Build the Docker image
+
+From the repository root:
+
+~~~bash
+docker compose -f docker/docker-compose.yml build
+~~~
+
+### 4. Start PostgreSQL and wait for it to be ready
 
 ~~~bash
 docker compose -f docker/docker-compose.yml up -d postgres
+docker compose -f docker/docker-compose.yml exec postgres pg_isready -U user -d customers
+~~~
+
+Wait until PostgreSQL reports that it is accepting connections. The provided image is **pgvector/pgvector:pg17**, which includes the PostgreSQL vector extension required by the migration history.
+
+### 5. Run database migrations
+
+~~~bash
+docker compose -f docker/docker-compose.yml run --rm backend uv run alembic upgrade head
+~~~
+
+Check the current migration revision, if needed:
+
+~~~bash
+docker compose -f docker/docker-compose.yml run --rm backend uv run alembic current
+~~~
+
+### 6. Create the initial administrator
+
+~~~bash
+docker compose -f docker/docker-compose.yml run --rm backend uv run python -m scripts.seed_admin
+~~~
+
+The administrator email and password come from **docker/.env**. If that email already exists, the script reports that the administrator already exists.
+
+### 7. Start the API and background workers
+
+~~~bash
+docker compose -f docker/docker-compose.yml up -d
 docker compose -f docker/docker-compose.yml ps
 ~~~
 
-The supplied development database container is configured with database **customers**, user **user**, and password **123789**. These are development-only credentials; do not reuse them in a real environment. If you use your own PostgreSQL server instead, create an empty database and ensure pgvector is installed.
+The Compose stack includes the API, PostgreSQL, pgAdmin, SLA monitor, analytics aggregator, and report-export worker. Open:
 
-### 3. Install backend dependencies
+- Swagger UI: <http://localhost:8000/docs>
+- ReDoc: <http://localhost:8000/redoc>
+- OpenAPI schema: <http://localhost:8000/openapi.json>
+- Application health: <http://localhost:8000/health>
+- Database readiness: <http://localhost:8000/ready>
+- pgAdmin: <http://localhost:5050>
+
+Follow the API logs:
+
+~~~bash
+docker compose -f docker/docker-compose.yml logs -f backend
+~~~
+
+View logs for an individual worker, for example:
+
+~~~bash
+docker compose -f docker/docker-compose.yml logs -f sla-monitor
+docker compose -f docker/docker-compose.yml logs -f analytics-aggregator
+docker compose -f docker/docker-compose.yml logs -f report-export-worker
+~~~
+
+Stop the stack while preserving database and uploaded-file data:
+
+~~~bash
+docker compose -f docker/docker-compose.yml down
+~~~
+
+To reset the disposable development environment and delete the named data volumes too, run **docker compose -f docker/docker-compose.yml down -v**. This permanently removes database data and uploaded files; do this only when you intend to discard them.
+
+## Alternative: run with a local PostgreSQL installation
+
+Use this option if you specifically want the API process to run on your computer and PostgreSQL is installed locally. Unlike the Docker-first setup above, this approach requires a PostgreSQL installation with the **vector** extension available. If setting up pgvector is difficult, return to the Docker Compose quick start.
+
+### 1. Prepare PostgreSQL and pgvector
+
+Create an empty database for development. Make sure your PostgreSQL installation supports pgvector; the migration creates the extension with **CREATE EXTENSION IF NOT EXISTS vector**, so the extension's server files must already be installed.
+
+### 2. Install backend dependencies
+
+From the repository root:
 
 ~~~bash
 cd backend
 uv sync
 ~~~
 
-### 4. Create and configure the environment file
+### 3. Create and configure the local environment
 
 On Windows PowerShell:
 
@@ -85,54 +178,33 @@ On macOS or Linux:
 cp .env.example .env
 ~~~
 
-Open **backend/.env** and set at least the following values. The database URL below matches the supplied PostgreSQL Docker service when the API is running on your host machine.
+Edit **backend/.env** and set your local database URL plus the required authentication/admin settings. For a typical local PostgreSQL installation:
 
 ~~~dotenv
-DATABASE_URL=postgresql+psycopg://user:123789@localhost:5432/customers
+DATABASE_URL=postgresql+psycopg://YOUR_USER:YOUR_PASSWORD@localhost:5432/YOUR_DATABASE
 SECRET_KEY=replace-with-a-long-random-secret
 ADMIN_EMAIL=admin@example.com
 ADMIN_PASSWORD=ChangeThis_Local_Only_123!
 ~~~
 
-Keep the **.env** file private. Use a unique secret and password for your environment, and never commit real credentials or production secrets to Git.
+Use your actual local PostgreSQL username, password, and database name.
 
-### 5. Apply database migrations
+### 4. Apply migrations and create the administrator
 
-Make sure PostgreSQL is running, then from the **backend** directory run:
+Run from the **backend** directory:
 
 ~~~bash
 uv run alembic upgrade head
-~~~
-
-The migrations create the database schema and the default tenant. Check the applied migration revision with:
-
-~~~bash
-uv run alembic current
-~~~
-
-### 6. Create the initial administrator
-
-~~~bash
 uv run python -m scripts.seed_admin
 ~~~
 
-The script creates an active platform administrator using **ADMIN_EMAIL** and **ADMIN_PASSWORD** from **.env**. If that email already exists, the script reports that the administrator already exists.
-
-### 7. Start the API
+### 5. Run the API
 
 ~~~bash
 uv run uvicorn app.main:app --reload
 ~~~
 
-The local API is now available at:
-
-- Swagger UI: <http://localhost:8000/docs>
-- ReDoc: <http://localhost:8000/redoc>
-- OpenAPI schema: <http://localhost:8000/openapi.json>
-- Application health: <http://localhost:8000/health>
-- Database readiness: <http://localhost:8000/ready>
-
-Keep the server terminal open while trying the API. Stop it with Ctrl+C.
+Open <http://localhost:8000/docs>. Keep the terminal open while testing and stop the server with Ctrl+C.
 
 ## Environment configuration
 
@@ -277,54 +349,32 @@ uv run python -m app.jobs.report_export_worker
 
 These workers monitor SLA deadlines, aggregate analytics, and process queued report exports respectively. Keep them running when testing behavior that relies on background processing.
 
-### Run the full Docker Compose stack (optional)
-
-The Compose file also defines the API, PostgreSQL, pgAdmin, and the three background workers. To run all services in containers, configure **docker/.env** before starting them. It must include the required application settings from **backend/.env.example**; the container-to-container database URL must use hostname **postgres**, for example:
-
-~~~dotenv
-DATABASE_URL=postgresql+psycopg://user:123789@postgres:5432/customers
-SECRET_KEY=replace-with-a-long-random-secret
-ADMIN_EMAIL=admin@example.com
-ADMIN_PASSWORD=ChangeThis_Local_Only_123!
-~~~
-
-From the repository root:
-
-~~~bash
-docker compose -f docker/docker-compose.yml up --build -d
-docker compose -f docker/docker-compose.yml ps
-~~~
-
-Apply migrations and seed the administrator in the backend container:
-
-~~~bash
-docker compose -f docker/docker-compose.yml exec backend uv run alembic upgrade head
-docker compose -f docker/docker-compose.yml exec backend uv run python -m scripts.seed_admin
-~~~
-
-Open the API at <http://localhost:8000/docs>. The configured pgAdmin service is available at <http://localhost:5050>. Do not use the example container credentials or secrets for a production deployment.
-
-To stop the containers:
-
-~~~bash
-docker compose -f docker/docker-compose.yml down
-~~~
-
-To stop and delete the PostgreSQL data volume as well, use **docker compose -f docker/docker-compose.yml down -v**. This permanently deletes the database data stored in that volume; only do this when you intend to reset the development environment.
-
 ## Run tests
 
-**Use a dedicated test database.** The integration tests create and modify database records. Never set **TEST_DATABASE_URL** to a development or production database.
+**Use a dedicated test database.** The integration tests create and modify database records. Never point **TEST_DATABASE_URL** at a development or production database.
 
-The supplied PostgreSQL container creates the **customers** database on first startup. Create a separate **testdb** database once, from the repository root:
+### Recommended: run tests in Docker
+
+Create a separate test database inside the Compose PostgreSQL container once:
 
 ~~~bash
 docker compose -f docker/docker-compose.yml exec postgres psql -U user -d customers -c "CREATE DATABASE testdb;"
 ~~~
 
-If **testdb** already exists, skip this step. Make sure the test database has the current schema by applying the Alembic migrations to it. From the **backend** directory, use the matching connection string below.
+If **testdb** already exists, skip this step. Apply the migrations to the test database, then run pytest in a one-off backend container:
 
-### Windows PowerShell
+~~~bash
+docker compose -f docker/docker-compose.yml run --rm -e DATABASE_URL=postgresql+psycopg://user:123789@postgres:5432/testdb backend uv run alembic upgrade head
+docker compose -f docker/docker-compose.yml run --rm -e TEST_DATABASE_URL=postgresql+psycopg://user:123789@postgres:5432/testdb backend uv run pytest -q
+~~~
+
+For a smaller test run, replace **pytest -q** with **pytest tests/unit -q** or **pytest tests/integration -q**. These commands use the test database within Docker and do not require local PostgreSQL or pgvector installation.
+
+### Alternative: run tests from your computer
+
+If Python dependencies are installed in **backend**, create **testdb** in the supplied PostgreSQL container as shown above, then run the tests from the **backend** directory.
+
+#### Windows PowerShell
 
 ~~~powershell
 $env:DATABASE_URL = "postgresql+psycopg://user:123789@localhost:5432/testdb"
@@ -335,27 +385,18 @@ $env:TEST_DATABASE_URL = "postgresql+psycopg://user:123789@localhost:5432/testdb
 uv run pytest -q
 ~~~
 
-Keep **TEST_DATABASE_URL** set while running more test commands. When finished, clear it:
+When finished, clear the variable:
 
 ~~~powershell
 Remove-Item Env:TEST_DATABASE_URL
 ~~~
 
-### macOS or Linux
+#### macOS or Linux
 
 ~~~bash
 DATABASE_URL="postgresql+psycopg://user:123789@localhost:5432/testdb" uv run alembic upgrade head
 TEST_DATABASE_URL="postgresql+psycopg://user:123789@localhost:5432/testdb" uv run pytest -q
 ~~~
-
-Run selected parts of the test suite when diagnosing an issue:
-
-~~~bash
-uv run pytest tests/unit -q
-uv run pytest tests/integration -q
-~~~
-
-The commands assume **TEST_DATABASE_URL** is already set in your shell for the test database.
 
 ## Code quality checks
 
