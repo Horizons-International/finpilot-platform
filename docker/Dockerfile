@@ -2,14 +2,14 @@ FROM python:3.12-slim
 
 WORKDIR /app
 
-COPY ../backend/pyproject.toml .
-COPY ../backend/uv.lock .
+COPY backend/pyproject.toml .
+COPY backend/uv.lock .
 
-RUN pip install uv
+RUN pip install --no-cache-dir uv
 
 RUN uv sync --frozen --no-install-project
 
-COPY ../backend .
+COPY backend/ .
 
 EXPOSE 8000
 
