@@ -66,7 +66,10 @@ class WorkflowService:
     ) -> None:
         self.db = db
         self.tenant_id = tenant_id
-        self.sla_service = SLAService(db)
+        self.sla_service = SLAService(
+            db,
+            tenant_id,
+        )
         self.repository = WorkflowRepository(
             db,
             tenant_id,

@@ -23,8 +23,16 @@ class OperationsAnalyticsService:
     DEFAULT_LOOKBACK_DAYS = 30
     MAX_LOOKBACK_DAYS = 366
 
-    def __init__(self, db: Session) -> None:
-        self.repository = OperationsAnalyticsRepository(db)
+    def __init__(
+        self,
+        db: Session,
+        tenant_id,
+    ) -> None:
+        self.tenant_id = tenant_id
+        self.repository = OperationsAnalyticsRepository(
+            db=db,
+            tenant_id=self.tenant_id,
+        )
 
     @staticmethod
     def _percentage_change(

@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 from app.models.task import Task, TaskComment, TaskStatusHistory
 from app.models.user import User
 from app.models.workflow import (
+    Workflow,
     WorkflowExecution,
     WorkflowStepExecution,
 )
@@ -61,12 +62,28 @@ class TaskService:
     def __init__(
         self,
         db: Session,
+        tenant_id: UUID,
     ) -> None:
         self.db = db
-        self.sla_service = SLAService(db)
-        self.repository = TaskRepository(db)
+        self.tenant_id = tenant_id
+
+        self.sla_service = SLAService(
+            db=db,
+            tenant_id=tenant_id,
+        )
+
+        self.repository = TaskRepository(
+            db=db,
+            tenant_id=tenant_id,
+        )
+
         self.audit_service = AuditService(db)
-        self.assignment_service = TaskAssignmentService(db)
+
+        self.assignment_service = TaskAssignmentService(
+            db=db,
+            tenant_id=tenant_id,
+        )
+
         self.notification_service = NotificationService(db)
 
     # ------------------------------------------------------------------
@@ -98,6 +115,7 @@ class TaskService:
             self.db.query(User)
             .filter(
                 User.id == user_id,
+                User.tenant_id == self.tenant_id,
             )
             .first()
         )
@@ -153,8 +171,13 @@ class TaskService:
 
         execution = (
             self.db.query(WorkflowExecution)
+            .join(
+                Workflow,
+                Workflow.id == WorkflowExecution.workflow_id,
+            )
             .filter(
                 WorkflowExecution.id == workflow_execution_id,
+                Workflow.tenant_id == self.tenant_id,
             )
             .first()
         )
@@ -172,8 +195,17 @@ class TaskService:
 
         step_execution = (
             self.db.query(WorkflowStepExecution)
+            .join(
+                WorkflowExecution,
+                WorkflowExecution.id == WorkflowStepExecution.workflow_execution_id,
+            )
+            .join(
+                Workflow,
+                Workflow.id == WorkflowExecution.workflow_id,
+            )
             .filter(
                 WorkflowStepExecution.id == workflow_step_execution_id,
+                Workflow.tenant_id == self.tenant_id,
             )
             .first()
         )
@@ -263,6 +295,7 @@ class TaskService:
         )
 
         task = Task(
+            tenant_id=self.tenant_id,
             title=title,
             description=data.description,
             assigned_to=data.assigned_to,

@@ -19,6 +19,16 @@ class IdentityVerificationCase(Base):
         default=uuid.uuid4,
     )
 
+    tenant_id: Mapped[UUID] = mapped_column(
+        PostgreSQLUUID(as_uuid=True),
+        ForeignKey(
+            "tenants.id",
+            ondelete="CASCADE",
+        ),
+        nullable=False,
+        index=True,
+    )
+
     customer_id: Mapped[UUID] = mapped_column(
         PostgreSQLUUID(as_uuid=True),
         ForeignKey("customers.id", ondelete="CASCADE"),
@@ -101,6 +111,8 @@ class IdentityVerificationCase(Base):
         back_populates="verification_case",
         cascade="all, delete-orphan",
     )
+
+    tenant = relationship("Tenant")
 
     __table_args__ = (
         Index(

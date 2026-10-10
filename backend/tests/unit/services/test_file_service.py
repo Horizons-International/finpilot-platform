@@ -12,11 +12,13 @@ from app.storages.local_storage import LocalStorage
 def test_read_file_returns_file_content_metadata(
     db_session,
     tmp_path: Path,
+    default_tenant_id,
 ):
     storage = LocalStorage(str(tmp_path))
     service = FileService(
         db=db_session,
         storage=storage,
+        tenant_id=default_tenant_id,
     )
 
     user_id = uuid4()
@@ -29,6 +31,7 @@ def test_read_file_returns_file_content_metadata(
     )
 
     file_record = File(
+        tenant_id=default_tenant_id,
         original_filename="policy.txt",
         stored_filename="policy.txt",
         storage_path=storage_path,
@@ -63,12 +66,14 @@ def test_read_file_returns_file_content_metadata(
 def test_read_file_raises_404_for_missing_file(
     db_session,
     tmp_path: Path,
+    default_tenant_id,
 ):
     storage = LocalStorage(str(tmp_path))
 
     service = FileService(
         db=db_session,
         storage=storage,
+        tenant_id=default_tenant_id,
     )
 
     missing_file_id = uuid4()
@@ -85,15 +90,18 @@ def test_read_file_raises_404_for_missing_file(
 def test_read_file_raises_404_when_physical_file_is_missing(
     db_session,
     tmp_path: Path,
+    default_tenant_id,
 ):
     storage = LocalStorage(str(tmp_path))
 
     service = FileService(
         db=db_session,
         storage=storage,
+        tenant_id=default_tenant_id,
     )
 
     file_record = File(
+        tenant_id=default_tenant_id,
         original_filename="missing.txt",
         stored_filename="missing.txt",
         storage_path="knowledge-base/missing.txt",

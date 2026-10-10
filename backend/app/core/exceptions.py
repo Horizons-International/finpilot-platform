@@ -1,12 +1,71 @@
+from uuid import UUID
+
 from fastapi import HTTPException, Request, status
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 
+from app.core.database import SessionLocal
 from app.core.logger import get_logger
 from app.core.responses import APIResponse, ErrorDetail
+from app.services.audit_service import AuditService
+from app.utils.enums import AuditEventType
 
 logger = get_logger(__name__)
+
+
+def _get_resource_context(
+    request: Request,
+) -> tuple[str, UUID | None]:
+    resource_keys = (
+        ("document_id", "document"),
+        ("verification_case_id", "verification_case"),
+        ("configuration_id", "system_configuration"),
+        ("export_id", "report_export"),
+        ("file_id", "file"),
+        ("task_id", "task"),
+        ("case_id", "case"),
+        ("customer_id", "customer"),
+    )
+
+    for parameter, resource_type in resource_keys:
+        value = request.path_params.get(parameter)
+
+        if value is not None:
+            try:
+                return resource_type, UUID(str(value))
+            except (TypeError, ValueError):
+                return resource_type, None
+
+    return "tenant_resource", None
+
+
+def _audit_resource_access_denied(request: Request) -> None:
+    user_id = getattr(request.state, "current_user_id", None)
+
+    # Only log requests for which authentication succeeded.
+    if user_id is None:
+        return
+
+    resource_type, resource_id = _get_resource_context(request)
+    db = SessionLocal()
+
+    try:
+        AuditService(db).log_event(
+            event_type=AuditEventType.ACCESS_DENIED,
+            user_id=user_id,
+            email=getattr(request.state, "current_user_email", None),
+            ip_address=(request.client.host if request.client else None),
+            user_agent=request.headers.get("user-agent"),
+            resource_type=resource_type,
+            resource_id=resource_id,
+        )
+        db.commit()
+    except Exception:
+        db.rollback()
+        logger.exception("Failed to audit denied resource access")
+    finally:
+        db.close()
 
 
 async def http_exception_handler(
@@ -15,6 +74,9 @@ async def http_exception_handler(
 ) -> JSONResponse:
     if not isinstance(exc, HTTPException):
         raise exc
+
+    if exc.status_code == status.HTTP_404_NOT_FOUND:
+        _audit_resource_access_denied(request)
 
     logger.warning(
         "HTTP exception: %s %s - %s",

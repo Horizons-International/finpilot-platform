@@ -1,8 +1,9 @@
 import time
 from collections.abc import Callable
 from datetime import date, timedelta
+from uuid import UUID
 
-from sqlalchemy import text
+from sqlalchemy import select, text
 from sqlalchemy.orm import Session
 
 import app.analytics.models  # noqa: F401
@@ -12,13 +13,61 @@ from app.analytics.services.aggregation_service import (
 )
 from app.core.database import SessionLocal
 from app.core.logger import get_logger, setup_logging
+from app.models.tenant import Tenant
 from app.utils.date_time import utc_now
+from app.utils.enums import TenantStatus
 
 DAILY_ADVISORY_LOCK_KEY = "finpilot_analytics_daily"
 MONTHLY_ADVISORY_LOCK_KEY = "finpilot_analytics_monthly"
 
 setup_logging()
 logger = get_logger(__name__)
+
+
+def _aggregate_for_each_active_tenant(
+    db: Session,
+    callback: Callable[[Session, UUID], None],
+) -> None:
+    tenant_ids = list(
+        db.scalars(
+            select(Tenant.id).where(
+                Tenant.status == TenantStatus.ACTIVE,
+            )
+        ).all()
+    )
+
+    failed_tenants: list[UUID] = []
+
+    for tenant_id in tenant_ids:
+        # Apply tenant context for ORM queries using the tenant listener.
+        db.info["tenant_id"] = tenant_id
+
+        try:
+            callback(db, tenant_id)
+            db.commit()
+
+            logger.info(
+                "Analytics aggregation completed for tenant %s.",
+                tenant_id,
+            )
+
+        except Exception:
+            db.rollback()
+            failed_tenants.append(tenant_id)
+
+            logger.exception(
+                "Analytics aggregation failed for tenant %s.",
+                tenant_id,
+            )
+
+        finally:
+            # Do not let one tenant's context leak into the next iteration.
+            db.info.pop("tenant_id", None)
+
+    if failed_tenants:
+        raise RuntimeError(
+            f"Analytics aggregation failed for {len(failed_tenants)} tenant(s)."
+        )
 
 
 def _run_locked_job(
@@ -86,9 +135,21 @@ def run_daily_aggregation_once(
         else utc_now().date() - timedelta(days=1)
     )
 
-    def callback(db: Session) -> None:
-        AnalyticsAggregationService(db).aggregate_daily(
+    def aggregate_for_tenant(
+        db: Session,
+        tenant_id: UUID,
+    ) -> None:
+        AnalyticsAggregationService(
+            db,
+            tenant_id=tenant_id,
+        ).aggregate_daily(
             aggregation_date=target_date,
+        )
+
+    def callback(db: Session) -> None:
+        _aggregate_for_each_active_tenant(
+            db,
+            aggregate_for_tenant,
         )
 
     return _run_locked_job(
@@ -102,9 +163,21 @@ def run_monthly_aggregation_once(
     *,
     month_start: date | None = None,
 ) -> int:
-    def callback(db: Session) -> None:
-        AnalyticsAggregationService(db).aggregate_monthly(
+    def aggregate_for_tenant(
+        db: Session,
+        tenant_id: UUID,
+    ) -> None:
+        AnalyticsAggregationService(
+            db,
+            tenant_id=tenant_id,
+        ).aggregate_monthly(
             month_start=month_start,
+        )
+
+    def callback(db: Session) -> None:
+        _aggregate_for_each_active_tenant(
+            db,
+            aggregate_for_tenant,
         )
 
     return _run_locked_job(

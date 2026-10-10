@@ -33,24 +33,32 @@ def run_report_export_worker_once() -> int:
             logger.debug("Another report export worker instance is already running.")
             return 0
 
+        repository = ReportExportRepository(db)
+
+        report_export = repository.claim_next_requested()
+
+        if report_export is None:
+            return 0
+
+        tenant_id = report_export.tenant_id
+
+        # Set this only after the global queue claim, so the worker can
+        # continue claiming exports from any active tenant.
+        db.info["tenant_id"] = tenant_id
+
         try:
-            repository = ReportExportRepository(db)
-
-            report_export = repository.claim_next_requested()
-
-            if report_export is None:
-                return 0
-
             service = ReportExportService(
                 db=db,
                 storage=LocalStorage(
                     settings.STORAGE_PATH,
                 ),
+                tenant_id=tenant_id,
             )
 
             logger.info(
-                "Processing report export %s.",
+                "Processing report export %s for tenant %s.",
                 report_export.id,
+                tenant_id,
             )
 
             service.process_export(
@@ -65,12 +73,7 @@ def run_report_export_worker_once() -> int:
             return 1
 
         finally:
-            db.execute(
-                text("SELECT pg_advisory_unlock(hashtext(:lock_key))"),
-                {
-                    "lock_key": REPORT_EXPORT_ADVISORY_LOCK_KEY,
-                },
-            )
+            db.info.pop("tenant_id", None)
 
     except Exception:
         logger.exception("Report export worker failed.")

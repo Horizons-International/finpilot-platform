@@ -60,14 +60,14 @@ class KnowledgeDocumentChunk(Base):
         nullable=False,
     )
 
+    knowledge_document = relationship(
+        "KnowledgeDocument",
+    )
+
     __table_args__ = (
         UniqueConstraint(
             "knowledge_document_id",
             "chunk_index",
             name="uq_knowledge_document_chunks_document_index",
         ),
-    )
-
-    knowledge_document = relationship(
-        "KnowledgeDocument",
     )

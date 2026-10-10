@@ -1,5 +1,6 @@
 from datetime import date
 from typing import Any
+from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query, status
 from pydantic import ValidationError
@@ -76,7 +77,7 @@ def get_compliance_cases_report(
         description="Customer risk level.",
     ),
     db: Session = Depends(get_db),
-    _: dict[str, Any] = Depends(
+    current_user: dict[str, Any] = Depends(
         require_roles(
             UserRole.ADMINISTRATOR,
             UserRole.COMPLIANCE_OFFICER,
@@ -91,7 +92,10 @@ def get_compliance_cases_report(
         risk_level=risk_level,
     )
 
-    service = ComplianceReportService(db)
+    service = ComplianceReportService(
+        db=db,
+        tenant_id=UUID(current_user["tenant_id"]),
+    )
 
     report = service.get_compliance_cases_report(
         filters,
@@ -133,7 +137,7 @@ def get_aml_alerts_report(
         description="Customer risk level.",
     ),
     db: Session = Depends(get_db),
-    _: dict[str, Any] = Depends(
+    current_user: dict[str, Any] = Depends(
         require_roles(
             UserRole.ADMINISTRATOR,
             UserRole.COMPLIANCE_OFFICER,
@@ -148,7 +152,10 @@ def get_aml_alerts_report(
         risk_level=risk_level,
     )
 
-    service = ComplianceReportService(db)
+    service = ComplianceReportService(
+        db=db,
+        tenant_id=UUID(current_user["tenant_id"]),
+    )
 
     report = service.get_aml_alerts_report(
         filters,
@@ -191,7 +198,7 @@ def get_customer_risk_report(
         description="Current or historical risk level filter.",
     ),
     db: Session = Depends(get_db),
-    _: dict[str, Any] = Depends(
+    current_user: dict[str, Any] = Depends(
         require_roles(
             UserRole.ADMINISTRATOR,
             UserRole.COMPLIANCE_OFFICER,
@@ -206,7 +213,10 @@ def get_customer_risk_report(
         risk_level=risk_level,
     )
 
-    service = ComplianceReportService(db)
+    service = ComplianceReportService(
+        db=db,
+        tenant_id=UUID(current_user["tenant_id"]),
+    )
 
     report = service.get_customer_risk_report(
         filters,

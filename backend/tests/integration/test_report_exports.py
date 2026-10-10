@@ -338,6 +338,7 @@ def test_verification_report_applies_filters(
                 status=VerificationStatus.APPROVED,
                 created_at=REPORT_DATE,
                 completed_at=REPORT_DATE,
+                tenant_id=matching_customer.tenant_id,
             ),
             IdentityVerificationCase(
                 customer_id=excluded_customer.id,
@@ -345,6 +346,7 @@ def test_verification_report_applies_filters(
                 status=VerificationStatus.REJECTED,
                 created_at=REPORT_DATE,
                 completed_at=REPORT_DATE,
+                tenant_id=matching_customer.tenant_id,
             ),
         ]
     )
@@ -428,6 +430,7 @@ def test_compliance_report_applies_status_and_country_filters(
                 priority=ComplianceCasePriority.HIGH,
                 status=ComplianceCaseStatus.OPEN,
                 created_at=REPORT_DATE,
+                tenant_id=matching_customer.tenant_id,
             ),
             ComplianceCase(
                 customer_id=excluded_customer.id,
@@ -437,6 +440,7 @@ def test_compliance_report_applies_status_and_country_filters(
                 created_at=REPORT_DATE,
                 closed_at=REPORT_DATE,
                 resolution_reason="Excluded test case",
+                tenant_id=matching_customer.tenant_id,
             ),
         ]
     )
@@ -503,6 +507,7 @@ def test_operational_performance_report_contains_tasks(
         completed_at=REPORT_DATE,
         sla_status=SLAStatus.COMPLETED,
         created_at=REPORT_DATE,
+        tenant_id=admin.tenant_id,
     )
 
     db_session.add(task)

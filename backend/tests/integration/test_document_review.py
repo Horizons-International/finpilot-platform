@@ -78,6 +78,7 @@ def create_extraction_response() -> DocumentExtractionResponse:
 def create_review_document(
     client,
     db_session,
+    tenant_id,
     *,
     setup_user,
     extraction_service_override,
@@ -136,6 +137,7 @@ def create_review_document(
     file_id = upload_response.json()["data"]["file_reference"]
 
     ocr_result = OCRResult(
+        tenant_id=tenant_id,
         document_id=document_id,
         provider_name="mock",
         request_id=uuid.uuid4(),
@@ -203,6 +205,7 @@ def get_customer(
 
 def test_get_document_review_returns_comparison_data(
     client,
+    default_tenant_id,
     create_test_user,
     cleanup_test_customers,
     db_session,
@@ -212,11 +215,13 @@ def test_get_document_review_returns_comparison_data(
     admin = create_test_user(
         role=UserRole.ADMINISTRATOR,
         email="admin-get@example.com",
+        tenant_id=default_tenant_id,
     )
 
     reviewer = create_test_user(
         role=UserRole.REVIEWER,
         email="review-get@example.com",
+        tenant_id=default_tenant_id,
     )
 
     (
@@ -228,6 +233,7 @@ def test_get_document_review_returns_comparison_data(
     ) = create_review_document(
         client,
         db_session,
+        default_tenant_id,
         setup_user=admin,
         extraction_service_override=extraction_service_override,
     )
@@ -275,6 +281,7 @@ def test_get_document_review_returns_comparison_data(
 
 def test_get_document_review_requires_authentication(
     client,
+    default_tenant_id,
     create_test_user,
     cleanup_test_customers,
     db_session,
@@ -295,6 +302,7 @@ def test_get_document_review_requires_authentication(
     ) = create_review_document(
         client,
         db_session,
+        default_tenant_id,
         setup_user=admin,
         extraction_service_override=extraction_service_override,
     )
@@ -312,6 +320,7 @@ def test_get_document_review_requires_authentication(
 
 def test_get_document_review_allows_compliance_officer(
     client,
+    default_tenant_id,
     create_test_user,
     cleanup_test_customers,
     db_session,
@@ -337,6 +346,7 @@ def test_get_document_review_allows_compliance_officer(
     ) = create_review_document(
         client,
         db_session,
+        default_tenant_id,
         setup_user=admin,
         extraction_service_override=extraction_service_override,
     )
@@ -354,6 +364,7 @@ def test_get_document_review_allows_compliance_officer(
 
 def test_get_document_review_allows_administrator(
     client,
+    default_tenant_id,
     create_test_user,
     cleanup_test_customers,
     db_session,
@@ -369,6 +380,7 @@ def test_get_document_review_allows_administrator(
         create_review_document(
             client,
             db_session,
+            default_tenant_id,
             setup_user=admin,
             extraction_service_override=extraction_service_override,
         )
@@ -405,6 +417,7 @@ def test_get_document_review_rejects_auditor(
     ) = create_review_document(
         client,
         db_session,
+        admin.tenant_id,
         setup_user=admin,
         extraction_service_override=extraction_service_override,
     )
@@ -457,6 +470,7 @@ def test_update_document_review_updates_extraction_only(
     ) = create_review_document(
         client,
         db_session,
+        admin.tenant_id,
         setup_user=admin,
         extraction_service_override=extraction_service_override,
     )
@@ -533,6 +547,7 @@ def test_update_document_review_records_field_changes(
     ) = create_review_document(
         client,
         db_session,
+        admin.tenant_id,
         setup_user=admin,
         extraction_service_override=extraction_service_override,
     )
@@ -595,6 +610,7 @@ def test_update_document_review_does_not_record_unchanged_fields(
     ) = create_review_document(
         client,
         db_session,
+        admin.tenant_id,
         setup_user=admin,
         extraction_service_override=extraction_service_override,
     )
@@ -650,6 +666,7 @@ def test_update_document_review_requires_fields(
     ) = create_review_document(
         client,
         db_session,
+        admin.tenant_id,
         setup_user=admin,
         extraction_service_override=extraction_service_override,
     )
@@ -702,6 +719,7 @@ def test_approve_document_review_updates_customer(
     ) = create_review_document(
         client,
         db_session,
+        admin.tenant_id,
         setup_user=admin,
         extraction_service_override=extraction_service_override,
     )
@@ -795,6 +813,7 @@ def test_approve_document_review_preserves_customer_fields_missing_from_extracti
     )
 
     ocr_result = OCRResult(
+        tenant_id=admin.tenant_id,
         document_id=document_id,
         provider_name="mock",
         request_id=uuid.uuid4(),
@@ -806,6 +825,7 @@ def test_approve_document_review_preserves_customer_fields_missing_from_extracti
     db_session.flush()
 
     extraction = DocumentExtraction(
+        tenant_id=admin.tenant_id,
         document_id=document_id,
         ocr_result_id=ocr_result.id,
         provider_name="FakeExtractionProvider",
@@ -875,6 +895,7 @@ def test_approve_document_review_is_immutable(
     ) = create_review_document(
         client,
         db_session,
+        admin.tenant_id,
         setup_user=admin,
         extraction_service_override=extraction_service_override,
     )
@@ -943,6 +964,7 @@ def test_reject_document_review_stores_reason(
     ) = create_review_document(
         client,
         db_session,
+        admin.tenant_id,
         setup_user=admin,
         extraction_service_override=extraction_service_override,
     )
@@ -1015,6 +1037,7 @@ def test_reject_document_review_does_not_update_customer(
     ) = create_review_document(
         client,
         db_session,
+        admin.tenant_id,
         setup_user=admin,
         extraction_service_override=extraction_service_override,
     )
@@ -1071,6 +1094,7 @@ def test_reject_document_review_requires_reason(
     ) = create_review_document(
         client,
         db_session,
+        admin.tenant_id,
         setup_user=admin,
         extraction_service_override=extraction_service_override,
     )
@@ -1116,6 +1140,7 @@ def test_reject_document_review_is_immutable(
     ) = create_review_document(
         client,
         db_session,
+        admin.tenant_id,
         setup_user=admin,
         extraction_service_override=extraction_service_override,
     )
@@ -1264,6 +1289,7 @@ def test_get_review_fails_without_extraction(
     )
 
     ocr_result = OCRResult(
+        tenant_id=admin.tenant_id,
         document_id=document_id,
         provider_name="mock",
         request_id=uuid.uuid4(),
@@ -1314,6 +1340,7 @@ def test_update_review_cannot_modify_approved_extraction(
     ) = create_review_document(
         client,
         db_session,
+        admin.tenant_id,
         setup_user=admin,
         extraction_service_override=extraction_service_override,
     )
@@ -1370,6 +1397,7 @@ def test_review_update_creates_audit_event(
     ) = create_review_document(
         client,
         db_session,
+        admin.tenant_id,
         setup_user=admin,
         extraction_service_override=extraction_service_override,
     )
@@ -1427,6 +1455,7 @@ def test_review_approval_creates_audit_event(
     ) = create_review_document(
         client,
         db_session,
+        admin.tenant_id,
         setup_user=admin,
         extraction_service_override=extraction_service_override,
     )
@@ -1481,6 +1510,7 @@ def test_review_rejection_creates_audit_event(
     ) = create_review_document(
         client,
         db_session,
+        admin.tenant_id,
         setup_user=admin,
         extraction_service_override=extraction_service_override,
     )

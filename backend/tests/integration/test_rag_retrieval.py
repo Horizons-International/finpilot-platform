@@ -18,11 +18,13 @@ def create_document(
     db_session,
     *,
     id: UUID,
+    tenant_id: UUID,
     name: str,
     category: KnowledgeDocumentCategory,
     status: KnowledgeDocumentStatus,
 ) -> KnowledgeDocument:
     document = KnowledgeDocument(
+        tenant_id=tenant_id,
         id=uuid4(),
         name=name,
         category=category.value,
@@ -70,6 +72,7 @@ def test_vector_search_returns_closest_active_chunk(
     document = create_document(
         db_session,
         id=admin.id,
+        tenant_id=admin.tenant_id,
         name="Customer Verification Policy",
         category=KnowledgeDocumentCategory.COMPLIANCE_POLICY,
         status=KnowledgeDocumentStatus.ACTIVE,
@@ -134,6 +137,7 @@ def test_vector_search_excludes_inactive_documents(
     active_document = create_document(
         db_session,
         id=admin.id,
+        tenant_id=admin.tenant_id,
         name="Active Policy",
         category=KnowledgeDocumentCategory.COMPLIANCE_POLICY,
         status=KnowledgeDocumentStatus.ACTIVE,
@@ -142,6 +146,7 @@ def test_vector_search_excludes_inactive_documents(
     inactive_document = create_document(
         db_session,
         id=admin.id,
+        tenant_id=admin.tenant_id,
         name="Inactive Policy",
         category=KnowledgeDocumentCategory.COMPLIANCE_POLICY,
         status=KnowledgeDocumentStatus.INACTIVE,
@@ -197,6 +202,7 @@ def test_vector_search_filters_by_category(
     compliance_document = create_document(
         db_session,
         id=admin.id,
+        tenant_id=admin.tenant_id,
         name="Compliance Policy",
         category=KnowledgeDocumentCategory.COMPLIANCE_POLICY,
         status=KnowledgeDocumentStatus.ACTIVE,
@@ -205,6 +211,7 @@ def test_vector_search_filters_by_category(
     product_document = create_document(
         db_session,
         id=admin.id,
+        tenant_id=admin.tenant_id,
         name="Product Documentation",
         category=KnowledgeDocumentCategory.PRODUCT_DOCUMENTATION,
         status=KnowledgeDocumentStatus.ACTIVE,

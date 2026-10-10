@@ -1,6 +1,7 @@
 from calendar import monthrange
 from datetime import date, datetime, time, timedelta, timezone
 from typing import Any, Sequence
+from uuid import UUID
 
 from sqlalchemy.orm import Session
 
@@ -19,10 +20,22 @@ from app.utils.date_time import utc_now
 class AnalyticsAggregationService:
     """Coordinates daily and monthly analytics aggregation."""
 
-    def __init__(self, db: Session) -> None:
+    def __init__(
+        self,
+        db: Session,
+        tenant_id: UUID,
+    ) -> None:
         self.db = db
-        self.snapshot_service = AnalyticsSnapshotService(db)
-        self.repository = AnalyticsAggregationRepository(db)
+        self.tenant_id = tenant_id
+
+        self.snapshot_service = AnalyticsSnapshotService(
+            db,
+            tenant_id=tenant_id,
+        )
+        self.repository = AnalyticsAggregationRepository(
+            db,
+            tenant_id=tenant_id,
+        )
 
     @staticmethod
     def _end_of_day(

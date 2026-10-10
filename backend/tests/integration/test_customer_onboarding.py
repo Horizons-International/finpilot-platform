@@ -4,7 +4,6 @@ from tests.helpers import authenticate_client, create_customer_with_data
 
 def test_customer_onboarding_can_start(
     client,
-    create_test_tenant,
     create_test_user,
     cleanup_test_customers,
     cleanup_workflow_executions,

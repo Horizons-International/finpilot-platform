@@ -1,4 +1,5 @@
 from datetime import date, datetime, time, timedelta, timezone
+from uuid import UUID
 
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
@@ -20,7 +21,12 @@ class ExecutiveDashboardRepository:
         TaskStatus.IN_PROGRESS,
     )
 
-    def __init__(self, db: Session) -> None:
+    def __init__(
+        self,
+        db: Session,
+        tenant_id: UUID,
+    ) -> None:
+        self.tenant_id = tenant_id
         self.db = db
 
     @staticmethod

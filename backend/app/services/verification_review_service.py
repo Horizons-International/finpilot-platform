@@ -24,9 +24,13 @@ from app.utils.errors import bad_request, not_found
 
 
 class VerificationReviewService:
-    def __init__(self, db: Session) -> None:
+    def __init__(self, db: Session, tenant_id: UUID) -> None:
         self.db = db
-        self.verification_case_repository = VerificationCaseRepository(db)
+        self.tenant_id = tenant_id
+        self.verification_case_repository = VerificationCaseRepository(
+            db,
+            self.tenant_id,
+        )
         self.customer_audit_log_service = CustomerAuditLogService(db)
         self.review_repository = VerificationReviewRepository(db)
         self.audit_service = AuditService(db)

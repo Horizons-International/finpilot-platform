@@ -56,11 +56,16 @@ class VerificationService:
     def __init__(
         self,
         db: Session,
+        tenant_id: UUID,
         provider: VerificationProvider | None = None,
     ) -> None:
         self.db = db
+        self.tenant_id = tenant_id
         self.audit_service = AuditService(db)
-        self.repository = VerificationCaseRepository(db)
+        self.repository = VerificationCaseRepository(
+            db=db,
+            tenant_id=tenant_id,
+        )
         self.customer_audit_log_service = CustomerAuditLogService(db)
         self.provider = provider or get_verification_provider()
         self.workflow_validation_service = WorkflowValidationService(
@@ -77,12 +82,20 @@ class VerificationService:
         ip_address: str | None = None,
         user_agent: str | None = None,
     ) -> IdentityVerificationCase:
-        customer = self.db.query(Customer).filter(Customer.id == customer_id).first()
+        customer = (
+            self.db.query(Customer)
+            .filter(
+                Customer.id == customer_id,
+                Customer.tenant_id == self.tenant_id,
+            )
+            .first()
+        )
 
         if customer is None:
             raise not_found("Customer")
 
         case = IdentityVerificationCase(
+            tenant_id=self.tenant_id,
             customer_id=customer_id,
             verification_type=case_data.verification_type,
             status=VerificationStatus.NOT_STARTED,
@@ -123,7 +136,14 @@ class VerificationService:
         self,
         customer_id: UUID,
     ) -> list[IdentityVerificationCase]:
-        customer = self.db.query(Customer).filter(Customer.id == customer_id).first()
+        customer = (
+            self.db.query(Customer)
+            .filter(
+                Customer.id == customer_id,
+                Customer.tenant_id == self.tenant_id,
+            )
+            .first()
+        )
 
         if customer is None:
             raise not_found("Customer")
@@ -140,18 +160,21 @@ class VerificationService:
         ip_address: str | None = None,
         user_agent: str | None = None,
     ) -> IdentityVerificationCase:
-        customer = self.db.query(Customer).filter(Customer.id == customer_id).first()
+        customer = (
+            self.db.query(Customer)
+            .filter(
+                Customer.id == customer_id,
+                Customer.tenant_id == self.tenant_id,
+            )
+            .first()
+        )
 
         if customer is None:
             raise not_found("Customer")
 
-        case = (
-            self.db.query(IdentityVerificationCase)
-            .filter(
-                IdentityVerificationCase.id == case_id,
-                IdentityVerificationCase.customer_id == customer_id,
-            )
-            .first()
+        case = self.repository.get_by_id_and_customer(
+            verification_case_id=case_id,
+            customer_id=customer_id,
         )
 
         if case is None:
@@ -233,7 +256,14 @@ class VerificationService:
         ip_address: str | None = None,
         user_agent: str | None = None,
     ) -> IdentityVerificationCase:
-        customer = self.db.query(Customer).filter(Customer.id == customer_id).first()
+        customer = (
+            self.db.query(Customer)
+            .filter(
+                Customer.id == customer_id,
+                Customer.tenant_id == self.tenant_id,
+            )
+            .first()
+        )
 
         if customer is None:
             raise not_found("Customer")
@@ -249,6 +279,7 @@ class VerificationService:
             )
 
         case = IdentityVerificationCase(
+            tenant_id=self.tenant_id,
             customer_id=customer_id,
             verification_type=verification_data.verification_type,
             status=VerificationStatus.PENDING,

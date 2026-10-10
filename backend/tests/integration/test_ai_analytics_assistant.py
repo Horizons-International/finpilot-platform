@@ -1,6 +1,6 @@
 from datetime import date
 from unittest.mock import patch
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 import pytest
 
@@ -51,10 +51,12 @@ def seed_analytics_ai_data():
 def make_customer_snapshot(
     db_session,
     *,
+    tenant_id: UUID,
     snapshot_date: date,
     pending_verification: int,
 ) -> CustomerAnalyticsDaily:
     snapshot = CustomerAnalyticsDaily(
+        tenant_id=tenant_id,
         snapshot_date=snapshot_date,
         ending_total_customers=100,
         customers_registered_during_day=10,
@@ -97,12 +99,14 @@ def test_ai_analytics_assistant_answers_pending_verification(
 
     make_customer_snapshot(
         db_session,
+        tenant_id=admin.tenant_id,
         snapshot_date=previous_month_end,
         pending_verification=200,
     )
 
     make_customer_snapshot(
         db_session,
+        tenant_id=admin.tenant_id,
         snapshot_date=today,
         pending_verification=224,
     )
@@ -190,6 +194,7 @@ def test_ai_analytics_interaction_stores_supporting_data(
 
     make_customer_snapshot(
         db_session,
+        tenant_id=admin.tenant_id,
         snapshot_date=today,
         pending_verification=245,
     )
@@ -271,6 +276,7 @@ def test_ai_analytics_assistant_answers_rejection_reason(
         customer_id=customer_id,
         verification_type=VerificationType.IDENTITY,
         status=VerificationStatus.REJECTED,
+        tenant_id=admin.tenant_id,
     )
 
     db_session.add(verification_case)
@@ -376,6 +382,7 @@ def test_ai_analytics_assistant_includes_rag_context(
 
     make_customer_snapshot(
         db_session,
+        tenant_id=admin.tenant_id,
         snapshot_date=today,
         pending_verification=245,
     )

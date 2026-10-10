@@ -53,13 +53,14 @@ def test_task_sla_breach_updates_status_and_creates_notification(
         due_date=due_date,
         created_at=created_at,
         sla_status=SLAStatus.WITHIN_SLA,
+        tenant_id=user.tenant_id,
     )
 
     db_session.add(task)
     db_session.commit()
     db_session.refresh(task)
 
-    service = SLAService(db_session)
+    service = SLAService(db_session, tenant_id=user.tenant_id)
 
     service.check_all(
         now=datetime(
@@ -145,7 +146,7 @@ def test_workflow_sla_breach_updates_status_and_notifies_user(
     db_session.commit()
     db_session.refresh(execution)
 
-    service = SLAService(db_session)
+    service = SLAService(db_session, user.tenant_id)
 
     service.check_all(
         now=datetime(
@@ -179,16 +180,15 @@ def test_completed_task_records_completion_time(
     create_test_user,
     cleanup_tasks,
 ):
-    from datetime import datetime, timedelta, timezone
-
-    from app.utils.enums import SLAStatus, TaskStatus, UserRole
-
     user = create_test_user(
         role=UserRole.REVIEWER,
         email=f"sla-complete-{uuid4()}@example.com",
     )
 
-    service = TaskService(db_session)
+    service = TaskService(
+        db_session,
+        user.tenant_id,
+    )
 
     task = service.create_task(
         TaskCreate(
@@ -259,12 +259,16 @@ def test_sla_notification_is_only_created_on_status_transition(
         due_date=due_date,
         created_at=created_at,
         sla_status=SLAStatus.WITHIN_SLA,
+        tenant_id=user.tenant_id,
     )
 
     db_session.add(task)
     db_session.commit()
 
-    service = SLAService(db_session)
+    service = SLAService(
+        db_session,
+        user.tenant_id,
+    )
 
     approaching_time = datetime(
         2026,

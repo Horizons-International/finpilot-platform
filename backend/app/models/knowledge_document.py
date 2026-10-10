@@ -9,9 +9,10 @@ from sqlalchemy import (
     String,
     UniqueConstraint,
     func,
+    text,
 )
 from sqlalchemy import Enum as SQLEnum
-from sqlalchemy.dialects.postgresql import UUID as PGUUID
+from sqlalchemy.dialects.postgresql import UUID as PostgreSQLUUID
 from sqlalchemy.orm import (
     Mapped,
     mapped_column,
@@ -28,9 +29,19 @@ class KnowledgeDocument(Base):
     __tablename__ = "knowledge_documents"
 
     id: Mapped[UUID] = mapped_column(
-        PGUUID(as_uuid=True),
+        PostgreSQLUUID(as_uuid=True),
         primary_key=True,
         default=uuid4,
+    )
+
+    tenant_id: Mapped[UUID] = mapped_column(
+        PostgreSQLUUID(as_uuid=True),
+        ForeignKey(
+            "tenants.id",
+            ondelete="CASCADE",
+        ),
+        nullable=False,
+        index=True,
     )
 
     name: Mapped[str] = mapped_column(
@@ -64,7 +75,7 @@ class KnowledgeDocument(Base):
     )
 
     uploaded_by: Mapped[UUID] = mapped_column(
-        PGUUID(as_uuid=True),
+        PostgreSQLUUID(as_uuid=True),
         ForeignKey(
             "users.id",
             ondelete="RESTRICT",
@@ -79,20 +90,24 @@ class KnowledgeDocument(Base):
         nullable=False,
     )
 
+    uploader = relationship(
+        "User",
+    )
+
+    tenant = relationship("Tenant")
+
     __table_args__ = (
         Index(
             "uq_knowledge_documents_active_name",
+            "tenant_id",
             "name",
             unique=True,
-            postgresql_where="status = 'ACTIVE'",
+            postgresql_where=text("status = 'ACTIVE'"),
         ),
         UniqueConstraint(
+            "tenant_id",
             "name",
             "version",
-            name="uq_knowledge_documents_name_version",
+            name="uq_knowledge_documents_tenant_name_version",
         ),
-    )
-
-    uploader = relationship(
-        "User",
     )

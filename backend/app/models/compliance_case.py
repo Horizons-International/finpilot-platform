@@ -23,6 +23,16 @@ class ComplianceCase(Base):
         default=uuid.uuid4,
     )
 
+    tenant_id: Mapped[UUID] = mapped_column(
+        PostgreSQLUUID(as_uuid=True),
+        ForeignKey(
+            "tenants.id",
+            ondelete="CASCADE",
+        ),
+        nullable=False,
+        index=True,
+    )
+
     customer_id: Mapped[UUID] = mapped_column(
         PostgreSQLUUID(as_uuid=True),
         ForeignKey(
@@ -117,3 +127,5 @@ class ComplianceCase(Base):
         cascade="all, delete-orphan",
         order_by="ComplianceCaseHistory.created_at",
     )
+
+    tenant = relationship("Tenant")

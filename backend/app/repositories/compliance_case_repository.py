@@ -3,46 +3,41 @@ from uuid import UUID
 from sqlalchemy.orm import Session
 
 from app.models.compliance_case import ComplianceCase
-from app.repositories.base_repository import BaseRepository
+from app.repositories.tenant_scoped_repository import (
+    TenantScopedRepository,
+)
 from app.utils.enums import (
     ComplianceCaseStatus,
     ComplianceCaseType,
 )
 
 
-class ComplianceCaseRepository(
-    BaseRepository[ComplianceCase],
-):
-    def __init__(self, db: Session) -> None:
+class ComplianceCaseRepository(TenantScopedRepository[ComplianceCase]):
+    def __init__(
+        self,
+        db: Session,
+        tenant_id: UUID,
+    ) -> None:
         super().__init__(
-            db,
-            ComplianceCase,
+            db=db,
+            model=ComplianceCase,
+            tenant_id=tenant_id,
         )
 
     def get_by_id(
         self,
         case_id: UUID,
     ) -> ComplianceCase | None:
-        return (
-            self.db.query(ComplianceCase)
-            .filter(
-                ComplianceCase.id == case_id,
-            )
-            .first()
-        )
+        return self.query().filter(ComplianceCase.id == case_id).first()
 
     def get_by_customer_id(
         self,
         customer_id: UUID,
     ) -> list[ComplianceCase]:
         return (
-            self.db.query(ComplianceCase)
-            .filter(
-                ComplianceCase.customer_id == customer_id,
-            )
-            .order_by(
-                ComplianceCase.created_at.desc(),
-            )
+            self.query()
+            .filter(ComplianceCase.customer_id == customer_id)
+            .order_by(ComplianceCase.created_at.desc())
             .all()
         )
 
@@ -53,26 +48,18 @@ class ComplianceCaseRepository(
         case_type: ComplianceCaseType | None = None,
         assigned_to: UUID | None = None,
     ) -> list[ComplianceCase]:
-        query = self.db.query(ComplianceCase)
+        query = self.query()
 
         if status is not None:
-            query = query.filter(
-                ComplianceCase.status == status,
-            )
+            query = query.filter(ComplianceCase.status == status)
 
         if case_type is not None:
-            query = query.filter(
-                ComplianceCase.case_type == case_type,
-            )
+            query = query.filter(ComplianceCase.case_type == case_type)
 
         if assigned_to is not None:
-            query = query.filter(
-                ComplianceCase.assigned_to == assigned_to,
-            )
+            query = query.filter(ComplianceCase.assigned_to == assigned_to)
 
-        return query.order_by(
-            ComplianceCase.created_at.desc(),
-        ).all()
+        return query.order_by(ComplianceCase.created_at.desc()).all()
 
     def get_by_id_and_customer(
         self,
@@ -80,7 +67,7 @@ class ComplianceCaseRepository(
         customer_id: UUID,
     ) -> ComplianceCase | None:
         return (
-            self.db.query(ComplianceCase)
+            self.query()
             .filter(
                 ComplianceCase.id == case_id,
                 ComplianceCase.customer_id == customer_id,

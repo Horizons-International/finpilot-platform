@@ -56,8 +56,9 @@ class RiskHistoryReportRow:
 
 
 class ComplianceReportRepository:
-    def __init__(self, db: Session) -> None:
+    def __init__(self, db: Session, tenant_id: UUID) -> None:
         self.db = db
+        self.tenant_id = tenant_id
 
     @staticmethod
     def _start_datetime(
@@ -104,6 +105,11 @@ class ComplianceReportRepository:
                 CustomerRiskProfile,
                 CustomerRiskProfile.customer_id == Customer.id,
             )
+        )
+
+        statement = statement.where(
+            IdentityVerificationCase.tenant_id == self.tenant_id,
+            Customer.tenant_id == self.tenant_id,
         )
 
         start_datetime = self._start_datetime(
@@ -172,6 +178,7 @@ class ComplianceReportRepository:
             .where(
                 TransactionMonitoringResult.result
                 == TransactionMonitoringOutcome.MATCHED,
+                Customer.tenant_id == self.tenant_id,
             )
         )
 
@@ -235,6 +242,10 @@ class ComplianceReportRepository:
             CustomerRiskProfile.customer_id == Customer.id,
         )
 
+        statement = statement.where(
+            Customer.tenant_id == self.tenant_id,
+        )
+
         start_datetime = self._start_datetime(
             filters.start_date,
         )
@@ -294,6 +305,10 @@ class ComplianceReportRepository:
                 CustomerRiskAssessmentHistory.customer_id.asc(),
                 CustomerRiskAssessmentHistory.assessed_at.asc(),
             )
+        )
+
+        statement = statement.where(
+            Customer.tenant_id == self.tenant_id,
         )
 
         if filters.country is not None:

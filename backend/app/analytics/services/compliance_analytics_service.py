@@ -1,4 +1,5 @@
 from datetime import date, timedelta
+from uuid import UUID
 
 from sqlalchemy.orm import Session
 
@@ -25,8 +26,16 @@ class ComplianceAnalyticsService:
     DEFAULT_LOOKBACK_DAYS = 30
     MAX_LOOKBACK_DAYS = 366
 
-    def __init__(self, db: Session) -> None:
-        self.repository = ComplianceAnalyticsRepository(db)
+    def __init__(
+        self,
+        db: Session,
+        tenant_id: UUID,
+    ) -> None:
+        self.tenant_id = tenant_id
+        self.repository = ComplianceAnalyticsRepository(
+            db=db,
+            tenant_id=self.tenant_id,
+        )
 
     def get_analytics(
         self,

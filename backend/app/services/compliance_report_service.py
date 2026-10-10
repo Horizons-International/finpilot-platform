@@ -1,6 +1,7 @@
 from collections import defaultdict
 from datetime import date
 from typing import DefaultDict
+from uuid import UUID
 
 from sqlalchemy.orm import Session
 
@@ -29,8 +30,11 @@ from app.utils.enums import (
 class ComplianceReportService:
     ALERT_STATUS_OPEN = "OPEN"
 
-    def __init__(self, db: Session) -> None:
-        self.repository = ComplianceReportRepository(db)
+    def __init__(self, db: Session, tenant_id: UUID) -> None:
+        self.repository = ComplianceReportRepository(
+            db=db,
+            tenant_id=tenant_id,
+        )
 
     def get_compliance_cases_report(
         self,

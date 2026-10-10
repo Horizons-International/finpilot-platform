@@ -1014,6 +1014,7 @@ def test_providers_does_not_change_core_logic(
     service = VerificationService(
         db=db_session,
         provider=provider,
+        tenant_id=admin.tenant_id,
     )
 
     response = service.submit_to_provider(

@@ -1,6 +1,7 @@
 from calendar import monthrange
 from datetime import date, datetime, time, timedelta, timezone
 from typing import Any
+from uuid import UUID
 
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
@@ -19,7 +20,7 @@ from app.models.transaction_monitoring_result import (
     TransactionMonitoringResult,
 )
 from app.models.verification_case import IdentityVerificationCase
-from app.models.workflow import WorkflowExecution
+from app.models.workflow import Workflow, WorkflowExecution
 from app.utils.enums import (
     SLAStatus,
     TaskStatus,
@@ -92,8 +93,13 @@ class AnalyticsAggregationRepository:
         "workflows_completed_breached_sla_during_month",
     )
 
-    def __init__(self, db: Session) -> None:
+    def __init__(
+        self,
+        db: Session,
+        tenant_id: UUID,
+    ) -> None:
         self.db = db
+        self.tenant_id = tenant_id
 
     @staticmethod
     def _day_bounds(
@@ -169,7 +175,7 @@ class AnalyticsAggregationRepository:
                 ).label(
                     "customers_registered_during_day",
                 ),
-            )
+            ).where(Customer.tenant_id == self.tenant_id)
         ).one()
 
         verification_approvals = self._count(
@@ -177,6 +183,7 @@ class AnalyticsAggregationRepository:
             IdentityVerificationCase.status == VerificationStatus.APPROVED,
             IdentityVerificationCase.completed_at >= day_start,
             IdentityVerificationCase.completed_at < day_end,
+            IdentityVerificationCase.tenant_id == self.tenant_id,
         )
 
         compliance_row = self.db.execute(
@@ -188,25 +195,32 @@ class AnalyticsAggregationRepository:
                 ).label(
                     "cases_created_during_day",
                 ),
-            )
+            ).where(ComplianceCase.tenant_id == self.tenant_id)
         ).one()
 
-        alert_row = self.db.execute(
-            select(
-                self._count_filter(
-                    TransactionMonitoringResult,
-                    TransactionMonitoringResult.result
-                    == TransactionMonitoringOutcome.MATCHED,
-                    TransactionMonitoringResult.created_at >= day_start,
-                    TransactionMonitoringResult.created_at < day_end,
-                ).label(
-                    "alerts_created_during_day",
-                ),
-            )
-            .select_from(TransactionMonitoringResult)
-            .join(
-                AMLRule,
-                TransactionMonitoringResult.rule_id == AMLRule.id,
+        alert_row = (
+            self.db.execute(
+                select(
+                    self._count_filter(
+                        TransactionMonitoringResult,
+                        TransactionMonitoringResult.result
+                        == TransactionMonitoringOutcome.MATCHED,
+                        TransactionMonitoringResult.created_at >= day_start,
+                        TransactionMonitoringResult.created_at < day_end,
+                    ).label(
+                        "alerts_created_during_day",
+                    ),
+                )
+                .select_from(TransactionMonitoringResult)
+                .join(
+                    Customer,
+                    Customer.id == TransactionMonitoringResult.customer_id,
+                )
+                .join(
+                    AMLRule,
+                    TransactionMonitoringResult.rule_id == AMLRule.id,
+                )
+                .where(Customer.tenant_id == self.tenant_id)
             )
         ).one()
 
@@ -245,52 +259,62 @@ class AnalyticsAggregationRepository:
                 ).label(
                     "tasks_completed_breached_sla_during_day",
                 ),
-            )
+            ).where(Task.tenant_id == self.tenant_id)
         ).one()
 
-        workflow_row = self.db.execute(
-            select(
-                self._count_filter(
-                    WorkflowExecution,
-                    WorkflowExecution.started_at >= day_start,
-                    WorkflowExecution.started_at < day_end,
-                ).label(
-                    "workflows_started_during_day",
-                ),
-                self._count_filter(
-                    WorkflowExecution,
-                    WorkflowExecution.completed_at >= day_start,
-                    WorkflowExecution.completed_at < day_end,
-                    WorkflowExecution.status == WorkflowExecutionStatus.COMPLETED,
-                ).label(
-                    "workflows_completed_during_day",
-                ),
-                self._count_filter(
-                    WorkflowExecution,
-                    WorkflowExecution.completed_at >= day_start,
-                    WorkflowExecution.completed_at < day_end,
-                    WorkflowExecution.status == WorkflowExecutionStatus.FAILED,
-                ).label(
-                    "workflows_failed_during_day",
-                ),
-                self._count_filter(
-                    WorkflowExecution,
-                    WorkflowExecution.completed_at >= day_start,
-                    WorkflowExecution.completed_at < day_end,
-                    WorkflowExecution.status == WorkflowExecutionStatus.COMPLETED,
-                    WorkflowExecution.sla_status == SLAStatus.COMPLETED,
-                ).label(
-                    "workflows_completed_within_sla_during_day",
-                ),
-                self._count_filter(
-                    WorkflowExecution,
-                    WorkflowExecution.completed_at >= day_start,
-                    WorkflowExecution.completed_at < day_end,
-                    WorkflowExecution.status == WorkflowExecutionStatus.COMPLETED,
-                    WorkflowExecution.sla_status == SLAStatus.BREACHED,
-                ).label(
-                    "workflows_completed_breached_sla_during_day",
-                ),
+        workflow_row = (
+            self.db.execute(
+                select(
+                    self._count_filter(
+                        WorkflowExecution,
+                        WorkflowExecution.started_at >= day_start,
+                        WorkflowExecution.started_at < day_end,
+                    ).label(
+                        "workflows_started_during_day",
+                    ),
+                    self._count_filter(
+                        WorkflowExecution,
+                        WorkflowExecution.completed_at >= day_start,
+                        WorkflowExecution.completed_at < day_end,
+                        WorkflowExecution.status == WorkflowExecutionStatus.COMPLETED,
+                    ).label(
+                        "workflows_completed_during_day",
+                    ),
+                    self._count_filter(
+                        WorkflowExecution,
+                        WorkflowExecution.completed_at >= day_start,
+                        WorkflowExecution.completed_at < day_end,
+                        WorkflowExecution.status == WorkflowExecutionStatus.FAILED,
+                    ).label(
+                        "workflows_failed_during_day",
+                    ),
+                    self._count_filter(
+                        WorkflowExecution,
+                        WorkflowExecution.completed_at >= day_start,
+                        WorkflowExecution.completed_at < day_end,
+                        WorkflowExecution.status == WorkflowExecutionStatus.COMPLETED,
+                        WorkflowExecution.sla_status == SLAStatus.COMPLETED,
+                    ).label(
+                        "workflows_completed_within_sla_during_day",
+                    ),
+                    self._count_filter(
+                        WorkflowExecution,
+                        WorkflowExecution.completed_at >= day_start,
+                        WorkflowExecution.completed_at < day_end,
+                        WorkflowExecution.status == WorkflowExecutionStatus.COMPLETED,
+                        WorkflowExecution.sla_status == SLAStatus.BREACHED,
+                    ).label(
+                        "workflows_completed_breached_sla_during_day",
+                    ),
+                )
+                .select_from(WorkflowExecution)
+                .join(
+                    Workflow,
+                    Workflow.id == WorkflowExecution.workflow_id,
+                )
+                .where(
+                    Workflow.tenant_id == self.tenant_id,
+                )
             )
         ).one()
 
@@ -353,17 +377,23 @@ class AnalyticsAggregationRepository:
         """Persist calculated daily event metrics onto existing snapshots."""
 
         snapshots = (
-            self.db.get(
-                CustomerAnalyticsDaily,
-                aggregation_date,
+            self.db.scalar(
+                select(CustomerAnalyticsDaily).where(
+                    CustomerAnalyticsDaily.tenant_id == self.tenant_id,
+                    CustomerAnalyticsDaily.snapshot_date == aggregation_date,
+                )
             ),
-            self.db.get(
-                ComplianceAnalyticsDaily,
-                aggregation_date,
+            self.db.scalar(
+                select(OperationsAnalyticsDaily).where(
+                    OperationsAnalyticsDaily.tenant_id == self.tenant_id,
+                    OperationsAnalyticsDaily.snapshot_date == aggregation_date,
+                )
             ),
-            self.db.get(
-                OperationsAnalyticsDaily,
-                aggregation_date,
+            self.db.scalar(
+                select(ComplianceAnalyticsDaily).where(
+                    ComplianceAnalyticsDaily.tenant_id == self.tenant_id,
+                    ComplianceAnalyticsDaily.snapshot_date == aggregation_date,
+                )
             ),
         )
 
@@ -410,6 +440,7 @@ class AnalyticsAggregationRepository:
         statement = (
             select(model)
             .where(
+                model.tenant_id == self.tenant_id,
                 model.snapshot_date >= month_start,
                 model.snapshot_date < month_end,
             )
@@ -461,6 +492,7 @@ class AnalyticsAggregationRepository:
             select(CustomerAnalyticsDaily)
             .where(
                 CustomerAnalyticsDaily.snapshot_date < month_start,
+                CustomerAnalyticsDaily.tenant_id == self.tenant_id,
             )
             .order_by(
                 CustomerAnalyticsDaily.snapshot_date.desc(),
@@ -479,13 +511,16 @@ class AnalyticsAggregationRepository:
         metrics: dict[str, int],
         fields: tuple[str, ...],
     ) -> Any:
-        row = self.db.get(
-            model,
-            month_start,
+        row = self.db.scalar(
+            select(model).where(
+                model.tenant_id == self.tenant_id,
+                model.month_start == month_start,
+            )
         )
 
         if row is None:
             row = model(
+                tenant_id=self.tenant_id,
                 month_start=month_start,
             )
             self.db.add(row)
@@ -494,7 +529,7 @@ class AnalyticsAggregationRepository:
             setattr(
                 row,
                 field,
-                int(metrics[field] or 0),
+                int(metrics.get(field, 0) or 0),
             )
 
         row.captured_at = captured_at

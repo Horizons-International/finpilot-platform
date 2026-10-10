@@ -32,9 +32,19 @@ from app.utils.errors import bad_request, not_found
 
 
 class ComplianceService:
-    def __init__(self, db: Session) -> None:
+    def __init__(
+        self,
+        db: Session,
+        tenant_id: UUID,
+    ) -> None:
         self.db = db
-        self.repository = ComplianceCaseRepository(db)
+        self.tenant_id = tenant_id
+
+        self.repository = ComplianceCaseRepository(
+            db=db,
+            tenant_id=tenant_id,
+        )
+
         self.history_repository = ComplianceCaseHistoryRepository(db)
         self.audit_service = AuditService(db)
         self.notification_service = NotificationService(db)
@@ -42,6 +52,23 @@ class ComplianceService:
     # ------------------------------------------------------------------
     # Existing CRUD operations
     # ------------------------------------------------------------------
+    def _get_tenant_user(
+        self,
+        user_id: UUID,
+    ) -> User:
+        user = (
+            self.db.query(User)
+            .filter(
+                User.id == user_id,
+                User.tenant_id == self.tenant_id,
+            )
+            .first()
+        )
+
+        if user is None:
+            raise not_found("Assigned user")
+
+        return user
 
     def create_case(
         self,
@@ -52,19 +79,20 @@ class ComplianceService:
         ip_address: str | None = None,
         user_agent: str | None = None,
     ) -> ComplianceCase:
-        customer = self.db.get(
-            Customer,
-            case_data.customer_id,
+        customer = (
+            self.db.query(Customer)
+            .filter(
+                Customer.id == case_data.customer_id,
+                Customer.tenant_id == self.tenant_id,
+            )
+            .first()
         )
 
         if customer is None:
             raise not_found("Customer")
 
         if case_data.assigned_to is not None:
-            assigned_user = self.db.get(
-                User,
-                case_data.assigned_to,
-            )
+            assigned_user = self._get_tenant_user(case_data.assigned_to)
 
             if assigned_user is None:
                 raise not_found("Assigned user")
@@ -72,6 +100,7 @@ class ComplianceService:
             self._validate_reviewer(assigned_user)
 
         case = ComplianceCase(
+            tenant_id=self.tenant_id,
             customer_id=case_data.customer_id,
             case_type=case_data.case_type,
             priority=case_data.priority,
@@ -122,9 +151,13 @@ class ComplianceService:
         self,
         customer_id: UUID,
     ) -> list[ComplianceCase]:
-        customer = self.db.get(
-            Customer,
-            customer_id,
+        customer = (
+            self.db.query(Customer)
+            .filter(
+                Customer.id == customer_id,
+                Customer.tenant_id == self.tenant_id,
+            )
+            .first()
         )
 
         if customer is None:
@@ -158,10 +191,7 @@ class ComplianceService:
         case = self.get_case(case_id)
 
         if case_data.assigned_to is not None:
-            assigned_user = self.db.get(
-                User,
-                case_data.assigned_to,
-            )
+            assigned_user = self._get_tenant_user(case_data.assigned_to)
 
             if assigned_user is None:
                 raise not_found("Assigned user")
@@ -219,10 +249,7 @@ class ComplianceService:
     ) -> ComplianceCase:
         case = self.get_case(case_id)
 
-        assigned_user = self.db.get(
-            User,
-            assigned_to,
-        )
+        assigned_user = self._get_tenant_user(assigned_to)
 
         if assigned_user is None:
             raise not_found("Assigned user")

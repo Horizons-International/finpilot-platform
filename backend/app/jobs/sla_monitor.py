@@ -1,13 +1,12 @@
 import time
 
-from sqlalchemy import text
+from sqlalchemy import select, text
 
-# Make sure all SQLAlchemy models are registered before the worker
-# creates/uses a Session.
 import app.models  # noqa: F401
 from app.core.config import settings
 from app.core.database import SessionLocal
 from app.core.logger import get_logger, setup_logging
+from app.models.tenant import Tenant
 from app.services.sla_service import SLAService
 
 SLA_ADVISORY_LOCK_KEY = "finpilot_sla_monitor"
@@ -30,7 +29,16 @@ def run_sla_monitor_once() -> int:
             return 0
 
         try:
-            changed = SLAService(db).check_all()
+            changed = 0
+
+            tenant_ids = db.scalars(select(Tenant.id)).all()
+
+            for tenant_id in tenant_ids:
+                changed += SLAService(
+                    db=db,
+                    tenant_id=tenant_id,
+                ).check_all()
+
             logger.info("SLA monitor check completed. Changed=%s", changed)
             return changed
         finally:

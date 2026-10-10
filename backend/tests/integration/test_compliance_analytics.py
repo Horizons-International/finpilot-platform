@@ -37,6 +37,7 @@ def authenticate_client(client, user):
 
 def test_compliance_analytics_returns_metrics_and_trends(
     client,
+    default_tenant_id,
     db_session,
     create_test_user,
     create_test_customer,
@@ -62,6 +63,7 @@ def test_compliance_analytics_returns_metrics_and_trends(
     db_session.add_all(
         [
             ComplianceAnalyticsDaily(
+                tenant_id=default_tenant_id,
                 snapshot_date=date(2030, 1, 1),
                 ending_total_cases=10,
                 cases_created_during_day=3,
@@ -80,6 +82,7 @@ def test_compliance_analytics_returns_metrics_and_trends(
                 ending_critical_risk_customers=2,
             ),
             ComplianceAnalyticsDaily(
+                tenant_id=default_tenant_id,
                 snapshot_date=date(2030, 1, 2),
                 ending_total_cases=14,
                 cases_created_during_day=4,
@@ -130,6 +133,7 @@ def test_compliance_analytics_returns_metrics_and_trends(
                 created_at=created_at_1,
                 closed_at=created_at_1 + timedelta(hours=4),
                 assigned_to=reviewer.id,
+                tenant_id=customer.tenant_id,
             ),
             ComplianceCase(
                 customer_id=customer.id,
@@ -139,6 +143,7 @@ def test_compliance_analytics_returns_metrics_and_trends(
                 created_at=created_at_2,
                 closed_at=created_at_2 + timedelta(hours=2),
                 assigned_to=reviewer.id,
+                tenant_id=customer.tenant_id,
             ),
         ]
     )
@@ -150,6 +155,7 @@ def test_compliance_analytics_returns_metrics_and_trends(
         assigned_to=reviewer.id,
         created_at=created_at_2,
         completed_at=created_at_2 + timedelta(hours=1),
+        tenant_id=admin.tenant_id,
     )
 
     db_session.add(verification_case)
@@ -233,6 +239,7 @@ def test_compliance_analytics_returns_metrics_and_trends(
 
 def test_compliance_analytics_filters_by_date(
     client,
+    default_tenant_id,
     db_session,
     create_test_user,
     cleanup_analytics_snapshots,
@@ -250,6 +257,7 @@ def test_compliance_analytics_filters_by_date(
     db_session.add_all(
         [
             ComplianceAnalyticsDaily(
+                tenant_id=default_tenant_id,
                 snapshot_date=date(2030, 2, 1),
                 ending_total_cases=5,
                 cases_created_during_day=1,
@@ -268,6 +276,7 @@ def test_compliance_analytics_filters_by_date(
                 ending_critical_risk_customers=1,
             ),
             ComplianceAnalyticsDaily(
+                tenant_id=default_tenant_id,
                 snapshot_date=date(2030, 2, 2),
                 ending_total_cases=9,
                 cases_created_during_day=4,

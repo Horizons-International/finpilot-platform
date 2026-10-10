@@ -1,5 +1,5 @@
 from datetime import date, datetime, timedelta, timezone
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 from app.analytics.models.operations_daily import OperationsAnalyticsDaily
 from app.models.task import Task
@@ -17,6 +17,7 @@ from tests.helpers import authenticate_client
 def make_operations_snapshot(
     snapshot_date: date,
     *,
+    tenant_id: UUID,
     workflows_started: int,
     workflows_completed: int,
     workflows_failed: int,
@@ -30,6 +31,7 @@ def make_operations_snapshot(
     total_workflows: int,
 ) -> OperationsAnalyticsDaily:
     return OperationsAnalyticsDaily(
+        tenant_id=tenant_id,
         snapshot_date=snapshot_date,
         ending_total_tasks=total_tasks,
         tasks_created_during_day=0,
@@ -69,19 +71,21 @@ def test_operations_performance_returns_accurate_metrics(
     cleanup_workflows,
     cleanup_workflow_executions,
 ):
-    admin = create_test_user(
-        UserRole.ADMINISTRATOR,
-        "operations-analytics-admin@example.com",
-    )
-
-    reviewer = create_test_user(
-        UserRole.REVIEWER,
-        "operations-analytics-reviewer@example.com",
-    )
-
     tenant = create_test_tenant(
         name="Tenant B",
         code=f"TENANT-B-{uuid4().hex[:6].upper()}",
+    )
+
+    admin = create_test_user(
+        role=UserRole.ADMINISTRATOR,
+        email="operations-analytics-admin@example.com",
+        tenant_id=tenant.id,
+    )
+
+    reviewer = create_test_user(
+        role=UserRole.REVIEWER,
+        email="operations-analytics-reviewer@example.com",
+        tenant_id=tenant.id,
     )
 
     admin.department = "Operations"
@@ -99,6 +103,7 @@ def test_operations_performance_returns_accurate_metrics(
         [
             make_operations_snapshot(
                 date(2029, 12, 31),
+                tenant_id=tenant.id,
                 workflows_started=1,
                 workflows_completed=1,
                 workflows_failed=0,
@@ -113,6 +118,7 @@ def test_operations_performance_returns_accurate_metrics(
             ),
             make_operations_snapshot(
                 date(2030, 1, 1),
+                tenant_id=tenant.id,
                 workflows_started=2,
                 workflows_completed=1,
                 workflows_failed=0,
@@ -127,6 +133,7 @@ def test_operations_performance_returns_accurate_metrics(
             ),
             make_operations_snapshot(
                 date(2030, 1, 2),
+                tenant_id=tenant.id,
                 workflows_started=2,
                 workflows_completed=1,
                 workflows_failed=1,
@@ -273,6 +280,7 @@ def test_operations_performance_returns_accurate_metrics(
                 created_at=task_1_created,
                 completed_at=task_1_completed,
                 due_date=task_1_completed + timedelta(hours=1),
+                tenant_id=tenant.id,
             ),
             Task(
                 title="Completed task 2",
@@ -282,6 +290,7 @@ def test_operations_performance_returns_accurate_metrics(
                 created_at=task_2_created,
                 completed_at=task_2_completed,
                 due_date=task_2_completed + timedelta(hours=1),
+                tenant_id=tenant.id,
             ),
             Task(
                 title="Completed task 3 breached",
@@ -298,6 +307,7 @@ def test_operations_performance_returns_accurate_metrics(
                     0,
                     tzinfo=timezone.utc,
                 ),
+                tenant_id=tenant.id,
             ),
             Task(
                 title="Open task",
@@ -320,6 +330,7 @@ def test_operations_performance_returns_accurate_metrics(
                     0,
                     tzinfo=timezone.utc,
                 ),
+                tenant_id=tenant.id,
             ),
         ]
     )
@@ -385,6 +396,7 @@ def test_operations_performance_returns_accurate_metrics(
 
 def test_operations_performance_returns_historical_comparison(
     client,
+    default_tenant_id,
     db_session,
     create_test_user,
     cleanup_analytics_snapshots,
@@ -403,6 +415,7 @@ def test_operations_performance_returns_historical_comparison(
         [
             make_operations_snapshot(
                 date(2029, 12, 31),
+                tenant_id=default_tenant_id,
                 workflows_started=1,
                 workflows_completed=1,
                 workflows_failed=0,
@@ -417,6 +430,7 @@ def test_operations_performance_returns_historical_comparison(
             ),
             make_operations_snapshot(
                 date(2030, 1, 1),
+                tenant_id=default_tenant_id,
                 workflows_started=2,
                 workflows_completed=2,
                 workflows_failed=0,

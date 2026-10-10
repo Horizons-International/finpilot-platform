@@ -110,12 +110,14 @@ def create_response(
 
 def create_service(
     provider: OCRProvider,
+    tenant_id: uuid.UUID,
 ) -> tuple[OCRService, MagicMock]:
     db = MagicMock()
 
     service = OCRService(
         db=db,
         provider=provider,
+        tenant_id=tenant_id,
     )
 
     # Make the mocked repository behave like the real repository:
@@ -141,7 +143,7 @@ def test_process_document_sends_request_to_provider(
 
     provider = FakeOCRProvider(response=response)
 
-    service, _ = create_service(provider)
+    service, _ = create_service(provider, admin.tenant_id)
 
     result = service.process_document(
         document,
@@ -180,7 +182,7 @@ def test_process_document_returns_extracted_text(
 
     provider = FakeOCRProvider(response=response)
 
-    service, _ = create_service(provider)
+    service, _ = create_service(provider, admin.tenant_id)
 
     result = service.process_document(
         document,
@@ -214,7 +216,7 @@ def test_process_document_stores_provider_information(
 
     provider = FakeOCRProvider(response=response)
 
-    service, _ = create_service(provider)
+    service, _ = create_service(provider, admin.tenant_id)
 
     result = service.process_document(
         document,
@@ -241,7 +243,7 @@ def test_process_document_sets_processing_status_before_provider_call(
 
     provider = FakeOCRProvider(response=response)
 
-    service, _ = create_service(provider)
+    service, _ = create_service(provider, admin.tenant_id)
 
     result = service.process_document(
         document,
@@ -268,7 +270,7 @@ def test_process_document_creates_ocr_result(
 
     provider = FakeOCRProvider(response=response)
 
-    service, _ = create_service(provider)
+    service, _ = create_service(provider, admin.tenant_id)
 
     result = service.process_document(
         document,
@@ -300,7 +302,7 @@ def test_process_document_handles_provider_error(
 
     provider = FailingOCRProvider()
 
-    service, _ = create_service(provider)
+    service, _ = create_service(provider, admin.tenant_id)
 
     with pytest.raises(
         OCRProviderError,
@@ -334,7 +336,7 @@ def test_process_document_handles_unexpected_provider_error(
 
     provider = UnexpectedOCRProvider()
 
-    service, _ = create_service(provider)
+    service, _ = create_service(provider, admin.tenant_id)
 
     with pytest.raises(
         OCRProviderError,
@@ -371,7 +373,7 @@ def test_process_document_handles_empty_extracted_text(
 
     provider = FakeOCRProvider(response=response)
 
-    service, _ = create_service(provider)
+    service, _ = create_service(provider, admin.tenant_id)
 
     with pytest.raises(
         OCRResponseError,
@@ -408,7 +410,7 @@ def test_process_document_handles_incomplete_provider_status(
 
     provider = FakeOCRProvider(response=response)
 
-    service, _ = create_service(provider)
+    service, _ = create_service(provider, admin.tenant_id)
 
     with pytest.raises(
         OCRResponseError,
@@ -445,7 +447,7 @@ def test_process_document_rejects_provider_response_for_wrong_document(
 
     provider = FakeOCRProvider(response=response)
 
-    service, _ = create_service(provider)
+    service, _ = create_service(provider, admin.tenant_id)
 
     with pytest.raises(
         OCRResponseError,
@@ -468,6 +470,7 @@ def test_process_document_rejects_provider_response_for_wrong_document(
 
 def test_process_document_by_id_raises_for_missing_document(
     client,
+    default_tenant_id,
     create_test_user,
     cleanup_test_customers,
 ):
@@ -483,6 +486,7 @@ def test_process_document_by_id_raises_for_missing_document(
     service = OCRService(
         db=MagicMock(),
         provider=provider,
+        tenant_id=default_tenant_id,
     )
 
     query = MagicMock()
@@ -518,7 +522,7 @@ def test_process_document_by_id_commits_successfully(
 
     provider = FakeOCRProvider(response=response)
 
-    service, db = create_service(provider)
+    service, db = create_service(provider, admin.tenant_id)
 
     query = MagicMock()
     query.filter.return_value = query
@@ -550,7 +554,7 @@ def test_process_document_by_id_commits_failed_result(
 
     provider = FailingOCRProvider()
 
-    service, db = create_service(provider)
+    service, db = create_service(provider, admin.tenant_id)
 
     query = MagicMock()
     query.filter.return_value = query
@@ -578,6 +582,7 @@ def test_process_document_by_id_commits_failed_result(
 
 def test_get_latest_result(
     client,
+    default_tenant_id,
     create_test_user,
     cleanup_test_customers,
 ):
@@ -588,6 +593,7 @@ def test_get_latest_result(
     service = OCRService(
         db=MagicMock(),
         provider=provider,
+        tenant_id=default_tenant_id,
     )
 
     expected_result = MagicMock(spec=OCRResult)
@@ -606,6 +612,7 @@ def test_get_latest_result(
 
 def test_get_latest_result_returns_none_when_not_found(
     client,
+    default_tenant_id,
     create_test_user,
     cleanup_test_customers,
 ):
@@ -616,6 +623,7 @@ def test_get_latest_result_returns_none_when_not_found(
     service = OCRService(
         db=MagicMock(),
         provider=provider,
+        tenant_id=default_tenant_id,
     )
 
     service.repository = MagicMock()
@@ -1006,6 +1014,7 @@ def test_process_document_ocr_api_rejects_non_admin(
 
 def test_get_document_ocr_api_returns_latest_result(
     client,
+    default_tenant_id,
     create_test_user,
     cleanup_test_customers,
     db_session,
@@ -1055,6 +1064,7 @@ def test_get_document_ocr_api_returns_latest_result(
     document_id = response.json()["data"]["id"]
 
     result = OCRResult(
+        tenant_id=default_tenant_id,
         document_id=document_id,
         provider_name="fake",
         request_id=uuid.uuid4(),

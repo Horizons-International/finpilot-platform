@@ -141,6 +141,7 @@ def test_daily_aggregation_stores_event_metrics(
             status=VerificationStatus.APPROVED,
             completed_at=event_time,
             created_at=event_time - timedelta(days=1),
+            tenant_id=tenant.id,
         )
     )
 
@@ -151,6 +152,7 @@ def test_daily_aggregation_stores_event_metrics(
             priority=ComplianceCasePriority.HIGH,
             status=ComplianceCaseStatus.OPEN,
             created_at=event_time,
+            tenant_id=tenant.id,
         )
     )
 
@@ -223,6 +225,7 @@ def test_daily_aggregation_stores_event_metrics(
         completed_at=event_time,
         due_date=event_time + timedelta(hours=1),
         sla_status=SLAStatus.COMPLETED,
+        tenant_id=tenant.id,
     )
 
     db_session.add(task)
@@ -231,6 +234,7 @@ def test_daily_aggregation_stores_event_metrics(
 
     service = AnalyticsAggregationService(
         db_session,
+        tenant_id=tenant.id,
     )
 
     service.aggregate_daily(
@@ -241,19 +245,31 @@ def test_daily_aggregation_stores_event_metrics(
         ),
     )
 
-    customer_snapshot = db_session.get(
-        CustomerAnalyticsDaily,
-        date(2030, 1, 15),
+    customer_snapshot = (
+        db_session.query(CustomerAnalyticsDaily)
+        .filter(
+            CustomerAnalyticsDaily.tenant_id == tenant.id,
+            CustomerAnalyticsDaily.snapshot_date == date(2030, 1, 15),
+        )
+        .one_or_none()
     )
 
-    compliance_snapshot = db_session.get(
-        ComplianceAnalyticsDaily,
-        date(2030, 1, 15),
+    compliance_snapshot = (
+        db_session.query(ComplianceAnalyticsDaily)
+        .filter(
+            ComplianceAnalyticsDaily.tenant_id == tenant.id,
+            ComplianceAnalyticsDaily.snapshot_date == date(2030, 1, 15),
+        )
+        .one_or_none()
     )
 
-    operations_snapshot = db_session.get(
-        OperationsAnalyticsDaily,
-        date(2030, 1, 15),
+    operations_snapshot = (
+        db_session.query(OperationsAnalyticsDaily)
+        .filter(
+            OperationsAnalyticsDaily.tenant_id == tenant.id,
+            OperationsAnalyticsDaily.snapshot_date == date(2030, 1, 15),
+        )
+        .one_or_none()
     )
 
     assert customer_snapshot is not None
@@ -278,6 +294,7 @@ def test_daily_aggregation_stores_event_metrics(
 def test_monthly_aggregation_uses_ending_state_and_monthly_activity(
     db_session,
     cleanup_analytics_aggregations,
+    default_tenant_id,
 ):
     month_start = date(
         2030,
@@ -286,6 +303,7 @@ def test_monthly_aggregation_uses_ending_state_and_monthly_activity(
     )
 
     previous_customer = CustomerAnalyticsDaily(
+        tenant_id=default_tenant_id,
         snapshot_date=date(
             2029,
             12,
@@ -307,6 +325,7 @@ def test_monthly_aggregation_uses_ending_state_and_monthly_activity(
 
         db_session.add(
             CustomerAnalyticsDaily(
+                tenant_id=default_tenant_id,
                 snapshot_date=date(
                     2030,
                     1,
@@ -328,6 +347,7 @@ def test_monthly_aggregation_uses_ending_state_and_monthly_activity(
 
         db_session.add(
             ComplianceAnalyticsDaily(
+                tenant_id=default_tenant_id,
                 snapshot_date=date(
                     2030,
                     1,
@@ -353,6 +373,7 @@ def test_monthly_aggregation_uses_ending_state_and_monthly_activity(
 
         db_session.add(
             OperationsAnalyticsDaily(
+                tenant_id=default_tenant_id,
                 snapshot_date=date(
                     2030,
                     1,
@@ -390,25 +411,38 @@ def test_monthly_aggregation_uses_ending_state_and_monthly_activity(
 
     service = AnalyticsAggregationService(
         db_session,
+        tenant_id=default_tenant_id,
     )
 
     service.aggregate_monthly(
         month_start=month_start,
     )
 
-    customer_month = db_session.get(
-        CustomerAnalyticsMonthly,
-        month_start,
+    customer_month = (
+        db_session.query(CustomerAnalyticsMonthly)
+        .filter(
+            CustomerAnalyticsMonthly.tenant_id == default_tenant_id,
+            CustomerAnalyticsMonthly.month_start == month_start,
+        )
+        .one_or_none()
     )
 
-    compliance_month = db_session.get(
-        ComplianceAnalyticsMonthly,
-        month_start,
+    compliance_month = (
+        db_session.query(ComplianceAnalyticsMonthly)
+        .filter(
+            ComplianceAnalyticsMonthly.tenant_id == default_tenant_id,
+            ComplianceAnalyticsMonthly.month_start == month_start,
+        )
+        .one_or_none()
     )
 
-    operations_month = db_session.get(
-        OperationsAnalyticsMonthly,
-        month_start,
+    operations_month = (
+        db_session.query(OperationsAnalyticsMonthly)
+        .filter(
+            OperationsAnalyticsMonthly.tenant_id == default_tenant_id,
+            OperationsAnalyticsMonthly.month_start == month_start,
+        )
+        .one_or_none()
     )
 
     assert customer_month is not None
@@ -439,6 +473,7 @@ def test_monthly_aggregation_uses_ending_state_and_monthly_activity(
 
 def test_daily_aggregation_is_idempotent(
     db_session,
+    default_tenant_id,
     cleanup_analytics_aggregations,
 ):
     target_date = date(
@@ -449,6 +484,7 @@ def test_daily_aggregation_is_idempotent(
 
     service = AnalyticsAggregationService(
         db_session,
+        tenant_id=default_tenant_id,
     )
 
     service.aggregate_daily(
@@ -490,6 +526,7 @@ def test_daily_aggregation_is_idempotent(
 
 def test_monthly_aggregation_is_idempotent(
     db_session,
+    default_tenant_id,
     cleanup_analytics_aggregations,
 ):
     month_start = date(
@@ -501,6 +538,7 @@ def test_monthly_aggregation_is_idempotent(
     for day_number in range(1, 32):
         db_session.add(
             CustomerAnalyticsDaily(
+                tenant_id=default_tenant_id,
                 snapshot_date=date(
                     2030,
                     3,
@@ -518,6 +556,7 @@ def test_monthly_aggregation_is_idempotent(
 
         db_session.add(
             ComplianceAnalyticsDaily(
+                tenant_id=default_tenant_id,
                 snapshot_date=date(
                     2030,
                     3,
@@ -543,6 +582,7 @@ def test_monthly_aggregation_is_idempotent(
 
         db_session.add(
             OperationsAnalyticsDaily(
+                tenant_id=default_tenant_id,
                 snapshot_date=date(
                     2030,
                     3,
@@ -580,6 +620,7 @@ def test_monthly_aggregation_is_idempotent(
 
     service = AnalyticsAggregationService(
         db_session,
+        tenant_id=default_tenant_id,
     )
 
     service.aggregate_monthly(

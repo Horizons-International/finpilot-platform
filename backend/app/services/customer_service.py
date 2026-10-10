@@ -65,7 +65,6 @@ class CustomerService:
     ) -> Customer:
         existing_customer = self.repository.get_by_email(
             customer_data.email,
-            self.tenant_id,
         )
 
         if existing_customer:
@@ -182,7 +181,6 @@ class CustomerService:
         if "email" in changed_field_names:
             existing_customer = self.repository.get_by_email(
                 update_data["email"],
-                self.tenant_id,
             )
 
             if existing_customer and existing_customer.id != customer_id:
@@ -290,7 +288,6 @@ class CustomerService:
 
         try:
             customers, total = self.repository.search(
-                tenant_id=self.tenant_id,
                 customer_id=customer_id,
                 name=name,
                 phone_number=phone_number,

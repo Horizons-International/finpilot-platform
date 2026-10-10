@@ -42,7 +42,12 @@ class OperationsAnalyticsRepository:
         TaskStatus.IN_PROGRESS,
     )
 
-    def __init__(self, db: Session) -> None:
+    def __init__(
+        self,
+        db: Session,
+        tenant_id: UUID,
+    ) -> None:
+        self.tenant_id = tenant_id
         self.db = db
 
     @staticmethod

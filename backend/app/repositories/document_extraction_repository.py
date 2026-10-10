@@ -3,14 +3,21 @@ from uuid import UUID
 from sqlalchemy.orm import Session
 
 from app.models.document_extraction import DocumentExtraction
-from app.repositories.base_repository import BaseRepository
+from app.repositories.tenant_scoped_repository import (
+    TenantScopedRepository,
+)
 
 
-class DocumentExtractionRepository(BaseRepository[DocumentExtraction]):
-    def __init__(self, db: Session) -> None:
+class DocumentExtractionRepository(TenantScopedRepository[DocumentExtraction]):
+    def __init__(
+        self,
+        db: Session,
+        tenant_id: UUID,
+    ) -> None:
         super().__init__(
-            db,
-            DocumentExtraction,
+            db=db,
+            model=DocumentExtraction,
+            tenant_id=tenant_id,
         )
 
     def get_latest_by_document(
@@ -18,7 +25,7 @@ class DocumentExtractionRepository(BaseRepository[DocumentExtraction]):
         document_id: UUID,
     ) -> DocumentExtraction | None:
         return (
-            self.db.query(DocumentExtraction)
+            self.query()
             .filter(
                 DocumentExtraction.document_id == document_id,
             )
@@ -33,7 +40,7 @@ class DocumentExtractionRepository(BaseRepository[DocumentExtraction]):
         ocr_result_id: UUID,
     ) -> DocumentExtraction | None:
         return (
-            self.db.query(DocumentExtraction)
+            self.query()
             .filter(
                 DocumentExtraction.ocr_result_id == ocr_result_id,
             )

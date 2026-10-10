@@ -10,8 +10,8 @@ from app.ocr.providers.base import OCRProvider
 from app.ocr.schemas.requests import OCRRequest
 from app.repositories.ocr_repository import OCRRepository
 from app.services.audit_service import AuditService
+from app.services.tenant_access_audit import deny_tenant_access
 from app.utils.enums import AuditEventType, OCRProcessingStatus
-from app.utils.errors import not_found
 
 logger = get_logger(__name__)
 
@@ -21,10 +21,24 @@ class OCRService:
         self,
         db: Session,
         provider: OCRProvider,
+        *,
+        tenant_id: UUID,
+        actor_user_id: UUID | None = None,
+        actor_email: str | None = None,
+        ip_address: str | None = None,
+        user_agent: str | None = None,
     ) -> None:
         self.db = db
+        self.tenant_id = tenant_id
+        self.actor_user_id = actor_user_id
+        self.actor_email = actor_email
+        self.ip_address = ip_address
+        self.user_agent = user_agent
         self.provider = provider
-        self.repository = OCRRepository(db)
+        self.repository = OCRRepository(
+            db=db,
+            tenant_id=self.tenant_id,
+        )
         self.audit_service = AuditService(db)
 
     def process_document(
@@ -42,6 +56,7 @@ class OCRService:
         )
 
         result = OCRResult(
+            tenant_id=self.tenant_id,
             document_id=document.id,
             provider_name=self.provider.__class__.__name__,
             status=OCRProcessingStatus.SUBMITTED,
@@ -189,12 +204,24 @@ class OCRService:
     ) -> OCRResult:
         document = (
             self.db.query(CustomerDocument)
-            .filter(CustomerDocument.id == document_id)
+            .filter(
+                CustomerDocument.id == document_id,
+                CustomerDocument.tenant_id == self.tenant_id,
+            )
             .first()
         )
 
         if document is None:
-            raise not_found("Document")
+            deny_tenant_access(
+                self.db,
+                user_id=self.actor_user_id,
+                email=email,
+                ip_address=ip_address,
+                user_agent=user_agent,
+                resource_type="customer_document",
+                resource_id=document_id,
+                resource_name="Document",
+            )
 
         try:
             result = self.process_document(
@@ -216,4 +243,25 @@ class OCRService:
         self,
         document_id: UUID,
     ) -> OCRResult | None:
+        document = (
+            self.db.query(CustomerDocument)
+            .filter(
+                CustomerDocument.id == document_id,
+                CustomerDocument.tenant_id == self.tenant_id,
+            )
+            .first()
+        )
+
+        if document is None:
+            deny_tenant_access(
+                self.db,
+                user_id=self.actor_user_id,
+                email=self.actor_email,
+                ip_address=self.ip_address,
+                user_agent=self.user_agent,
+                resource_type="customer_document",
+                resource_id=document_id,
+                resource_name="Document",
+            )
+
         return self.repository.get_latest_by_document(document_id)

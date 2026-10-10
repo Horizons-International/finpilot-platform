@@ -48,7 +48,7 @@ def upgrade() -> None:
         ),
         sa.PrimaryKeyConstraint(
             "snapshot_date",
-            name="pk_analytics_compliance_daily",
+            name="analytics_compliance_daily_pkey",
         ),
     )
     op.create_table(
@@ -95,7 +95,7 @@ def upgrade() -> None:
         ),
         sa.PrimaryKeyConstraint(
             "snapshot_date",
-            name="pk_analytics_operations_daily",
+            name="analytics_operations_daily_pkey",
         ),
     )
     # ### end Alembic commands ###

@@ -317,12 +317,14 @@ def create_extraction_response(
 
 def create_extraction_service(
     provider: ExtractionProvider,
+    tenant_id: uuid.UUID,
 ) -> tuple[DocumentExtractionService, MagicMock]:
     db = MagicMock()
 
     service = DocumentExtractionService(
         db=db,
         provider=provider,
+        tenant_id=tenant_id,
     )
 
     # Make the mocked repository behave like the real repository:
@@ -348,7 +350,7 @@ def test_extract_document_sends_ocr_text_to_provider(
 
     provider = FakeExtractionProvider(response=create_extraction_response())
 
-    service, _ = create_extraction_service(provider)
+    service, _ = create_extraction_service(provider, admin.tenant_id)
 
     result = service.extract_document(
         document,
@@ -377,7 +379,7 @@ def test_extract_document_stores_extracted_fields(
 
     provider = FakeExtractionProvider(response=create_extraction_response())
 
-    service, _ = create_extraction_service(provider)
+    service, _ = create_extraction_service(provider, admin.tenant_id)
 
     result = service.extract_document(
         document,
@@ -411,7 +413,7 @@ def test_extract_document_stores_provider_name(
 
     provider = FakeExtractionProvider(response=create_extraction_response())
 
-    service, _ = create_extraction_service(provider)
+    service, _ = create_extraction_service(provider, admin.tenant_id)
 
     result = service.extract_document(
         document,
@@ -439,7 +441,7 @@ def test_extract_document_sets_processing_status_before_provider_call(
 
     provider = FakeExtractionProvider(response=create_extraction_response())
 
-    service, _ = create_extraction_service(provider)
+    service, _ = create_extraction_service(provider, admin.tenant_id)
 
     result = service.extract_document(
         document,
@@ -467,7 +469,7 @@ def test_extract_document_creates_extraction_record(
 
     provider = FakeExtractionProvider(response=create_extraction_response())
 
-    service, _ = create_extraction_service(provider)
+    service, _ = create_extraction_service(provider, admin.tenant_id)
 
     result = service.extract_document(
         document,
@@ -503,7 +505,7 @@ def test_extract_document_handles_provider_error(
 
     provider = FailingExtractionProvider()
 
-    service, _ = create_extraction_service(provider)
+    service, _ = create_extraction_service(provider, admin.tenant_id)
 
     with pytest.raises(
         ExtractionProviderError,
@@ -539,7 +541,7 @@ def test_extract_document_handles_unexpected_provider_error(
 
     provider = UnexpectedExtractionProvider()
 
-    service, _ = create_extraction_service(provider)
+    service, _ = create_extraction_service(provider, admin.tenant_id)
 
     with pytest.raises(
         ExtractionProviderError,
@@ -575,7 +577,7 @@ def test_extract_document_handles_empty_provider_response(
 
     provider = FakeExtractionProvider(response=empty_response)
 
-    service, _ = create_extraction_service(provider)
+    service, _ = create_extraction_service(provider, admin.tenant_id)
 
     with pytest.raises(
         ExtractionResponseError,
@@ -599,6 +601,7 @@ def test_extract_document_handles_empty_provider_response(
 
 def test_extract_document_by_id_raises_for_missing_document(
     client,
+    default_tenant_id,
     create_test_user,
     cleanup_test_customers,
 ):
@@ -614,6 +617,7 @@ def test_extract_document_by_id_raises_for_missing_document(
     service = DocumentExtractionService(
         db=MagicMock(),
         provider=provider,
+        tenant_id=default_tenant_id,
     )
 
     query = MagicMock()
@@ -635,6 +639,7 @@ def test_extract_document_by_id_raises_for_missing_document(
 
 def test_extract_document_by_id_raises_when_no_completed_ocr_result(
     client,
+    default_tenant_id,
     create_test_user,
     cleanup_test_customers,
 ):
@@ -650,6 +655,7 @@ def test_extract_document_by_id_raises_when_no_completed_ocr_result(
     service = DocumentExtractionService(
         db=MagicMock(),
         provider=provider,
+        tenant_id=default_tenant_id,
     )
 
     document_query = MagicMock()
@@ -689,7 +695,7 @@ def test_extract_document_by_id_commits_successfully(
 
     provider = FakeExtractionProvider(response=create_extraction_response())
 
-    service, db = create_extraction_service(provider)
+    service, db = create_extraction_service(provider, admin.tenant_id)
 
     document_query = MagicMock()
     document_query.filter.return_value = document_query
@@ -727,7 +733,7 @@ def test_extract_document_by_id_commits_failed_result(
 
     provider = FailingExtractionProvider()
 
-    service, db = create_extraction_service(provider)
+    service, db = create_extraction_service(provider, admin.tenant_id)
 
     document_query = MagicMock()
     document_query.filter.return_value = document_query
@@ -760,6 +766,7 @@ def test_extract_document_by_id_commits_failed_result(
 
 def test_get_latest_result(
     client,
+    default_tenant_id,
     create_test_user,
     cleanup_test_customers,
 ):
@@ -770,6 +777,7 @@ def test_get_latest_result(
     service = DocumentExtractionService(
         db=MagicMock(),
         provider=provider,
+        tenant_id=default_tenant_id,
     )
 
     expected_extraction = MagicMock(spec=DocumentExtraction)
@@ -788,6 +796,7 @@ def test_get_latest_result(
 
 def test_get_latest_result_returns_none_when_not_found(
     client,
+    default_tenant_id,
     create_test_user,
     cleanup_test_customers,
 ):
@@ -798,6 +807,7 @@ def test_get_latest_result_returns_none_when_not_found(
     service = DocumentExtractionService(
         db=MagicMock(),
         provider=provider,
+        tenant_id=default_tenant_id,
     )
 
     service.repository = MagicMock()
@@ -815,6 +825,7 @@ def test_get_latest_result_returns_none_when_not_found(
 
 def test_extract_document_api_success(
     client,
+    default_tenant_id,
     create_test_user,
     cleanup_test_customers,
     db_session,
@@ -865,6 +876,7 @@ def test_extract_document_api_success(
     document_id = uuid.UUID(upload_response.json()["data"]["id"])
 
     ocr_result = OCRResult(
+        tenant_id=default_tenant_id,
         document_id=document_id,
         provider_name="mock",
         request_id=uuid.uuid4(),
@@ -924,6 +936,7 @@ def test_extract_document_api_success(
 
 def test_extract_document_api_persists_failed_result(
     client,
+    default_tenant_id,
     create_test_user,
     cleanup_test_customers,
     db_session,
@@ -974,6 +987,7 @@ def test_extract_document_api_persists_failed_result(
     document_id = uuid.UUID(upload_response.json()["data"]["id"])
 
     ocr_result = OCRResult(
+        tenant_id=default_tenant_id,
         document_id=document_id,
         provider_name="mock",
         request_id=uuid.uuid4(),
@@ -1133,6 +1147,7 @@ def test_extract_document_api_rejects_non_admin_non_compliance(
 
 def test_get_document_extraction_api_returns_latest_result(
     client,
+    default_tenant_id,
     create_test_user,
     cleanup_test_customers,
     db_session,
@@ -1182,6 +1197,7 @@ def test_get_document_extraction_api_returns_latest_result(
     document_id = uuid.UUID(upload_response.json()["data"]["id"])
 
     ocr_result = OCRResult(
+        tenant_id=default_tenant_id,
         document_id=document_id,
         provider_name="mock",
         request_id=uuid.uuid4(),
@@ -1194,6 +1210,7 @@ def test_get_document_extraction_api_returns_latest_result(
     db_session.refresh(ocr_result)
 
     extraction = DocumentExtraction(
+        tenant_id=default_tenant_id,
         document_id=document_id,
         ocr_result_id=ocr_result.id,
         provider_name="fake",

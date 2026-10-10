@@ -1,5 +1,6 @@
 from datetime import date, datetime
 from typing import Any
+from uuid import UUID
 
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
@@ -16,7 +17,7 @@ from app.models.transaction_monitoring_result import (
     TransactionMonitoringResult,
 )
 from app.models.verification_case import IdentityVerificationCase
-from app.models.workflow import WorkflowExecution
+from app.models.workflow import Workflow, WorkflowExecution
 from app.utils.enums import (
     AMLRuleSeverity,
     ComplianceCaseStatus,
@@ -89,8 +90,13 @@ class AnalyticsSnapshotRepository:
         "workflows_completed_breached_sla_during_day",
     )
 
-    def __init__(self, db: Session) -> None:
+    def __init__(
+        self,
+        db: Session,
+        tenant_id: UUID,
+    ) -> None:
         self.db = db
+        self.tenant_id = tenant_id
 
     @staticmethod
     def _day_start(as_of: datetime) -> datetime:
@@ -162,9 +168,7 @@ class AnalyticsSnapshotRepository:
             .label(
                 "ending_rejected_customers",
             ),
-        ).where(
-            Customer.created_at <= as_of,
-        )
+        ).where(Customer.created_at <= as_of, Customer.tenant_id == self.tenant_id)
 
         row = self.db.execute(statement).one()
 
@@ -176,6 +180,7 @@ class AnalyticsSnapshotRepository:
                     IdentityVerificationCase.status == VerificationStatus.APPROVED,
                     IdentityVerificationCase.completed_at >= day_start,
                     IdentityVerificationCase.completed_at <= as_of,
+                    IdentityVerificationCase.tenant_id == self.tenant_id,
                 )
             )
             or 0
@@ -249,6 +254,7 @@ class AnalyticsSnapshotRepository:
             ),
         ).where(
             ComplianceCase.created_at <= as_of,
+            ComplianceCase.tenant_id == self.tenant_id,
         )
 
         case_row = self.db.execute(case_statement).one()
@@ -308,10 +314,15 @@ class AnalyticsSnapshotRepository:
             )
             .select_from(TransactionMonitoringResult)
             .join(
+                Customer,
+                Customer.id == TransactionMonitoringResult.customer_id,
+            )
+            .join(
                 AMLRule,
                 TransactionMonitoringResult.rule_id == AMLRule.id,
             )
             .where(
+                Customer.tenant_id == self.tenant_id,
                 TransactionMonitoringResult.result
                 == TransactionMonitoringOutcome.MATCHED,
                 TransactionMonitoringResult.created_at <= as_of,
@@ -320,37 +331,46 @@ class AnalyticsSnapshotRepository:
 
         alert_row = self.db.execute(alert_statement).one()
 
-        risk_statement = select(
-            func.count(CustomerRiskProfile.id)
-            .filter(
-                CustomerRiskProfile.risk_level == CustomerRiskLevel.LOW,
+        risk_statement = (
+            select(
+                func.count(CustomerRiskProfile.id)
+                .filter(
+                    CustomerRiskProfile.risk_level == CustomerRiskLevel.LOW,
+                )
+                .label(
+                    "ending_low_risk_customers",
+                ),
+                func.count(CustomerRiskProfile.id)
+                .filter(
+                    CustomerRiskProfile.risk_level == CustomerRiskLevel.MEDIUM,
+                )
+                .label(
+                    "ending_medium_risk_customers",
+                ),
+                func.count(CustomerRiskProfile.id)
+                .filter(
+                    CustomerRiskProfile.risk_level == CustomerRiskLevel.HIGH,
+                )
+                .label(
+                    "ending_high_risk_customers",
+                ),
+                func.count(CustomerRiskProfile.id)
+                .filter(
+                    CustomerRiskProfile.risk_level == CustomerRiskLevel.CRITICAL,
+                )
+                .label(
+                    "ending_critical_risk_customers",
+                ),
             )
-            .label(
-                "ending_low_risk_customers",
-            ),
-            func.count(CustomerRiskProfile.id)
-            .filter(
-                CustomerRiskProfile.risk_level == CustomerRiskLevel.MEDIUM,
+            .select_from(CustomerRiskProfile)
+            .join(
+                Customer,
+                Customer.id == CustomerRiskProfile.customer_id,
             )
-            .label(
-                "ending_medium_risk_customers",
-            ),
-            func.count(CustomerRiskProfile.id)
-            .filter(
-                CustomerRiskProfile.risk_level == CustomerRiskLevel.HIGH,
+            .where(
+                Customer.tenant_id == self.tenant_id,
+                CustomerRiskProfile.assessed_at <= as_of,
             )
-            .label(
-                "ending_high_risk_customers",
-            ),
-            func.count(CustomerRiskProfile.id)
-            .filter(
-                CustomerRiskProfile.risk_level == CustomerRiskLevel.CRITICAL,
-            )
-            .label(
-                "ending_critical_risk_customers",
-            ),
-        ).where(
-            CustomerRiskProfile.assessed_at <= as_of,
         )
 
         risk_row = self.db.execute(risk_statement).one()
@@ -499,122 +519,132 @@ class AnalyticsSnapshotRepository:
             ),
         ).where(
             Task.created_at <= as_of,
+            Task.tenant_id == self.tenant_id,
         )
 
         task_row = self.db.execute(task_statement).one()
 
-        workflow_statement = select(
-            func.count(
-                WorkflowExecution.id,
-            ).label(
-                "ending_total_workflows",
-            ),
-            self._count_filter(
-                WorkflowExecution,
-                WorkflowExecution.started_at >= day_start,
+        workflow_statement = (
+            select(
+                func.count(
+                    WorkflowExecution.id,
+                ).label(
+                    "ending_total_workflows",
+                ),
+                self._count_filter(
+                    WorkflowExecution,
+                    WorkflowExecution.started_at >= day_start,
+                    WorkflowExecution.started_at <= as_of,
+                ).label(
+                    "workflows_started_during_day",
+                ),
+                func.count(
+                    WorkflowExecution.id,
+                )
+                .filter(
+                    WorkflowExecution.status == WorkflowExecutionStatus.IN_PROGRESS,
+                )
+                .label(
+                    "ending_active_workflows",
+                ),
+                func.count(
+                    WorkflowExecution.id,
+                )
+                .filter(
+                    WorkflowExecution.status == WorkflowExecutionStatus.COMPLETED,
+                )
+                .label(
+                    "ending_total_completed_workflows",
+                ),
+                self._count_filter(
+                    WorkflowExecution,
+                    WorkflowExecution.completed_at >= day_start,
+                    WorkflowExecution.completed_at <= as_of,
+                    WorkflowExecution.status == WorkflowExecutionStatus.COMPLETED,
+                ).label(
+                    "workflows_completed_during_day",
+                ),
+                func.count(
+                    WorkflowExecution.id,
+                )
+                .filter(
+                    WorkflowExecution.status == WorkflowExecutionStatus.FAILED,
+                )
+                .label(
+                    "ending_total_failed_workflows",
+                ),
+                self._count_filter(
+                    WorkflowExecution,
+                    WorkflowExecution.completed_at >= day_start,
+                    WorkflowExecution.completed_at <= as_of,
+                    WorkflowExecution.status == WorkflowExecutionStatus.FAILED,
+                ).label(
+                    "workflows_failed_during_day",
+                ),
+                func.count(
+                    WorkflowExecution.id,
+                )
+                .filter(
+                    WorkflowExecution.sla_status == SLAStatus.WITHIN_SLA,
+                )
+                .label(
+                    "ending_workflows_sla_within_target",
+                ),
+                func.count(
+                    WorkflowExecution.id,
+                )
+                .filter(
+                    WorkflowExecution.sla_status == SLAStatus.APPROACHING_DEADLINE,
+                )
+                .label(
+                    "ending_workflows_sla_approaching_deadline",
+                ),
+                func.count(
+                    WorkflowExecution.id,
+                )
+                .filter(
+                    WorkflowExecution.sla_status == SLAStatus.BREACHED,
+                )
+                .label(
+                    "ending_workflows_sla_breached",
+                ),
+                func.count(
+                    WorkflowExecution.id,
+                )
+                .filter(
+                    WorkflowExecution.sla_status == SLAStatus.COMPLETED,
+                )
+                .label(
+                    "ending_workflows_sla_completed_on_time",
+                ),
+                self._count_filter(
+                    WorkflowExecution,
+                    WorkflowExecution.completed_at >= day_start,
+                    WorkflowExecution.completed_at <= as_of,
+                    WorkflowExecution.status == WorkflowExecutionStatus.COMPLETED,
+                    WorkflowExecution.sla_status == SLAStatus.COMPLETED,
+                ).label(
+                    "workflows_completed_within_sla_during_day",
+                ),
+                self._count_filter(
+                    WorkflowExecution,
+                    WorkflowExecution.completed_at >= day_start,
+                    WorkflowExecution.completed_at <= as_of,
+                    WorkflowExecution.status == WorkflowExecutionStatus.COMPLETED,
+                    WorkflowExecution.sla_status == SLAStatus.BREACHED,
+                ).label(
+                    "workflows_completed_breached_sla_during_day",
+                ),
+            )
+            .select_from(WorkflowExecution)
+            .join(
+                Workflow,
+                Workflow.id == WorkflowExecution.workflow_id,
+            )
+            .where(
+                Workflow.tenant_id == self.tenant_id,
                 WorkflowExecution.started_at <= as_of,
-            ).label(
-                "workflows_started_during_day",
-            ),
-            func.count(
-                WorkflowExecution.id,
             )
-            .filter(
-                WorkflowExecution.status == WorkflowExecutionStatus.IN_PROGRESS,
-            )
-            .label(
-                "ending_active_workflows",
-            ),
-            func.count(
-                WorkflowExecution.id,
-            )
-            .filter(
-                WorkflowExecution.status == WorkflowExecutionStatus.COMPLETED,
-            )
-            .label(
-                "ending_total_completed_workflows",
-            ),
-            self._count_filter(
-                WorkflowExecution,
-                WorkflowExecution.completed_at >= day_start,
-                WorkflowExecution.completed_at <= as_of,
-                WorkflowExecution.status == WorkflowExecutionStatus.COMPLETED,
-            ).label(
-                "workflows_completed_during_day",
-            ),
-            func.count(
-                WorkflowExecution.id,
-            )
-            .filter(
-                WorkflowExecution.status == WorkflowExecutionStatus.FAILED,
-            )
-            .label(
-                "ending_total_failed_workflows",
-            ),
-            self._count_filter(
-                WorkflowExecution,
-                WorkflowExecution.completed_at >= day_start,
-                WorkflowExecution.completed_at <= as_of,
-                WorkflowExecution.status == WorkflowExecutionStatus.FAILED,
-            ).label(
-                "workflows_failed_during_day",
-            ),
-            func.count(
-                WorkflowExecution.id,
-            )
-            .filter(
-                WorkflowExecution.sla_status == SLAStatus.WITHIN_SLA,
-            )
-            .label(
-                "ending_workflows_sla_within_target",
-            ),
-            func.count(
-                WorkflowExecution.id,
-            )
-            .filter(
-                WorkflowExecution.sla_status == SLAStatus.APPROACHING_DEADLINE,
-            )
-            .label(
-                "ending_workflows_sla_approaching_deadline",
-            ),
-            func.count(
-                WorkflowExecution.id,
-            )
-            .filter(
-                WorkflowExecution.sla_status == SLAStatus.BREACHED,
-            )
-            .label(
-                "ending_workflows_sla_breached",
-            ),
-            func.count(
-                WorkflowExecution.id,
-            )
-            .filter(
-                WorkflowExecution.sla_status == SLAStatus.COMPLETED,
-            )
-            .label(
-                "ending_workflows_sla_completed_on_time",
-            ),
-            self._count_filter(
-                WorkflowExecution,
-                WorkflowExecution.completed_at >= day_start,
-                WorkflowExecution.completed_at <= as_of,
-                WorkflowExecution.status == WorkflowExecutionStatus.COMPLETED,
-                WorkflowExecution.sla_status == SLAStatus.COMPLETED,
-            ).label(
-                "workflows_completed_within_sla_during_day",
-            ),
-            self._count_filter(
-                WorkflowExecution,
-                WorkflowExecution.completed_at >= day_start,
-                WorkflowExecution.completed_at <= as_of,
-                WorkflowExecution.status == WorkflowExecutionStatus.COMPLETED,
-                WorkflowExecution.sla_status == SLAStatus.BREACHED,
-            ).label(
-                "workflows_completed_breached_sla_during_day",
-            ),
-        ).where(
-            WorkflowExecution.started_at <= as_of,
         )
 
         workflow_row = self.db.execute(workflow_statement).one()
@@ -669,13 +699,16 @@ class AnalyticsSnapshotRepository:
         metrics: dict[str, int],
         fields: tuple[str, ...],
     ) -> Any:
-        snapshot = self.db.get(
-            model,
-            snapshot_date,
+        snapshot = self.db.scalar(
+            select(model).where(
+                model.tenant_id == self.tenant_id,
+                model.snapshot_date == snapshot_date,
+            )
         )
 
         if snapshot is None:
             snapshot = model(
+                tenant_id=self.tenant_id,
                 snapshot_date=snapshot_date,
             )
             self.db.add(snapshot)

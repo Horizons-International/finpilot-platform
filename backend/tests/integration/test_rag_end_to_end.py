@@ -91,12 +91,14 @@ async def test_complete_rag_pipeline(
     file_service = FileService(
         db=db_session,
         storage=storage,
+        tenant_id=admin.tenant_id,
     )
 
     indexing_service = KnowledgeIndexingService(
         db=db_session,
         file_service=file_service,
         embedding_service=FakeEmbeddingService(),
+        tenant_id=admin.tenant_id,
     )
 
     await indexing_service.index_document(
