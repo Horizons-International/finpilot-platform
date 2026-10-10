@@ -404,9 +404,11 @@ def create_report_document(
     verification_case_id,
     uploaded_by,
     status,
+    tenant_id,
     created_at=None,
 ):
     document = CustomerDocument(
+        tenant_id=tenant_id,
         customer_id=uuid.UUID(str(customer_id)),
         verification_case_id=uuid.UUID(str(verification_case_id)),
         document_type_id="00000000-0000-0000-0000-000000000001",
@@ -457,6 +459,7 @@ def test_document_summary_returns_accurate_counts(
         case_id,
         admin.id,
         DocumentStatus.UPLOADED,
+        admin.tenant_id,
     )
 
     create_report_document(
@@ -465,6 +468,7 @@ def test_document_summary_returns_accurate_counts(
         case_id,
         admin.id,
         DocumentStatus.VERIFIED,
+        admin.tenant_id,
     )
 
     create_report_document(
@@ -473,6 +477,7 @@ def test_document_summary_returns_accurate_counts(
         case_id,
         admin.id,
         DocumentStatus.REJECTED,
+        admin.tenant_id,
     )
 
     response = client.get(
@@ -517,6 +522,7 @@ def test_document_summary_status_filter(
         case_id,
         admin.id,
         DocumentStatus.VERIFIED,
+        admin.tenant_id,
     )
 
     create_report_document(
@@ -525,6 +531,7 @@ def test_document_summary_status_filter(
         case_id,
         admin.id,
         DocumentStatus.REJECTED,
+        admin.tenant_id,
     )
 
     response = client.get(
@@ -572,6 +579,7 @@ def test_document_summary_date_filter(
         case_id,
         admin.id,
         DocumentStatus.VERIFIED,
+        admin.tenant_id,
         datetime(2026, 1, 15, tzinfo=timezone.utc),
     )
 
@@ -581,6 +589,7 @@ def test_document_summary_date_filter(
         case_id,
         admin.id,
         DocumentStatus.VERIFIED,
+        admin.tenant_id,
         datetime(2026, 2, 15, tzinfo=timezone.utc),
     )
 
@@ -630,6 +639,7 @@ def test_document_summary_combined_filters(
         case_id,
         admin.id,
         DocumentStatus.VERIFIED,
+        admin.tenant_id,
         datetime(2026, 1, 15, tzinfo=timezone.utc),
     )
 
@@ -639,6 +649,7 @@ def test_document_summary_combined_filters(
         case_id,
         admin.id,
         DocumentStatus.REJECTED,
+        admin.tenant_id,
         datetime(2026, 1, 20, tzinfo=timezone.utc),
     )
 
@@ -648,6 +659,7 @@ def test_document_summary_combined_filters(
         case_id,
         admin.id,
         DocumentStatus.VERIFIED,
+        admin.tenant_id,
         datetime(2026, 2, 15, tzinfo=timezone.utc),
     )
 

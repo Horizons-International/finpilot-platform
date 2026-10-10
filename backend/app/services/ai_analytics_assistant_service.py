@@ -42,12 +42,15 @@ class AIAnalyticsAssistantService:
     def __init__(
         self,
         db: Session,
+        tenant_id: UUID,
         retrieval_service: RetrievalService | None = None,
         ai_service: AIService | None = None,
     ) -> None:
         self.db = db
+        self.tenant_id = tenant_id
         self.data_service = AnalyticsAssistantDataService(
-            db,
+            db=db,
+            tenant_id=self.tenant_id,
         )
         self.interaction_repository = AIInteractionRepository(
             db,

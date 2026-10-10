@@ -1,4 +1,4 @@
-from fastapi import Depends
+from fastapi import Depends, Request
 from sqlalchemy.orm import Session
 
 from app.ai.exceptions import AIConfigurationError
@@ -85,55 +85,81 @@ def get_storage() -> BaseStorage:
 
 
 def get_file_service(
+    request: Request,
     db: Session = Depends(get_db),
     storage: BaseStorage = Depends(get_storage),
+    current_user: User = Depends(get_current_user),
 ) -> FileService:
     return FileService(
         db=db,
         storage=storage,
+        tenant_id=current_user.tenant_id,
+        actor_user_id=current_user.id,
+        actor_email=current_user.email,
+        ip_address=request.client.host if request.client else None,
+        user_agent=request.headers.get("user-agent"),
     )
 
 
 def get_document_service(
+    request: Request,
     db: Session = Depends(get_db),
     storage: BaseStorage = Depends(get_storage),
+    current_user: User = Depends(get_current_user),
 ) -> DocumentService:
     return DocumentService(
         db=db,
         storage=storage,
+        tenant_id=current_user.tenant_id,
+        actor_user_id=current_user.id,
+        actor_email=current_user.email,
+        ip_address=request.client.host if request.client else None,
+        user_agent=request.headers.get("user-agent"),
     )
 
 
 def get_verification_service(
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ) -> VerificationService:
-    return VerificationService(db)
+    return VerificationService(
+        db,
+        tenant_id=current_user.tenant_id,
+    )
 
 
 def get_verification_review_service(
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ) -> VerificationReviewService:
-    return VerificationReviewService(db)
+    return VerificationReviewService(
+        db,
+        tenant_id=current_user.tenant_id,
+    )
 
 
 def get_knowledge_document_service(
     db: Session = Depends(get_db),
     file_service: FileService = Depends(get_file_service),
+    current_user: User = Depends(get_current_user),
 ) -> KnowledgeDocumentService:
     return KnowledgeDocumentService(
         db=db,
         file_service=file_service,
+        tenant_id=current_user.tenant_id,
     )
 
 
 def get_knowledge_indexing_service(
     db: Session = Depends(get_db),
     file_service: FileService = Depends(get_file_service),
+    current_user: User = Depends(get_current_user),
 ) -> KnowledgeIndexingService:
     return KnowledgeIndexingService(
         db=db,
         file_service=file_service,
         embedding_service=EmbeddingService(),
+        tenant_id=current_user.tenant_id,
     )
 
 
@@ -151,17 +177,26 @@ def get_ai_usage_service(
 
 def get_compliance_service(
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ) -> ComplianceService:
-    return ComplianceService(db)
+    return ComplianceService(
+        db,
+        tenant_id=current_user.tenant_id,
+    )
 
 
 def get_document_review_service(
+    request: Request,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> DocumentReviewService:
     return DocumentReviewService(
         db=db,
         tenant_id=current_user.tenant_id,
+        actor_user_id=current_user.id,
+        actor_email=current_user.email,
+        ip_address=request.client.host if request.client else None,
+        user_agent=request.headers.get("user-agent"),
     )
 
 
@@ -223,14 +258,22 @@ def get_customer_onboarding_service(
 
 def get_task_service(
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ) -> TaskService:
-    return TaskService(db)
+    return TaskService(
+        db,
+        tenant_id=current_user.tenant_id,
+    )
 
 
 def get_task_assignment_service(
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ) -> TaskAssignmentService:
-    return TaskAssignmentService(db)
+    return TaskAssignmentService(
+        db=db,
+        tenant_id=current_user.tenant_id,
+    )
 
 
 def get_notification_service(
@@ -274,27 +317,27 @@ def get_metric_service(
 
 
 def get_executive_dashboard_service(
-    db: Session = Depends(get_db),
+    db: Session = Depends(get_db), current_user: User = Depends(get_current_user)
 ) -> ExecutiveDashboardService:
-    return ExecutiveDashboardService(db)
+    return ExecutiveDashboardService(db, tenant_id=current_user.tenant_id)
 
 
 def get_compliance_analytics_service(
-    db: Session = Depends(get_db),
+    db: Session = Depends(get_db), current_user: User = Depends(get_current_user)
 ) -> ComplianceAnalyticsService:
-    return ComplianceAnalyticsService(db)
+    return ComplianceAnalyticsService(db, tenant_id=current_user.tenant_id)
 
 
 def get_customer_analytics_service(
-    db: Session = Depends(get_db),
+    db: Session = Depends(get_db), current_user: User = Depends(get_current_user)
 ) -> CustomerAnalyticsService:
-    return CustomerAnalyticsService(db)
+    return CustomerAnalyticsService(db, tenant_id=current_user.tenant_id)
 
 
 def get_operations_analytics_service(
-    db: Session = Depends(get_db),
+    db: Session = Depends(get_db), current_user: User = Depends(get_current_user)
 ) -> OperationsAnalyticsService:
-    return OperationsAnalyticsService(db)
+    return OperationsAnalyticsService(db, tenant_id=current_user.tenant_id)
 
 
 def get_optional_retrieval_service(
@@ -311,10 +354,12 @@ def get_ai_analytics_assistant_service(
     retrieval_service: RetrievalService | None = Depends(
         get_optional_retrieval_service,
     ),
+    current_user: User = Depends(get_current_user),
 ) -> AIAnalyticsAssistantService:
     return AIAnalyticsAssistantService(
         db=db,
         retrieval_service=retrieval_service,
+        tenant_id=current_user.tenant_id,
     )
 
 

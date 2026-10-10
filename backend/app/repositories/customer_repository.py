@@ -4,50 +4,39 @@ from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
 from app.models.customer import Customer
-from app.repositories.base_repository import BaseRepository
+from app.repositories.tenant_scoped_repository import (
+    TenantScopedRepository,
+)
 from app.utils.enums import CustomerStatus
 
 
-class CustomerRepository(BaseRepository[Customer]):
+class CustomerRepository(TenantScopedRepository[Customer]):
     def __init__(
         self,
         db: Session,
-        tenant_id: UUID | None = None,
+        tenant_id: UUID,
     ) -> None:
-        super().__init__(db, Customer)
-        self.tenant_id = tenant_id
+        super().__init__(
+            db=db,
+            model=Customer,
+            tenant_id=tenant_id,
+        )
 
     def get_by_id(
         self,
         customer_id: UUID,
     ) -> Customer | None:
-        return (
-            self.db.query(Customer)
-            .filter(
-                Customer.id == customer_id,
-                Customer.tenant_id == self.tenant_id,
-            )
-            .first()
-        )
+        return self.query().filter(Customer.id == customer_id).first()
 
     def get_by_email(
         self,
         email: str | None,
-        tenant_id: UUID,
     ) -> Customer | None:
-        return (
-            self.db.query(Customer)
-            .filter(
-                Customer.email == email,
-                Customer.tenant_id == tenant_id,
-            )
-            .first()
-        )
+        return self.query().filter(Customer.email == email).first()
 
     def search(
         self,
         customer_id: UUID | None = None,
-        tenant_id: UUID | None = None,
         name: str | None = None,
         phone_number: str | None = None,
         email: str | None = None,
@@ -57,9 +46,8 @@ class CustomerRepository(BaseRepository[Customer]):
         sort_by: str = "created_at",
         sort_order: str = "desc",
     ) -> tuple[list[Customer], int]:
-        query = self.db.query(Customer).filter(
-            Customer.tenant_id == tenant_id,
-        )
+        # query() applies tenant_id before any additional filters.
+        query = self.query()
 
         if customer_id is not None:
             query = query.filter(Customer.id == customer_id)
@@ -98,16 +86,13 @@ class CustomerRepository(BaseRepository[Customer]):
         sort_column = sortable_fields.get(sort_by)
 
         if sort_column is None:
-            raise ValueError(
-                f"Invalid sort field: {sort_by}",
-            )
+            raise ValueError(f"Invalid sort field: {sort_by}")
 
         if sort_order.lower() == "asc":
             query = query.order_by(sort_column.asc())
         else:
             query = query.order_by(sort_column.desc())
 
-        # Pagination
         offset = (page - 1) * page_size
 
         customers = query.offset(offset).limit(page_size).all()

@@ -24,13 +24,16 @@ class KnowledgeIndexingService:
         db: Session,
         file_service: FileService,
         embedding_service: EmbeddingService,
+        tenant_id: UUID,
     ) -> None:
         self.db = db
+        self.tenant_id = tenant_id
         self.file_service = file_service
         self.embedding_service = embedding_service
-
-        self.knowledge_document_repository = KnowledgeDocumentRepository(db)
-
+        self.knowledge_document_repository = KnowledgeDocumentRepository(
+            db=db,
+            tenant_id=tenant_id,
+        )
         self.chunk_repository = KnowledgeDocumentChunkRepository(db)
 
     async def index_document(

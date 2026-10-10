@@ -1,8 +1,16 @@
 import uuid
 from datetime import datetime
+from uuid import UUID
 
-from sqlalchemy import BigInteger, DateTime, String, func
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy import (
+    BigInteger,
+    DateTime,
+    ForeignKey,
+    String,
+    func,
+)
+from sqlalchemy.dialects.postgresql import UUID as PostgreSQLUUID
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
 
@@ -13,6 +21,16 @@ class File(Base):
     id: Mapped[uuid.UUID] = mapped_column(
         primary_key=True,
         default=uuid.uuid4,
+    )
+
+    tenant_id: Mapped[UUID] = mapped_column(
+        PostgreSQLUUID(as_uuid=True),
+        ForeignKey(
+            "tenants.id",
+            ondelete="CASCADE",
+        ),
+        nullable=False,
+        index=True,
     )
 
     original_filename: Mapped[str] = mapped_column(
@@ -59,3 +77,5 @@ class File(Base):
         server_default=func.now(),
         nullable=False,
     )
+
+    tenant = relationship("Tenant")

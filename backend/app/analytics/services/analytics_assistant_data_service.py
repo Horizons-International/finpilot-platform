@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 from typing import Any
+from uuid import UUID
 
 from sqlalchemy.orm import Session
 
@@ -37,10 +38,21 @@ class AnalyticsAssistantDataService:
     def __init__(
         self,
         db: Session,
+        tenant_id: UUID,
     ) -> None:
-        self.customer_repository = CustomerAnalyticsRepository(db)
-        self.compliance_repository = ComplianceAnalyticsRepository(db)
-        self.operations_repository = OperationsAnalyticsRepository(db)
+        self.tenant_id = tenant_id
+        self.customer_repository = CustomerAnalyticsRepository(
+            db=db,
+            tenant_id=self.tenant_id,
+        )
+        self.compliance_repository = ComplianceAnalyticsRepository(
+            db=db,
+            tenant_id=self.tenant_id,
+        )
+        self.operations_repository = OperationsAnalyticsRepository(
+            db=db,
+            tenant_id=self.tenant_id,
+        )
 
         self.metric_repository = MetricRepository(db)
         self.metric_engine = MetricEngine(

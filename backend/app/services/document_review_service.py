@@ -15,6 +15,7 @@ from app.services.document_extraction_review_log_service import (
     DocumentExtractionReviewLogService,
 )
 from app.services.notification_service import NotificationService
+from app.services.tenant_access_audit import deny_tenant_access
 from app.utils.enums import (
     AuditEventType,
     ExtractionReviewStatus,
@@ -30,9 +31,19 @@ class DocumentReviewService:
     def __init__(
         self,
         db: Session,
+        *,
         tenant_id: UUID,
+        actor_user_id: UUID | None = None,
+        actor_email: str | None = None,
+        ip_address: str | None = None,
+        user_agent: str | None = None,
     ) -> None:
         self.db = db
+        self.tenant_id = tenant_id
+        self.actor_user_id = actor_user_id
+        self.actor_email = actor_email
+        self.ip_address = ip_address
+        self.user_agent = user_agent
         self.audit_service = AuditService(db)
         self.review_log_service = DocumentExtractionReviewLogService(db)
         self.customer_service = CustomerService(
@@ -54,17 +65,28 @@ class DocumentReviewService:
             self.db.query(CustomerDocument)
             .filter(
                 CustomerDocument.id == document_id,
+                CustomerDocument.tenant_id == self.tenant_id,
             )
             .first()
         )
 
         if document is None:
-            raise not_found("Document")
+            deny_tenant_access(
+                self.db,
+                user_id=self.actor_user_id,
+                email=self.actor_email,
+                ip_address=self.ip_address,
+                user_agent=self.user_agent,
+                resource_type="customer_document",
+                resource_id=document_id,
+                resource_name="Document",
+            )
 
         ocr_result = (
             self.db.query(OCRResult)
             .filter(
                 OCRResult.document_id == document_id,
+                OCRResult.tenant_id == self.tenant_id,
                 OCRResult.status == OCRProcessingStatus.COMPLETED,
             )
             .order_by(
@@ -82,6 +104,7 @@ class DocumentReviewService:
             self.db.query(DocumentExtraction)
             .filter(
                 DocumentExtraction.document_id == document_id,
+                DocumentExtraction.tenant_id == self.tenant_id,
                 DocumentExtraction.ocr_result_id == ocr_result.id,
             )
             .order_by(
@@ -100,6 +123,7 @@ class DocumentReviewService:
             self.db.query(Customer)
             .filter(
                 Customer.id == document.customer_id,
+                Customer.tenant_id == self.tenant_id,
             )
             .first()
         )

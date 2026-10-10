@@ -35,3 +35,20 @@ class AuditService:
         self.db.flush()
 
         return audit_log
+
+    def log_access_denied(
+        self,
+        *,
+        resource_type: str,
+        resource_id: UUID | None,
+    ) -> None:
+        self.log_event(
+            event_type=AuditEventType.ACCESS_DENIED,
+            user_id=self.db.info.get("tenant_user_id"),
+            email=self.db.info.get("tenant_user_email"),
+            resource_type=resource_type,
+            resource_id=resource_id,
+        )
+
+        # Persist the security event before the request raises 404.
+        self.db.commit()

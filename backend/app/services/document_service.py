@@ -12,6 +12,7 @@ from app.repositories.document_repository import CustomerDocumentRepository
 from app.services.audit_service import AuditService
 from app.services.document_validation import DocumentValidationService
 from app.services.file_service import FileService
+from app.services.tenant_access_audit import deny_tenant_access
 from app.storages.base_storage import BaseStorage
 from app.utils.constants import DOCUMENT_ALLOWED_FILE_TYPES
 from app.utils.enums import AuditEventType, DocumentStatus
@@ -23,14 +24,44 @@ class DocumentService:
         self,
         db: Session,
         storage: BaseStorage,
+        *,
+        tenant_id: UUID,
+        actor_user_id: UUID | None = None,
+        actor_email: str | None = None,
+        ip_address: str | None = None,
+        user_agent: str | None = None,
     ) -> None:
         self.db = db
-        self.repository = CustomerDocumentRepository(db)
+        self.tenant_id = tenant_id
+        self.actor_user_id = actor_user_id
+        self.actor_email = actor_email
+        self.ip_address = ip_address
+        self.user_agent = user_agent
+
+        self.repository = CustomerDocumentRepository(
+            db,
+            tenant_id,
+        )
         self.audit_service = AuditService(db)
         self.file_service = FileService(
             db=db,
             storage=storage,
+            tenant_id=tenant_id,
+            actor_user_id=actor_user_id,
+            actor_email=actor_email,
+            ip_address=ip_address,
+            user_agent=user_agent,
         )
+        self.storage = storage
+
+        self.audit_service = AuditService(db)
+
+        self.file_service = FileService(
+            db=db,
+            storage=storage,
+            tenant_id=tenant_id,
+        )
+
         self.storage = storage
 
     async def upload_document(
@@ -47,10 +78,26 @@ class DocumentService:
         # ---------------------------------------------------------
         # 1. Verify customer exists
         # ---------------------------------------------------------
-        customer = self.db.query(Customer).filter(Customer.id == customer_id).first()
+        customer = (
+            self.db.query(Customer)
+            .filter(
+                Customer.id == customer_id,
+                Customer.tenant_id == self.tenant_id,
+            )
+            .first()
+        )
 
         if customer is None:
-            raise not_found("Customer")
+            deny_tenant_access(
+                self.db,
+                user_id=self.actor_user_id,
+                email=email,
+                ip_address=ip_address,
+                user_agent=user_agent,
+                resource_type="customer",
+                resource_id=customer_id,
+                resource_name="Customer",
+            )
 
         # ---------------------------------------------------------
         # 2. Verify verification case exists and belongs to customer
@@ -60,12 +107,22 @@ class DocumentService:
             .filter(
                 IdentityVerificationCase.id == verification_case_id,
                 IdentityVerificationCase.customer_id == customer_id,
+                IdentityVerificationCase.tenant_id == self.tenant_id,
             )
             .first()
         )
 
         if verification_case is None:
-            raise not_found("Verification case")
+            deny_tenant_access(
+                self.db,
+                user_id=self.actor_user_id,
+                email=email,
+                ip_address=ip_address,
+                user_agent=user_agent,
+                resource_type="verification_case",
+                resource_id=verification_case_id,
+                resource_name="Verification case",
+            )
 
         # ---------------------------------------------------------
         # 3. Verify document type exists and is active
@@ -110,6 +167,7 @@ class DocumentService:
             # -----------------------------------------------------
             document = CustomerDocument(
                 customer_id=customer_id,
+                tenant_id=self.tenant_id,
                 verification_case_id=verification_case_id,
                 document_type_id=document_type_id,
                 file_reference=str(file_record.id),
@@ -188,10 +246,27 @@ class DocumentService:
         self,
         customer_id: UUID,
     ) -> list[CustomerDocument]:
-        customer = self.db.query(Customer).filter(Customer.id == customer_id).first()
+
+        customer = (
+            self.db.query(Customer)
+            .filter(
+                Customer.id == customer_id,
+                Customer.tenant_id == self.tenant_id,
+            )
+            .first()
+        )
 
         if customer is None:
-            raise not_found("Customer")
+            deny_tenant_access(
+                self.db,
+                user_id=self.actor_user_id,
+                email=self.actor_email,
+                ip_address=self.ip_address,
+                user_agent=self.user_agent,
+                resource_type="customer",
+                resource_id=customer_id,
+                resource_name="Customer",
+            )
 
         return self.repository.get_by_customer_id(customer_id)
 
@@ -205,12 +280,22 @@ class DocumentService:
             .filter(
                 IdentityVerificationCase.id == verification_case_id,
                 IdentityVerificationCase.customer_id == customer_id,
+                IdentityVerificationCase.tenant_id == self.tenant_id,
             )
             .first()
         )
 
         if verification_case is None:
-            raise not_found("Verification case")
+            deny_tenant_access(
+                self.db,
+                user_id=self.actor_user_id,
+                email=self.actor_email,
+                ip_address=self.ip_address,
+                user_agent=self.user_agent,
+                resource_type="verification_case",
+                resource_id=verification_case_id,
+                resource_name="Verification case",
+            )
 
         return self.repository.get_by_verification_case_id(verification_case_id)
 
@@ -227,6 +312,15 @@ class DocumentService:
         )
 
         if document is None:
-            raise not_found("Customer document")
+            deny_tenant_access(
+                self.db,
+                user_id=self.actor_user_id,
+                email=self.actor_email,
+                ip_address=self.ip_address,
+                user_agent=self.user_agent,
+                resource_type="customer_document",
+                resource_id=document_id,
+                resource_name="Customer Document",
+            )
 
         return document

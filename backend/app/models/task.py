@@ -19,6 +19,16 @@ class Task(Base):
         default=uuid.uuid4,
     )
 
+    tenant_id: Mapped[UUID] = mapped_column(
+        PostgreSQLUUID(as_uuid=True),
+        ForeignKey(
+            "tenants.id",
+            ondelete="CASCADE",
+        ),
+        nullable=False,
+        index=True,
+    )
+
     title: Mapped[str] = mapped_column(
         String(255),
         nullable=False,
@@ -158,6 +168,8 @@ class Task(Base):
         "TaskAssignmentRule",
         foreign_keys=[assignment_rule_id],
     )
+
+    tenant = relationship("Tenant")
 
 
 class TaskStatusHistory(Base):

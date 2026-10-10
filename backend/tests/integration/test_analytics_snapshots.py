@@ -100,6 +100,7 @@ def test_capture_snapshot_creates_customer_compliance_and_operations_rows(
             status=ComplianceCaseStatus.OPEN,
             assigned_to=admin.id,
             created_at=as_of - timedelta(hours=1),
+            tenant_id=tenant.id,
         )
     )
 
@@ -188,6 +189,7 @@ def test_capture_snapshot_creates_customer_compliance_and_operations_rows(
             sla_status=SLAStatus.WITHIN_SLA,
             workflow_execution_id=active_execution.id,
             created_at=as_of - timedelta(hours=2),
+            tenant_id=tenant.id,
         )
     )
 
@@ -199,6 +201,7 @@ def test_capture_snapshot_creates_customer_compliance_and_operations_rows(
             due_date=as_of - timedelta(hours=1),
             sla_status=SLAStatus.BREACHED,
             created_at=as_of - timedelta(hours=4),
+            tenant_id=tenant.id,
         )
     )
 
@@ -211,12 +214,13 @@ def test_capture_snapshot_creates_customer_compliance_and_operations_rows(
             completed_at=as_of - timedelta(hours=4),
             sla_status=SLAStatus.COMPLETED,
             created_at=as_of - timedelta(days=1),
+            tenant_id=tenant.id,
         )
     )
 
     db_session.commit()
 
-    service = AnalyticsSnapshotService(db_session)
+    service = AnalyticsSnapshotService(db_session, tenant.id)
 
     customer_snapshot, compliance_snapshot, operations_snapshot = (
         service.capture_snapshot(
@@ -256,6 +260,7 @@ def test_capture_snapshot_creates_customer_compliance_and_operations_rows(
 
 def test_capture_snapshot_is_idempotent_for_same_day(
     db_session,
+    default_tenant_id,
     cleanup_analytics_snapshots,
 ):
     as_of = datetime(
@@ -267,25 +272,25 @@ def test_capture_snapshot_is_idempotent_for_same_day(
         tzinfo=timezone.utc,
     )
 
-    service = AnalyticsSnapshotService(db_session)
+    service = AnalyticsSnapshotService(db_session, default_tenant_id)
 
     service.capture_snapshot(
         as_of=as_of,
     )
 
-    first_customer = db_session.get(
-        CustomerAnalyticsDaily,
-        as_of.date(),
+    first_customer = db_session.query(CustomerAnalyticsDaily).filter(
+        CustomerAnalyticsDaily.tenant_id == default_tenant_id,
+        CustomerAnalyticsDaily.snapshot_date == as_of.date(),
     )
 
-    first_compliance = db_session.get(
-        ComplianceAnalyticsDaily,
-        as_of.date(),
+    first_compliance = db_session.query(ComplianceAnalyticsDaily).filter(
+        ComplianceAnalyticsDaily.tenant_id == default_tenant_id,
+        ComplianceAnalyticsDaily.snapshot_date == as_of.date(),
     )
 
-    first_operations = db_session.get(
-        OperationsAnalyticsDaily,
-        as_of.date(),
+    first_operations = db_session.query(OperationsAnalyticsDaily).filter(
+        OperationsAnalyticsDaily.tenant_id == default_tenant_id,
+        OperationsAnalyticsDaily.snapshot_date == as_of.date(),
     )
 
     assert first_customer is not None
@@ -327,6 +332,7 @@ def test_capture_snapshot_is_idempotent_for_same_day(
 
 def test_different_days_are_preserved_as_history(
     db_session,
+    default_tenant_id,
     cleanup_analytics_snapshots,
 ):
     first_day = datetime(
@@ -347,7 +353,7 @@ def test_different_days_are_preserved_as_history(
         tzinfo=timezone.utc,
     )
 
-    service = AnalyticsSnapshotService(db_session)
+    service = AnalyticsSnapshotService(db_session, default_tenant_id)
 
     service.capture_snapshot(
         as_of=first_day,

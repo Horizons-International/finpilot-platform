@@ -127,19 +127,20 @@ def test_customer_registration_rate_is_calculated_correctly(
     cleanup_metric_results,
     cleanup_test_customers,
 ):
+    tenant = create_test_tenant(
+        name="Tenant B",
+        code=f"TENANT-B-{uuid4().hex[:6].upper()}",
+    )
+
     admin = create_test_user(
-        UserRole.ADMINISTRATOR,
-        "metrics-calculate-admin@example.com",
+        role=UserRole.ADMINISTRATOR,
+        email="metrics-calculate-admin@example.com",
+        tenant_id=tenant.id,
     )
 
     authenticate_client(
         client,
         admin,
-    )
-
-    tenant = create_test_tenant(
-        name="Tenant B",
-        code=f"TENANT-B-{uuid4().hex[:6].upper()}",
     )
 
     period_start = datetime(
@@ -210,19 +211,20 @@ def test_average_compliance_review_time_is_calculated_correctly(
     cleanup_test_customers,
     cleanup_compliance_cases,
 ):
+    tenant = create_test_tenant(
+        name="Tenant B",
+        code=f"TENANT-B-{uuid4().hex[:6].upper()}",
+    )
+
     admin = create_test_user(
-        UserRole.ADMINISTRATOR,
-        "metrics-duration-admin@example.com",
+        role=UserRole.ADMINISTRATOR,
+        email="metrics-duration-admin@example.com",
+        tenant_id=tenant.id,
     )
 
     authenticate_client(
         client,
         admin,
-    )
-
-    tenant = create_test_tenant(
-        name="Tenant B",
-        code=f"TENANT-B-{uuid4().hex[:6].upper()}",
     )
 
     start = datetime(
@@ -272,6 +274,7 @@ def test_average_compliance_review_time_is_calculated_correctly(
                 status=ComplianceCaseStatus.CLOSED,
                 created_at=start,
                 closed_at=start + timedelta(hours=1),
+                tenant_id=tenant.id,
             ),
             ComplianceCase(
                 customer_id=customer_two.id,
@@ -280,6 +283,7 @@ def test_average_compliance_review_time_is_calculated_correctly(
                 status=ComplianceCaseStatus.CLOSED,
                 created_at=start,
                 closed_at=start + timedelta(hours=3),
+                tenant_id=tenant.id,
             ),
         ]
     )

@@ -1,25 +1,34 @@
-from sqlalchemy import and_
+from uuid import UUID
+
 from sqlalchemy.orm import Session
 
 from app.models.knowledge_document import KnowledgeDocument
-from app.repositories.base_repository import BaseRepository
+from app.repositories.tenant_scoped_repository import (
+    TenantScopedRepository,
+)
 from app.utils.enums import KnowledgeDocumentStatus
 
 
-class KnowledgeDocumentRepository(BaseRepository[KnowledgeDocument]):
-    def __init__(self, db: Session) -> None:
-        super().__init__(db, KnowledgeDocument)
+class KnowledgeDocumentRepository(TenantScopedRepository[KnowledgeDocument]):
+    def __init__(
+        self,
+        db: Session,
+        tenant_id: UUID,
+    ) -> None:
+        super().__init__(
+            db=db,
+            model=KnowledgeDocument,
+            tenant_id=tenant_id,
+        )
 
     def get_latest_by_name(
         self,
         name: str,
     ) -> KnowledgeDocument | None:
         return (
-            self.db.query(KnowledgeDocument)
+            self.query()
             .filter(KnowledgeDocument.name == name)
-            .order_by(
-                KnowledgeDocument.version.desc(),
-            )
+            .order_by(KnowledgeDocument.version.desc())
             .first()
         )
 
@@ -29,12 +38,10 @@ class KnowledgeDocumentRepository(BaseRepository[KnowledgeDocument]):
         version: int,
     ) -> KnowledgeDocument | None:
         return (
-            self.db.query(KnowledgeDocument)
+            self.query()
             .filter(
-                and_(
-                    KnowledgeDocument.name == name,
-                    KnowledgeDocument.version == version,
-                )
+                KnowledgeDocument.name == name,
+                KnowledgeDocument.version == version,
             )
             .first()
         )
@@ -44,12 +51,10 @@ class KnowledgeDocumentRepository(BaseRepository[KnowledgeDocument]):
         name: str,
     ) -> KnowledgeDocument | None:
         return (
-            self.db.query(KnowledgeDocument)
+            self.query()
             .filter(
-                and_(
-                    KnowledgeDocument.name == name,
-                    KnowledgeDocument.status == KnowledgeDocumentStatus.ACTIVE,
-                )
+                KnowledgeDocument.name == name,
+                KnowledgeDocument.status == KnowledgeDocumentStatus.ACTIVE,
             )
             .first()
         )
@@ -59,11 +64,9 @@ class KnowledgeDocumentRepository(BaseRepository[KnowledgeDocument]):
         name: str,
     ) -> list[KnowledgeDocument]:
         return (
-            self.db.query(KnowledgeDocument)
+            self.query()
             .filter(KnowledgeDocument.name == name)
-            .order_by(
-                KnowledgeDocument.version.desc(),
-            )
+            .order_by(KnowledgeDocument.version.desc())
             .all()
         )
 
@@ -71,7 +74,7 @@ class KnowledgeDocumentRepository(BaseRepository[KnowledgeDocument]):
         self,
     ) -> list[KnowledgeDocument]:
         return (
-            self.db.query(KnowledgeDocument)
+            self.query()
             .filter(
                 KnowledgeDocument.status == KnowledgeDocumentStatus.ACTIVE,
             )
@@ -86,7 +89,7 @@ class KnowledgeDocumentRepository(BaseRepository[KnowledgeDocument]):
         self,
     ) -> list[KnowledgeDocument]:
         return (
-            self.db.query(KnowledgeDocument)
+            self.query()
             .order_by(
                 KnowledgeDocument.name,
                 KnowledgeDocument.version.desc(),

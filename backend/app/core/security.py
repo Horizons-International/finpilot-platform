@@ -153,6 +153,7 @@ security = HTTPBearer(auto_error=False)
 
 
 def get_current_user(
+    request: Request,
     credentials: HTTPAuthorizationCredentials = Depends(security),
     db: Session = Depends(get_db),
 ) -> User:
@@ -224,6 +225,14 @@ def get_current_user(
 
     if tenant.status != TenantStatus.ACTIVE:
         raise unauthorized("Tenant is not active")
+
+    db.info["tenant_id"] = user.tenant_id
+    db.info["tenant_user_id"] = user.id
+    db.info["tenant_user_email"] = user.email
+
+    request.state.current_user_id = user.id
+    request.state.current_user_email = user.email
+    request.state.tenant_id = user.tenant_id
 
     return user
 

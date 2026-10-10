@@ -33,6 +33,7 @@ def authenticate_client(client, user):
 
 def test_executive_dashboard_returns_dashboard_data(
     client,
+    default_tenant_id,
     db_session,
     create_test_user,
     cleanup_analytics_snapshots,
@@ -59,6 +60,7 @@ def test_executive_dashboard_returns_dashboard_data(
 
     customer_rows = [
         CustomerAnalyticsDaily(
+            tenant_id=default_tenant_id,
             snapshot_date=date(2030, 1, 1),
             ending_total_customers=100,
             customers_registered_during_day=5,
@@ -69,6 +71,7 @@ def test_executive_dashboard_returns_dashboard_data(
             ending_rejected_customers=5,
         ),
         CustomerAnalyticsDaily(
+            tenant_id=default_tenant_id,
             snapshot_date=date(2030, 1, 2),
             ending_total_customers=110,
             customers_registered_during_day=10,
@@ -81,6 +84,7 @@ def test_executive_dashboard_returns_dashboard_data(
     ]
 
     compliance_row = ComplianceAnalyticsDaily(
+        tenant_id=default_tenant_id,
         snapshot_date=date(2030, 1, 2),
         ending_total_cases=40,
         cases_created_during_day=4,
@@ -100,6 +104,7 @@ def test_executive_dashboard_returns_dashboard_data(
     )
 
     operations_row = OperationsAnalyticsDaily(
+        tenant_id=default_tenant_id,
         snapshot_date=date(2030, 1, 2),
         ending_total_tasks=50,
         tasks_created_during_day=6,
@@ -163,6 +168,7 @@ def test_executive_dashboard_returns_dashboard_data(
                 sla_status=SLAStatus.COMPLETED,
                 created_at=dashboard_date_1,
                 completed_at=dashboard_date_1 + timedelta(hours=2),
+                tenant_id=admin.tenant_id,
             ),
             Task(
                 title="Executive dashboard completed SLA 2",
@@ -171,6 +177,7 @@ def test_executive_dashboard_returns_dashboard_data(
                 sla_status=SLAStatus.COMPLETED,
                 created_at=dashboard_date_1,
                 completed_at=dashboard_date_1 + timedelta(hours=3),
+                tenant_id=admin.tenant_id,
             ),
             Task(
                 title="Executive dashboard completed SLA 3",
@@ -179,6 +186,7 @@ def test_executive_dashboard_returns_dashboard_data(
                 sla_status=SLAStatus.COMPLETED,
                 created_at=dashboard_date_2,
                 completed_at=dashboard_date_2 + timedelta(hours=2),
+                tenant_id=admin.tenant_id,
             ),
             Task(
                 title="Executive dashboard completed SLA 4",
@@ -187,6 +195,7 @@ def test_executive_dashboard_returns_dashboard_data(
                 sla_status=SLAStatus.COMPLETED,
                 created_at=dashboard_date_2,
                 completed_at=dashboard_date_2 + timedelta(hours=3),
+                tenant_id=admin.tenant_id,
             ),
             Task(
                 title="Executive dashboard completed after SLA",
@@ -195,6 +204,7 @@ def test_executive_dashboard_returns_dashboard_data(
                 sla_status=SLAStatus.BREACHED,
                 created_at=dashboard_date_2,
                 completed_at=dashboard_date_2 + timedelta(hours=10),
+                tenant_id=admin.tenant_id,
             ),
         ]
     )
@@ -313,11 +323,13 @@ def test_executive_dashboard_filters_team_workload_by_department(
                 title="Compliance workload",
                 assigned_to=reviewer.id,
                 status=TaskStatus.IN_PROGRESS,
+                tenant_id=admin.tenant_id,
             ),
             Task(
                 title="Operations workload",
                 assigned_to=operations_user.id,
                 status=TaskStatus.IN_PROGRESS,
+                tenant_id=admin.tenant_id,
             ),
         ]
     )

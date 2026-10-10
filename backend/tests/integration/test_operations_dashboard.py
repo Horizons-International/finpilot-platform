@@ -34,19 +34,21 @@ def test_operations_dashboard_returns_accurate_metrics(
     cleanup_tasks,
     cleanup_compliance_cases,
 ):
-    admin = create_test_user(
-        UserRole.ADMINISTRATOR,
-        "dashboard-admin@example.com",
-    )
-
-    reviewer = create_test_user(
-        UserRole.REVIEWER,
-        "dashboard-reviewer@example.com",
-    )
-
     tenant = create_test_tenant(
         name="Tenant B",
         code=f"TENANT-B-{uuid4().hex[:6].upper()}",
+    )
+
+    admin = create_test_user(
+        role=UserRole.ADMINISTRATOR,
+        email="dashboard-admin@example.com",
+        tenant_id=tenant.id,
+    )
+
+    reviewer = create_test_user(
+        role=UserRole.REVIEWER,
+        email="dashboard-reviewer@example.com",
+        tenant_id=tenant.id,
     )
 
     authenticate_client(
@@ -95,6 +97,7 @@ def test_operations_dashboard_returns_accurate_metrics(
         status=VerificationStatus.UNDER_REVIEW,
         assigned_to=reviewer.id,
         assigned_at=datetime.now(timezone.utc),
+        tenant_id=tenant.id,
     )
 
     db_session.add(verification_case)
@@ -150,6 +153,7 @@ def test_operations_dashboard_returns_accurate_metrics(
         assigned_to=reviewer.id,
         due_date=now + timedelta(days=1),
         workflow_execution_id=workflow_active.id,
+        tenant_id=tenant.id,
     )
 
     overdue_task = Task(
@@ -158,6 +162,7 @@ def test_operations_dashboard_returns_accurate_metrics(
         assigned_to=reviewer.id,
         due_date=now - timedelta(days=1),
         workflow_execution_id=workflow_active.id,
+        tenant_id=tenant.id,
     )
 
     completed_task = Task(
@@ -165,6 +170,7 @@ def test_operations_dashboard_returns_accurate_metrics(
         status=TaskStatus.COMPLETED,
         assigned_to=admin.id,
         due_date=now - timedelta(days=1),
+        tenant_id=tenant.id,
     )
 
     db_session.add_all(
@@ -181,6 +187,7 @@ def test_operations_dashboard_returns_accurate_metrics(
         priority=ComplianceCasePriority.HIGH,
         status=ComplianceCaseStatus.OPEN,
         assigned_to=reviewer.id,
+        tenant_id=admin.tenant_id,
     )
 
     closed_case = ComplianceCase(
@@ -188,6 +195,7 @@ def test_operations_dashboard_returns_accurate_metrics(
         case_type=ComplianceCaseType.CUSTOMER_REVIEW,
         priority=ComplianceCasePriority.LOW,
         status=ComplianceCaseStatus.CLOSED,
+        tenant_id=admin.tenant_id,
     )
 
     db_session.add_all(
@@ -240,19 +248,20 @@ def test_operations_dashboard_filters_by_country(
     cleanup_workflow_executions,
     cleanup_tasks,
 ):
+    tenant = create_test_tenant(
+        name="Tenant B",
+        code=f"TENANT-B-{uuid4().hex[:6].upper()}",
+    )
+
     admin = create_test_user(
-        UserRole.ADMINISTRATOR,
-        "dashboard-country-admin@example.com",
+        role=UserRole.ADMINISTRATOR,
+        email="dashboard-country-admin@example.com",
+        tenant_id=tenant.id,
     )
 
     authenticate_client(
         client,
         admin,
-    )
-
-    tenant = create_test_tenant(
-        name="Tenant B",
-        code=f"TENANT-B-{uuid4().hex[:6].upper()}",
     )
 
     sudan_customer = create_test_customer(
@@ -307,6 +316,7 @@ def test_operations_dashboard_filters_by_country(
             status=TaskStatus.IN_PROGRESS,
             assigned_to=admin.id,
             workflow_execution_id=sudan_execution.id,
+            tenant_id=admin.tenant_id,
         )
     )
 
@@ -316,6 +326,7 @@ def test_operations_dashboard_filters_by_country(
             status=TaskStatus.IN_PROGRESS,
             assigned_to=admin.id,
             workflow_execution_id=uk_execution.id,
+            tenant_id=admin.tenant_id,
         )
     )
 
@@ -360,6 +371,7 @@ def test_operations_dashboard_filters_by_user_role(
             title="Reviewer task",
             status=TaskStatus.IN_PROGRESS,
             assigned_to=reviewer.id,
+            tenant_id=admin.tenant_id,
         )
     )
 
@@ -368,6 +380,7 @@ def test_operations_dashboard_filters_by_user_role(
             title="Admin task",
             status=TaskStatus.IN_PROGRESS,
             assigned_to=admin.id,
+            tenant_id=admin.tenant_id,
         )
     )
 

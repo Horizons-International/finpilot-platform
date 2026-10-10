@@ -1,6 +1,17 @@
+import uuid
 from datetime import date, datetime
+from uuid import UUID
 
-from sqlalchemy import Date, DateTime, Integer, func
+from sqlalchemy import (
+    Date,
+    DateTime,
+    ForeignKey,
+    Index,
+    Integer,
+    func,
+    text,
+)
+from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.database import Base
@@ -9,9 +20,30 @@ from app.core.database import Base
 class CustomerAnalyticsMonthly(Base):
     __tablename__ = "analytics_customer_monthly"
 
+    __table_args__ = (
+        Index(
+            "uq_analytics_customer_monthly_tenant_month_start",
+            "tenant_id",
+            "month_start",
+            unique=True,
+            postgresql_where=text("tenant_id IS NOT NULL"),
+        ),
+    )
+
+    id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True),
+        primary_key=True,
+        default=uuid.uuid4,
+    )
+
+    tenant_id: Mapped[UUID | None] = mapped_column(
+        PGUUID(as_uuid=True),
+        ForeignKey("tenants.id", ondelete="CASCADE"),
+        nullable=True,
+    )
+
     month_start: Mapped[date] = mapped_column(
         Date,
-        primary_key=True,
     )
 
     # Total number of customers at the end of the calendar month.

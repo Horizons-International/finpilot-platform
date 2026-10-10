@@ -1,4 +1,5 @@
 from datetime import datetime, timezone
+from uuid import UUID
 
 from sqlalchemy.orm import Session
 
@@ -14,9 +15,18 @@ from app.utils.date_time import utc_now
 class AnalyticsSnapshotService:
     """Coordinates creation of daily analytics snapshots."""
 
-    def __init__(self, db: Session) -> None:
+    def __init__(
+        self,
+        db: Session,
+        tenant_id: UUID,
+    ) -> None:
         self.db = db
-        self.repository = AnalyticsSnapshotRepository(db)
+        self.tenant_id = tenant_id
+
+        self.repository = AnalyticsSnapshotRepository(
+            db,
+            tenant_id=tenant_id,
+        )
 
     @staticmethod
     def _normalize_as_of(

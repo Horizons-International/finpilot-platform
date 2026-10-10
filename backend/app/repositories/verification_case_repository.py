@@ -3,23 +3,31 @@ from uuid import UUID
 from sqlalchemy.orm import Session
 
 from app.models.verification_case import IdentityVerificationCase
-from app.repositories.base_repository import BaseRepository
-from app.utils.enums import VerificationStatus
+from app.repositories.tenant_scoped_repository import (
+    TenantScopedRepository,
+)
+from app.utils.enums import VerificationStatus, VerificationType
 
 
-class VerificationCaseRepository(BaseRepository[IdentityVerificationCase]):
-    def __init__(self, db: Session) -> None:
-        super().__init__(db, IdentityVerificationCase)
+class VerificationCaseRepository(TenantScopedRepository[IdentityVerificationCase]):
+    def __init__(
+        self,
+        db: Session,
+        tenant_id: UUID,
+    ) -> None:
+        super().__init__(
+            db=db,
+            model=IdentityVerificationCase,
+            tenant_id=tenant_id,
+        )
 
     def get_by_customer_id(
         self,
         customer_id: UUID,
     ) -> list[IdentityVerificationCase]:
         return (
-            self.db.query(IdentityVerificationCase)
-            .filter(
-                IdentityVerificationCase.customer_id == customer_id,
-            )
+            self.query()
+            .filter(IdentityVerificationCase.customer_id == customer_id)
             .order_by(IdentityVerificationCase.created_at.desc())
             .all()
         )
@@ -27,10 +35,10 @@ class VerificationCaseRepository(BaseRepository[IdentityVerificationCase]):
     def get_active_by_customer_and_type(
         self,
         customer_id: UUID,
-        verification_type: str,
+        verification_type: VerificationType,
     ) -> IdentityVerificationCase | None:
         return (
-            self.db.query(IdentityVerificationCase)
+            self.query()
             .filter(
                 IdentityVerificationCase.customer_id == customer_id,
                 IdentityVerificationCase.verification_type == verification_type,
@@ -51,7 +59,7 @@ class VerificationCaseRepository(BaseRepository[IdentityVerificationCase]):
         customer_id: UUID,
     ) -> IdentityVerificationCase | None:
         return (
-            self.db.query(IdentityVerificationCase)
+            self.query()
             .filter(
                 IdentityVerificationCase.id == verification_case_id,
                 IdentityVerificationCase.customer_id == customer_id,
@@ -66,7 +74,7 @@ class VerificationCaseRepository(BaseRepository[IdentityVerificationCase]):
         reviewer_id: UUID,
     ) -> IdentityVerificationCase | None:
         return (
-            self.db.query(IdentityVerificationCase)
+            self.query()
             .filter(
                 IdentityVerificationCase.id == verification_case_id,
                 IdentityVerificationCase.customer_id == customer_id,

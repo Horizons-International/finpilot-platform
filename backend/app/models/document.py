@@ -3,7 +3,7 @@ from uuid import UUID, uuid4
 
 from sqlalchemy import DateTime, ForeignKey, Integer, String, func
 from sqlalchemy import Enum as SQLEnum
-from sqlalchemy.dialects.postgresql import UUID as PGUUID
+from sqlalchemy.dialects.postgresql import UUID as PostgreSQLUUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
@@ -14,13 +14,23 @@ class CustomerDocument(Base):
     __tablename__ = "customer_documents"
 
     id: Mapped[UUID] = mapped_column(
-        PGUUID(as_uuid=True),
+        PostgreSQLUUID(as_uuid=True),
         primary_key=True,
         default=uuid4,
     )
 
+    tenant_id: Mapped[UUID] = mapped_column(
+        PostgreSQLUUID(as_uuid=True),
+        ForeignKey(
+            "tenants.id",
+            ondelete="CASCADE",
+        ),
+        nullable=False,
+        index=True,
+    )
+
     customer_id: Mapped[UUID] = mapped_column(
-        PGUUID(as_uuid=True),
+        PostgreSQLUUID(as_uuid=True),
         ForeignKey(
             "customers.id",
             ondelete="CASCADE",
@@ -30,7 +40,7 @@ class CustomerDocument(Base):
     )
 
     verification_case_id: Mapped[UUID] = mapped_column(
-        PGUUID(as_uuid=True),
+        PostgreSQLUUID(as_uuid=True),
         ForeignKey(
             "identity_verification_cases.id",
             ondelete="CASCADE",
@@ -40,7 +50,7 @@ class CustomerDocument(Base):
     )
 
     document_type_id: Mapped[UUID] = mapped_column(
-        PGUUID(as_uuid=True),
+        PostgreSQLUUID(as_uuid=True),
         ForeignKey(
             "verification_document_types.id",
             ondelete="RESTRICT",
@@ -80,7 +90,7 @@ class CustomerDocument(Base):
     )
 
     uploaded_by: Mapped[UUID] = mapped_column(
-        PGUUID(as_uuid=True),
+        PostgreSQLUUID(as_uuid=True),
         ForeignKey(
             "users.id",
             ondelete="RESTRICT",
@@ -118,3 +128,5 @@ class CustomerDocument(Base):
         back_populates="document",
         cascade="all, delete-orphan",
     )
+
+    tenant = relationship("Tenant")

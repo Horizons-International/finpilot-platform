@@ -72,6 +72,7 @@ def create_file(
     user_id,
     filename: str,
     content: bytes,
+    tenant_id,
 ):
     storage_path = storage.save(
         file_content=content,
@@ -80,6 +81,7 @@ def create_file(
     )
 
     file_record = File(
+        tenant_id=tenant_id,
         original_filename=filename,
         stored_filename=filename,
         storage_path=storage_path,
@@ -127,6 +129,7 @@ async def test_index_active_knowledge_document(
     file_service = FileService(
         db=db_session,
         storage=storage,
+        tenant_id=user.tenant_id,
     )
 
     upload = UploadFile(
@@ -160,6 +163,7 @@ async def test_index_active_knowledge_document(
         version=1,
         status=KnowledgeDocumentStatus.ACTIVE,
         uploaded_by=user.id,
+        tenant_id=user.tenant_id,
     )
 
     db_session.add(document)
@@ -172,6 +176,7 @@ async def test_index_active_knowledge_document(
         db=db_session,
         file_service=file_service,
         embedding_service=embedding_service,
+        tenant_id=user.tenant_id,
     )
 
     chunks = await indexing_service.index_document(
@@ -229,6 +234,7 @@ async def test_inactive_document_cannot_be_indexed(
     storage = LocalStorage(str(tmp_path))
 
     file_record = create_file(
+        tenant_id=user.tenant_id,
         db_session=db_session,
         storage=storage,
         user_id=user.id,
@@ -245,6 +251,7 @@ async def test_inactive_document_cannot_be_indexed(
         version=1,
         status=status,
         uploaded_by=user.id,
+        tenant_id=user.tenant_id,
     )
 
     db_session.add(document)
@@ -256,12 +263,14 @@ async def test_inactive_document_cannot_be_indexed(
     file_service = FileService(
         db=db_session,
         storage=storage,
+        tenant_id=user.tenant_id,
     )
 
     indexing_service = KnowledgeIndexingService(
         db=db_session,
         file_service=file_service,
         embedding_service=embedding_service,
+        tenant_id=user.tenant_id,
     )
 
     with pytest.raises(HTTPException) as exc_info:
@@ -295,12 +304,14 @@ async def test_indexing_missing_document_returns_404(
     file_service = FileService(
         db=db_session,
         storage=storage,
+        tenant_id=user.tenant_id,
     )
 
     indexing_service = KnowledgeIndexingService(
         db=db_session,
         file_service=file_service,
         embedding_service=embedding_service,
+        tenant_id=user.id,
     )
 
     with pytest.raises(HTTPException) as exc_info:
@@ -333,6 +344,7 @@ async def test_indexing_invalid_file_reference_returns_400(
         version=1,
         status=KnowledgeDocumentStatus.ACTIVE,
         uploaded_by=user.id,
+        tenant_id=user.tenant_id,
     )
 
     db_session.add(document)
@@ -346,8 +358,10 @@ async def test_indexing_invalid_file_reference_returns_400(
         file_service=FileService(
             db=db_session,
             storage=storage,
+            tenant_id=user.tenant_id,
         ),
         embedding_service=FakeEmbeddingService(),
+        tenant_id=user.tenant_id,
     )
 
     with pytest.raises(HTTPException) as exc_info:
@@ -378,6 +392,7 @@ async def test_indexing_does_not_create_file_download_audit(
     file_service = FileService(
         db=db_session,
         storage=storage,
+        tenant_id=user.tenant_id,
     )
 
     upload = UploadFile(
@@ -403,6 +418,7 @@ async def test_indexing_does_not_create_file_download_audit(
         version=1,
         status=KnowledgeDocumentStatus.ACTIVE,
         uploaded_by=user.id,
+        tenant_id=user.tenant_id,
     )
 
     db_session.add(document)
@@ -413,6 +429,7 @@ async def test_indexing_does_not_create_file_download_audit(
         db=db_session,
         file_service=file_service,
         embedding_service=FakeEmbeddingService(),
+        tenant_id=user.tenant_id,
     )
 
     await indexing_service.index_document(

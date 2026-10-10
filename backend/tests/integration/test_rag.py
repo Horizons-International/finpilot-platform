@@ -27,6 +27,7 @@ def create_file(
     db_session,
     storage,
     user_id,
+    tenant_id,
     filename: str,
     content: bytes,
 ):
@@ -37,6 +38,7 @@ def create_file(
     )
 
     file_record = File(
+        tenant_id=tenant_id,
         original_filename=filename,
         stored_filename=filename,
         storage_path=storage_path,
@@ -58,6 +60,7 @@ def create_knowledge_document(
     db_session,
     user_id,
     file_id,
+    tenant_id,
     version: str,
     name: str = "AML Policy",
 ):
@@ -68,6 +71,7 @@ def create_knowledge_document(
         version=version,
         status=KnowledgeDocumentStatus.ACTIVE,
         uploaded_by=user_id,
+        tenant_id=tenant_id,
     )
 
     db_session.add(document)
@@ -101,6 +105,7 @@ def test_new_document_version_starts_inactive(
         user_id=admin.id,
         filename="inactive.txt",
         content=b"Some compliance content.",
+        tenant_id=admin.tenant_id,
     )
 
     cleanup_test_files(file_record.id)
@@ -110,6 +115,7 @@ def test_new_document_version_starts_inactive(
         user_id=admin.id,
         file_id=file_record.id,
         version=1,
+        tenant_id=admin.tenant_id,
     )
 
     response = client.post(
@@ -162,6 +168,7 @@ def test_old_active_version_remains_active_until_explicitly_deactivated(
         user_id=admin.id,
         filename="inactive.txt",
         content=b"Some compliance content.",
+        tenant_id=admin.tenant_id,
     )
 
     cleanup_test_files(file_record.id)
@@ -171,6 +178,7 @@ def test_old_active_version_remains_active_until_explicitly_deactivated(
         user_id=admin.id,
         file_id=file_record.id,
         version=1,
+        tenant_id=admin.tenant_id,
     )
 
     response = client.post(
@@ -225,6 +233,7 @@ def test_only_one_active_version_is_allowed(
         user_id=admin.id,
         filename="inactive.txt",
         content=b"Some compliance content.",
+        tenant_id=admin.tenant_id,
     )
 
     cleanup_test_files(file_record.id)
@@ -234,6 +243,7 @@ def test_only_one_active_version_is_allowed(
         user_id=admin.id,
         file_id=file_record.id,
         version=1,
+        tenant_id=admin.tenant_id,
     )
 
     response = client.post(
@@ -292,6 +302,7 @@ async def test_embedding_failure_rolls_back_chunks(
         user_id=admin.id,
         filename="inactive.txt",
         content=b"Some compliance content.",
+        tenant_id=admin.tenant_id,
     )
 
     cleanup_test_files(file_record.id)
@@ -299,6 +310,7 @@ async def test_embedding_failure_rolls_back_chunks(
     file_service = FileService(
         db=db_session,
         storage=storage,
+        tenant_id=admin.tenant_id,
     )
 
     document = create_knowledge_document(
@@ -306,12 +318,14 @@ async def test_embedding_failure_rolls_back_chunks(
         user_id=admin.id,
         file_id=file_record.id,
         version=1,
+        tenant_id=admin.tenant_id,
     )
 
     service = KnowledgeIndexingService(
         db=db_session,
         file_service=file_service,
         embedding_service=FailingEmbeddingService(),
+        tenant_id=admin.tenant_id,
     )
 
     with pytest.raises(RuntimeError):
@@ -353,6 +367,7 @@ async def test_failed_reindex_does_not_leave_partial_chunks(
         user_id=admin.id,
         filename="inactive.txt",
         content=b"Some compliance content.",
+        tenant_id=admin.tenant_id,
     )
 
     cleanup_test_files(file_record.id)
@@ -360,6 +375,7 @@ async def test_failed_reindex_does_not_leave_partial_chunks(
     file_service = FileService(
         db=db_session,
         storage=storage,
+        tenant_id=admin.tenant_id,
     )
 
     document = create_knowledge_document(
@@ -367,6 +383,7 @@ async def test_failed_reindex_does_not_leave_partial_chunks(
         user_id=admin.id,
         file_id=file_record.id,
         version=1,
+        tenant_id=admin.tenant_id,
     )
 
     class WorkingEmbeddingService:
@@ -377,6 +394,7 @@ async def test_failed_reindex_does_not_leave_partial_chunks(
         db=db_session,
         file_service=file_service,
         embedding_service=WorkingEmbeddingService(),
+        tenant_id=admin.tenant_id,
     )
 
     await service.index_document(
@@ -401,6 +419,7 @@ async def test_failed_reindex_does_not_leave_partial_chunks(
         db_session,
         file_service=file_service,
         embedding_service=FailingEmbeddingService(),
+        tenant_id=admin.tenant_id,
     )
 
     with pytest.raises(RuntimeError):

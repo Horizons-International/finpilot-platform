@@ -41,8 +41,11 @@ class TaskAssignmentService:
     def __init__(
         self,
         db: Session,
+        tenant_id: UUID,
     ) -> None:
         self.db = db
+        self.tenant_id = tenant_id
+
         self.repository = TaskAssignmentRuleRepository(db)
         self.audit_service = AuditService(db)
         self.notification_service = NotificationService(db)
@@ -578,6 +581,7 @@ class TaskAssignmentService:
         )
 
         query = self.db.query(User).filter(
+            User.tenant_id == self.tenant_id,
             User.status == UserStatus.ACTIVE,
             User.is_deleted.is_(False),
             User.role == requested_role,
@@ -667,6 +671,7 @@ class TaskAssignmentService:
                 self.db.query(Customer)
                 .filter(
                     Customer.id == execution.entity_id,
+                    Customer.tenant_id == self.tenant_id,
                 )
                 .first()
             )

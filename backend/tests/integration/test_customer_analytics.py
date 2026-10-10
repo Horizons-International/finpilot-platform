@@ -90,6 +90,7 @@ def test_customer_analytics_returns_accurate_metrics(
             0,
             tzinfo=timezone.utc,
         ),
+        tenant_id=customer_1.tenant_id,
     )
 
     verification_2 = IdentityVerificationCase(
@@ -112,6 +113,7 @@ def test_customer_analytics_returns_accurate_metrics(
             0,
             tzinfo=timezone.utc,
         ),
+        tenant_id=customer_1.tenant_id,
     )
 
     db_session.add_all(

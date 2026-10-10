@@ -1,4 +1,5 @@
 from datetime import datetime, timedelta
+from uuid import UUID
 
 from sqlalchemy.orm import Session
 
@@ -20,8 +21,10 @@ class SLAService:
     def __init__(
         self,
         db: Session,
+        tenant_id: UUID,
     ) -> None:
         self.db = db
+        self.tenant_id = tenant_id
         self.notification_service = NotificationService(db)
 
     @staticmethod
@@ -174,6 +177,7 @@ class SLAService:
                         TaskStatus.CANCELLED,
                     ]
                 ),
+                Task.tenant_id == self.tenant_id,
             )
             .with_for_update()
             .all()

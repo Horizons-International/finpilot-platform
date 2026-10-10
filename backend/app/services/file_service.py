@@ -7,6 +7,7 @@ from app.core.config import settings
 from app.models.file import File
 from app.repositories.file_repository import FileRepository
 from app.services.audit_service import AuditService
+from app.services.tenant_access_audit import deny_tenant_access
 from app.storages.base_storage import BaseStorage
 from app.utils.enums import AuditEventType
 from app.utils.errors import bad_request, not_found
@@ -18,9 +19,24 @@ class FileService:
         self,
         db: Session,
         storage: BaseStorage,
-    ):
+        *,
+        tenant_id: UUID,
+        actor_user_id: UUID | None = None,
+        actor_email: str | None = None,
+        ip_address: str | None = None,
+        user_agent: str | None = None,
+    ) -> None:
         self.db = db
-        self.file_repository = FileRepository(db)
+        self.tenant_id = tenant_id
+        self.actor_user_id = actor_user_id
+        self.actor_email = actor_email
+        self.ip_address = ip_address
+        self.user_agent = user_agent
+
+        self.file_repository = FileRepository(
+            db,
+            tenant_id,
+        )
         self.audit_service = AuditService(db)
         self.storage = storage
 
@@ -74,6 +90,7 @@ class FileService:
 
             # Create database record
             file_record = File(
+                tenant_id=self.tenant_id,
                 original_filename=file.filename,
                 stored_filename=stored_filename,
                 storage_path=storage_path,
@@ -163,8 +180,17 @@ class FileService:
     ) -> None:
         file_record = self.file_repository.get_by_id(file_id)
 
-        if not file_record:
-            raise not_found("File")
+        if file_record is None:
+            deny_tenant_access(
+                self.db,
+                user_id=self.actor_user_id,
+                email=self.actor_email,
+                ip_address=self.ip_address,
+                user_agent=self.user_agent,
+                resource_type="file",
+                resource_id=file_id,
+                resource_name="File",
+            )
 
         storage_path = file_record.storage_path
 
@@ -199,8 +225,17 @@ class FileService:
     ) -> tuple[bytes, str, str]:
         file_record = self.file_repository.get_by_id(file_id)
 
-        if not file_record:
-            raise not_found("File")
+        if file_record is None:
+            deny_tenant_access(
+                self.db,
+                user_id=self.actor_user_id,
+                email=self.actor_email,
+                ip_address=self.ip_address,
+                user_agent=self.user_agent,
+                resource_type="file",
+                resource_id=file_id,
+                resource_name="File",
+            )
 
         if not self.storage.exists(file_record.storage_path):
             raise not_found("Stored file")

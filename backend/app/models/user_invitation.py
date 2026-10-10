@@ -65,7 +65,6 @@ class UserInvitation(Base):
     token_hash: Mapped[str] = mapped_column(
         String(64),
         nullable=False,
-        unique=True,
         index=True,
     )
 

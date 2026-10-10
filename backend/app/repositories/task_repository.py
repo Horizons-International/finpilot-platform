@@ -1,34 +1,31 @@
 from uuid import UUID
 
-from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.models.task import Task
-from app.repositories.base_repository import BaseRepository
+from app.repositories.tenant_scoped_repository import (
+    TenantScopedRepository,
+)
 from app.utils.enums import TaskPriority, TaskStatus
 
 
-class TaskRepository(
-    BaseRepository[Task],
-):
-    def __init__(self, db: Session) -> None:
+class TaskRepository(TenantScopedRepository[Task]):
+    def __init__(
+        self,
+        db: Session,
+        tenant_id: UUID,
+    ) -> None:
         super().__init__(
-            db,
-            Task,
+            db=db,
+            model=Task,
+            tenant_id=tenant_id,
         )
 
     def get_by_id_for_update(
         self,
         task_id: UUID,
     ) -> Task | None:
-        return (
-            self.db.query(Task)
-            .filter(
-                Task.id == task_id,
-            )
-            .with_for_update()
-            .first()
-        )
+        return self.query().filter(Task.id == task_id).with_for_update().first()
 
     def list_tasks(
         self,
@@ -39,24 +36,18 @@ class TaskRepository(
         page: int = 1,
         page_size: int = 20,
     ) -> tuple[list[Task], int]:
-        query = self.db.query(Task)
+        query = self.query()
 
         if assigned_to is not None:
-            query = query.filter(
-                Task.assigned_to == assigned_to,
-            )
+            query = query.filter(Task.assigned_to == assigned_to)
 
         if status is not None:
-            query = query.filter(
-                Task.status == status,
-            )
+            query = query.filter(Task.status == status)
 
         if priority is not None:
-            query = query.filter(
-                Task.priority == priority,
-            )
+            query = query.filter(Task.priority == priority)
 
-        total = query.with_entities(func.count(Task.id)).scalar() or 0
+        total = query.count()
 
         offset = (page - 1) * page_size
 

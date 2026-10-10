@@ -25,9 +25,16 @@ class KnowledgeDocumentService:
         self,
         db: Session,
         file_service: FileService,
+        tenant_id: UUID,
     ) -> None:
         self.db = db
-        self.repository = KnowledgeDocumentRepository(db)
+        self.tenant_id = tenant_id
+
+        self.repository = KnowledgeDocumentRepository(
+            db=db,
+            tenant_id=tenant_id,
+        )
+
         self.file_service = file_service
         self.audit_service = AuditService(db)
 
@@ -67,6 +74,7 @@ class KnowledgeDocumentService:
             )
 
             document = KnowledgeDocument(
+                tenant_id=self.tenant_id,
                 name=name,
                 category=category.value,
                 file_reference=str(stored_file.id),
@@ -120,6 +128,10 @@ class KnowledgeDocumentService:
         latest_document = self.repository.get_by_id(document_id)
 
         if latest_document is None:
+            self.audit_service.log_access_denied(
+                resource_type="customer_document",
+                resource_id=document_id,
+            )
             raise not_found("Knowledge document")
 
         name = data.name.strip() if data.name else latest_document.name
@@ -150,6 +162,7 @@ class KnowledgeDocumentService:
             )
 
             document = KnowledgeDocument(
+                tenant_id=self.tenant_id,
                 name=name,
                 category=category,
                 file_reference=str(stored_file.id),
@@ -197,6 +210,10 @@ class KnowledgeDocumentService:
         document = self.repository.get_by_id(document_id)
 
         if document is None:
+            self.audit_service.log_access_denied(
+                resource_type="customer_document",
+                resource_id=document_id,
+            )
             raise not_found("Knowledge document")
 
         return document
@@ -211,6 +228,10 @@ class KnowledgeDocumentService:
         document = self.repository.get_by_id(document_id)
 
         if document is None:
+            self.audit_service.log_access_denied(
+                resource_type="customer_document",
+                resource_id=document_id,
+            )
             raise not_found("Knowledge document")
 
         return self.repository.get_all_versions(
@@ -228,6 +249,10 @@ class KnowledgeDocumentService:
         document = self.repository.get_by_id(document_id)
 
         if document is None:
+            self.audit_service.log_access_denied(
+                resource_type="customer_document",
+                resource_id=document_id,
+            )
             raise not_found("Knowledge document")
 
         if document.status == KnowledgeDocumentStatus.ACTIVE:
@@ -273,6 +298,10 @@ class KnowledgeDocumentService:
         document = self.repository.get_by_id(document_id)
 
         if document is None:
+            self.audit_service.log_access_denied(
+                resource_type="customer_document",
+                resource_id=document_id,
+            )
             raise not_found("Knowledge document")
 
         if document.status == KnowledgeDocumentStatus.INACTIVE:

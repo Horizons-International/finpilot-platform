@@ -154,9 +154,6 @@ class RiskScoringService:
             resource_id=profile.id,
         )
 
-        self.db.commit()
-        self.db.refresh(profile)
-
         self.audit_service.log_event(
             event_type=AuditEventType.CUSTOMER_RISK_SCORE_CALCULATED,
             user_id=user_id,
@@ -166,5 +163,8 @@ class RiskScoringService:
             resource_type="customer_risk_profile",
             resource_id=profile.id,
         )
+
+        self.db.commit()
+        self.db.refresh(profile)
 
         return profile

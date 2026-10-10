@@ -1,5 +1,6 @@
 import os
 from datetime import date, datetime
+from typing import Any
 from uuid import UUID, uuid4
 
 import pytest
@@ -76,7 +77,6 @@ from app.ocr.providers.base import OCRProvider
 from app.ocr.services.dependencies import get_ocr_service
 from app.ocr.services.ocr_service import OCRService
 from app.repositories.ai_prompt_repository import AIPromptRepository
-from app.repositories.customer_repository import CustomerRepository
 from app.storages.local_storage import LocalStorage
 from app.utils.enums import CustomerRiskLevel, CustomerStatus, TenantStatus, UserStatus
 
@@ -98,9 +98,14 @@ TestSessionLocal = sessionmaker(
 
 
 @pytest.fixture
-def client(db_session):
+def client():
     def override_get_db():
-        yield db_session
+        db = TestSessionLocal()
+
+        try:
+            yield db
+        finally:
+            db.close()
 
     app.dependency_overrides[get_db] = override_get_db
 
@@ -295,21 +300,25 @@ def create_test_customer():
 @pytest.fixture
 def cleanup_test_customers():
     setup_db = TestSessionLocal()
-    repository = CustomerRepository(setup_db)
 
-    existing_customers = {customer.id for customer in repository.get_all()}
-
-    setup_db.close()
+    try:
+        existing_customer_ids = {
+            customer_id for (customer_id,) in setup_db.query(Customer.id).all()
+        }
+    finally:
+        setup_db.close()
 
     yield
 
     db = TestSessionLocal()
-    repository = CustomerRepository(db)
 
-    current_customers = repository.get_all()
+    try:
+        current_customers = db.query(Customer).all()
 
-    for customer in current_customers:
-        if customer.id not in existing_customers:
+        for customer in current_customers:
+            if customer.id in existing_customer_ids:
+                continue
+
             db.query(IdentityVerificationCase).filter(
                 IdentityVerificationCase.customer_id == customer.id
             ).delete(synchronize_session=False)
@@ -330,10 +339,11 @@ def cleanup_test_customers():
                 CustomerRiskProfile.customer_id == customer.id
             ).delete(synchronize_session=False)
 
-            repository.delete(customer)
+            db.delete(customer)
 
-    db.commit()
-    db.close()
+        db.commit()
+    finally:
+        db.close()
 
 
 @pytest.fixture
@@ -482,11 +492,12 @@ def cleanup_test_documents():
 
 
 @pytest.fixture
-def ocr_service_override(db_session):
+def ocr_service_override(db_session, default_tenant_id):
     def apply(provider: OCRProvider) -> OCRService:
         service = OCRService(
             db=db_session,
             provider=provider,
+            tenant_id=default_tenant_id,
         )
 
         app.dependency_overrides[get_ocr_service] = lambda: service
@@ -498,11 +509,12 @@ def ocr_service_override(db_session):
 
 
 @pytest.fixture
-def extraction_service_override(db_session):
+def extraction_service_override(db_session, default_tenant_id):
     def apply(provider: ExtractionProvider) -> DocumentExtractionService:
         service = DocumentExtractionService(
             db=db_session,
             provider=provider,
+            tenant_id=default_tenant_id,
         )
 
         app.dependency_overrides[get_document_extraction_service] = lambda: service
@@ -1233,3 +1245,12 @@ def cleanup_user_invitations(db_session):
         )
 
     db_session.commit()
+
+
+@pytest.fixture
+def default_tenant_id(db_session) -> Any:
+    tenant = db_session.query(Tenant).filter(Tenant.code == "DEFAULT").first()
+
+    assert tenant is not None
+
+    return tenant.id
