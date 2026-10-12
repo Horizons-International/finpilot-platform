@@ -156,6 +156,10 @@ class AuthService:
                 User.id == user_id,
                 User.is_deleted.is_(False),
             )
+            .execution_options(
+                skip_tenant_filter=True,
+                tenant_scope_reason="resolve user from signed refresh token",
+            )
             .first()
         )
 

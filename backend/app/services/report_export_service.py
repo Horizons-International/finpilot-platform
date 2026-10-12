@@ -13,6 +13,7 @@ from app.schemas.report_exports import (
     ReportExportRequest,
 )
 from app.services.notification_service import NotificationService
+from app.services.tenant_access_audit import deny_tenant_access
 from app.storages.base_storage import BaseStorage
 from app.utils.date_time import utc_now
 from app.utils.enums import (
@@ -264,7 +265,12 @@ class ReportExportService:
         )
 
         if report_export is None:
-            raise not_found("Report export")
+            deny_tenant_access(
+                self.db,
+                resource_type="report_export",
+                resource_id=export_id,
+                resource_name="Report export",
+            )
 
         return report_export
 

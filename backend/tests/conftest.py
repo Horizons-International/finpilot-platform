@@ -94,6 +94,7 @@ TestSessionLocal = sessionmaker(
     autoflush=False,
     autocommit=False,
     expire_on_commit=False,
+    info={"allow_unscoped_tenant_operations": True},
 )
 
 

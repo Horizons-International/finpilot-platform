@@ -12,13 +12,14 @@ from app.schemas.system_configuration import (
     SystemConfigurationUpdate,
 )
 from app.services.audit_service import AuditService
+from app.services.tenant_access_audit import deny_tenant_access
 from app.utils.date_time import utc_now
 from app.utils.enums import (
     AuditEventType,
     SystemConfigurationCategory,
     SystemConfigurationStatus,
 )
-from app.utils.errors import bad_request, not_found
+from app.utils.errors import bad_request
 from app.utils.validators.system_configuration import (
     validate_configuration,
 )
@@ -110,7 +111,12 @@ class SystemConfigurationService:
         )
 
         if configuration is None:
-            raise not_found("System configuration")
+            deny_tenant_access(
+                self.db,
+                resource_type="system_configuration",
+                resource_id=configuration_id,
+                resource_name="System configuration",
+            )
 
         return configuration
 
@@ -130,7 +136,12 @@ class SystemConfigurationService:
         )
 
         if configuration is None:
-            raise not_found("System configuration")
+            deny_tenant_access(
+                self.db,
+                resource_type="system_configuration",
+                resource_id=configuration_id,
+                resource_name="System configuration",
+            )
 
         try:
             validated_value = validate_configuration(
@@ -183,7 +194,12 @@ class SystemConfigurationService:
         )
 
         if configuration is None:
-            raise not_found("System configuration")
+            deny_tenant_access(
+                self.db,
+                resource_type="system_configuration",
+                resource_id=configuration_id,
+                resource_name="System configuration",
+            )
 
         if configuration.status == status:
             raise bad_request(

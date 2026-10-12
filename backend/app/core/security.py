@@ -204,7 +204,15 @@ def get_current_user(
             detail="Invalid access token.",
         )
 
-    user = db.query(User).filter(User.id == user_id).first()
+    user = (
+        db.query(User)
+        .filter(User.id == user_id)
+        .execution_options(
+            skip_tenant_filter=True,
+            tenant_scope_reason="authenticate by access-token subject",
+        )
+        .first()
+    )
 
     if not user:
         raise unauthorized("User not found")
@@ -229,6 +237,8 @@ def get_current_user(
     db.info["tenant_id"] = user.tenant_id
     db.info["tenant_user_id"] = user.id
     db.info["tenant_user_email"] = user.email
+    db.info["tenant_ip_address"] = request.client.host if request.client else None
+    db.info["tenant_user_agent"] = request.headers.get("user-agent")
 
     request.state.current_user_id = user.id
     request.state.current_user_email = user.email
