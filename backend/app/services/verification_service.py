@@ -22,6 +22,7 @@ from app.schemas.verification_case import (
 from app.services.audit_service import AuditService
 from app.services.customer_audit_log_service import CustomerAuditLogService
 from app.services.notification_service import NotificationService
+from app.services.tenant_access_audit import deny_tenant_access
 from app.services.workflow_validation_service import WorkflowValidationService
 from app.utils.date_time import utc_now
 from app.utils.enums import (
@@ -30,7 +31,7 @@ from app.utils.enums import (
     NotificationEventType,
     VerificationStatus,
 )
-from app.utils.errors import bad_request, not_found
+from app.utils.errors import bad_request
 
 VERIFICATION_STATUS_TRANSITIONS: dict[
     VerificationStatus,
@@ -95,7 +96,12 @@ class VerificationService:
         )
 
         if customer is None:
-            raise not_found("Customer")
+            deny_tenant_access(
+                self.db,
+                resource_type="customer",
+                resource_id=customer_id,
+                resource_name="Customer",
+            )
 
         case = IdentityVerificationCase(
             tenant_id=self.tenant_id,
@@ -149,7 +155,12 @@ class VerificationService:
         )
 
         if customer is None:
-            raise not_found("Customer")
+            deny_tenant_access(
+                self.db,
+                resource_type="customer",
+                resource_id=customer_id,
+                resource_name="Customer",
+            )
 
         return self.repository.get_by_customer_id(customer_id)
 
@@ -173,7 +184,12 @@ class VerificationService:
         )
 
         if customer is None:
-            raise not_found("Customer")
+            deny_tenant_access(
+                self.db,
+                resource_type="customer",
+                resource_id=customer_id,
+                resource_name="Customer",
+            )
 
         case = self.repository.get_by_id_and_customer(
             verification_case_id=case_id,
@@ -181,7 +197,12 @@ class VerificationService:
         )
 
         if case is None:
-            raise not_found("Verification case")
+            deny_tenant_access(
+                self.db,
+                resource_type="verification_case",
+                resource_id=case_id,
+                resource_name="Verification case",
+            )
 
         current_status = case.status
         new_status = status_data.status
@@ -269,7 +290,12 @@ class VerificationService:
         )
 
         if customer is None:
-            raise not_found("Customer")
+            deny_tenant_access(
+                self.db,
+                resource_type="customer",
+                resource_id=customer_id,
+                resource_name="Customer",
+            )
 
         existing_case = self.repository.get_active_by_customer_and_type(
             customer_id=customer_id,
@@ -352,7 +378,12 @@ class VerificationService:
         )
 
         if case is None:
-            raise not_found("Verification case")
+            deny_tenant_access(
+                self.db,
+                resource_type="verification_case",
+                resource_id=verification_case_id,
+                resource_name="Verification case",
+            )
 
         request = VerificationRequest(
             customer_id=customer_id,

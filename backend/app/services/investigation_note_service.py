@@ -5,9 +5,10 @@ from sqlalchemy.orm import Session
 from app.models.investigation_note import InvestigationNote
 from app.repositories.investigation_note_repository import InvestigationNoteRepository
 from app.services.audit_service import AuditService
+from app.services.tenant_access_audit import deny_tenant_access
 from app.services.tenant_context import resolve_tenant_context
 from app.utils.enums import AuditEventType, InvestigationNoteType, UserRole
-from app.utils.errors import bad_request, forbidden, not_found
+from app.utils.errors import bad_request, forbidden
 
 
 class InvestigationNoteService:
@@ -34,7 +35,12 @@ class InvestigationNoteService:
     ) -> InvestigationNote:
         case = self.repository.get_case(customer_id=customer_id, case_id=case_id)
         if case is None:
-            raise not_found("Verification case")
+            deny_tenant_access(
+                self.db,
+                resource_type="verification_case",
+                resource_id=case_id,
+                resource_name="Verification case",
+            )
         if case.assigned_to != user_id:
             raise forbidden("Only the assigned reviewer can add investigation notes.")
         normalized_note = note.strip()
@@ -76,7 +82,12 @@ class InvestigationNoteService:
     ) -> list[InvestigationNote]:
         case = self.repository.get_case(customer_id=customer_id, case_id=case_id)
         if case is None:
-            raise not_found("Verification case")
+            deny_tenant_access(
+                self.db,
+                resource_type="verification_case",
+                resource_id=case_id,
+                resource_name="Verification case",
+            )
         if user_role == UserRole.REVIEWER and case.assigned_to != user_id:
             raise forbidden(
                 "You can only view investigation notes for cases assigned to you."

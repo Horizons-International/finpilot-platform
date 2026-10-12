@@ -48,6 +48,11 @@ class UserRepository(BaseRepository[User]):
         # below always require tenant context.
         if self.tenant_id is not None:
             query = query.filter(User.tenant_id == self.tenant_id)
+        else:
+            query = query.execution_options(
+                skip_tenant_filter=True,
+                tenant_scope_reason="login by globally unique user email",
+            )
         if not include_deleted:
             query = query.filter(User.is_deleted.is_(False))
         return query.first()
@@ -113,6 +118,11 @@ class UserRepository(BaseRepository[User]):
         )
         if self.tenant_id is not None:
             query = query.filter(User.tenant_id == self.tenant_id)
+        else:
+            query = query.execution_options(
+                skip_tenant_filter=True,
+                tenant_scope_reason="global unique-email validation",
+            )
         if exclude_user_id is not None:
             query = query.filter(User.id != exclude_user_id)
         return query.first() is not None

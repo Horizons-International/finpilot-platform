@@ -23,6 +23,7 @@ from app.services.sla_service import SLAService
 from app.services.task_assignment_service import (
     TaskAssignmentService,
 )
+from app.services.tenant_access_audit import deny_tenant_access
 from app.utils.date_time import to_utc, utc_now
 from app.utils.enums import (
     AuditEventType,
@@ -103,7 +104,12 @@ class TaskService:
         )
 
         if task is None:
-            raise not_found("Task")
+            deny_tenant_access(
+                self.db,
+                resource_type="task",
+                resource_id=task_id,
+                resource_name="Task",
+            )
 
         return task
 
@@ -121,7 +127,12 @@ class TaskService:
         )
 
         if user is None:
-            raise not_found("Assigned user")
+            deny_tenant_access(
+                self.db,
+                resource_type="user",
+                resource_id=user_id,
+                resource_name="Assigned user",
+            )
 
         if user.is_deleted:
             raise bad_request(

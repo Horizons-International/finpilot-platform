@@ -9,6 +9,7 @@ from app.repositories.verification_review_repository import VerificationReviewRe
 from app.services.audit_service import AuditService
 from app.services.customer_audit_log_service import CustomerAuditLogService
 from app.services.notification_service import NotificationService
+from app.services.tenant_access_audit import deny_tenant_access
 from app.services.tenant_context import resolve_tenant_context
 from app.utils.date_time import utc_now
 from app.utils.enums import (
@@ -17,7 +18,7 @@ from app.utils.enums import (
     ReviewDecision,
     VerificationStatus,
 )
-from app.utils.errors import bad_request, not_found
+from app.utils.errors import bad_request
 
 
 class VerificationReviewService:
@@ -54,7 +55,12 @@ class VerificationReviewService:
             reviewer_id=reviewer_id,
         )
         if case is None:
-            raise not_found("Verification case")
+            deny_tenant_access(
+                self.db,
+                resource_type="verification_case",
+                resource_id=verification_case_id,
+                resource_name="Verification case",
+            )
         if case.status != VerificationStatus.PENDING:
             raise bad_request(
                 "Verification case cannot be started for review in its current status."
@@ -105,7 +111,12 @@ class VerificationReviewService:
             reviewer_id=reviewer_id,
         )
         if case is None:
-            raise not_found("Verification case")
+            deny_tenant_access(
+                self.db,
+                resource_type="verification_case",
+                resource_id=verification_case_id,
+                resource_name="Verification case",
+            )
         if case.status != VerificationStatus.UNDER_REVIEW:
             raise bad_request(
                 "Verification case must be under review before a decision can be made."

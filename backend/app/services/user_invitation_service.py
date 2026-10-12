@@ -35,6 +35,10 @@ class UserInvitationService:
         invitation = (
             self.db.query(UserInvitation)
             .filter(UserInvitation.token_hash == token_hash)
+            .execution_options(
+                skip_tenant_filter=True,
+                tenant_scope_reason="resolve tenant from unique invitation token",
+            )
             .first()
         )
         if invitation is None:
@@ -59,7 +63,10 @@ class UserInvitationService:
         existing_user = (
             self.db.query(User)
             .filter(User.email == invitation.email)
-            .execution_options(skip_tenant_filter=True)
+            .execution_options(
+                skip_tenant_filter=True,
+                tenant_scope_reason="check globally unique invitation email",
+            )
             .first()
         )
         if existing_user is not None:

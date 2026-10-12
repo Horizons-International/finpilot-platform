@@ -20,6 +20,15 @@ def deny_tenant_access(
 ) -> NoReturn:
     """Audit denied resource access, then return a generic 404."""
 
+    user_id = user_id if user_id is not None else db.info.get("tenant_user_id")
+    email = email if email is not None else db.info.get("tenant_user_email")
+    ip_address = (
+        ip_address if ip_address is not None else db.info.get("tenant_ip_address")
+    )
+    user_agent = (
+        user_agent if user_agent is not None else db.info.get("tenant_user_agent")
+    )
+
     db.rollback()
 
     AuditService(db).log_access_denied(

@@ -12,6 +12,7 @@ from app.repositories.verification_case_assignment_repository import (
 )
 from app.services.audit_service import AuditService
 from app.services.notification_service import NotificationService
+from app.services.tenant_access_audit import deny_tenant_access
 from app.services.tenant_context import resolve_tenant_context
 from app.utils.enums import (
     AuditEventType,
@@ -20,7 +21,7 @@ from app.utils.enums import (
     UserRole,
     UserStatus,
 )
-from app.utils.errors import bad_request, not_found
+from app.utils.errors import bad_request
 
 
 class VerificationCaseAssignmentService:
@@ -50,10 +51,20 @@ class VerificationCaseAssignmentService:
             customer_id=customer_id, verification_case_id=verification_case_id
         )
         if case is None:
-            raise not_found("Verification case")
+            deny_tenant_access(
+                self.db,
+                resource_type="verification_case",
+                resource_id=verification_case_id,
+                resource_name="Verification case",
+            )
         reviewer = self.repository.get_reviewer(reviewer_id)
         if reviewer is None:
-            raise not_found("Reviewer")
+            deny_tenant_access(
+                self.db,
+                resource_type="user",
+                resource_id=reviewer_id,
+                resource_name="Reviewer",
+            )
         if reviewer.role != UserRole.REVIEWER:
             raise bad_request("The selected user is not a reviewer.")
         if reviewer.status != UserStatus.ACTIVE:
@@ -109,7 +120,12 @@ class VerificationCaseAssignmentService:
             customer_id=customer_id, verification_case_id=verification_case_id
         )
         if case is None:
-            raise not_found("Verification case")
+            deny_tenant_access(
+                self.db,
+                resource_type="verification_case",
+                resource_id=verification_case_id,
+                resource_name="Verification case",
+            )
         return self.repository.get_history(verification_case_id=verification_case_id)
 
     def get_assigned_cases(self, reviewer_id: UUID) -> list[IdentityVerificationCase]:

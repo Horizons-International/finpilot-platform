@@ -19,6 +19,7 @@ from app.schemas.compliance_case import (
 from app.services.audit_service import AuditService
 from app.services.compliance_workflow import compliance_workflow_validator
 from app.services.notification_service import NotificationService
+from app.services.tenant_access_audit import deny_tenant_access
 from app.utils.date_time import utc_now
 from app.utils.enums import (
     AuditEventType,
@@ -72,7 +73,12 @@ class ComplianceService:
         )
 
         if user is None:
-            raise not_found("Assigned user")
+            deny_tenant_access(
+                self.db,
+                resource_type="user",
+                resource_id=user_id,
+                resource_name="Assigned user",
+            )
 
         return user
 
@@ -95,7 +101,12 @@ class ComplianceService:
         )
 
         if customer is None:
-            raise not_found("Customer")
+            deny_tenant_access(
+                self.db,
+                resource_type="customer",
+                resource_id=case_data.customer_id,
+                resource_name="Customer",
+            )
 
         if case_data.assigned_to is not None:
             assigned_user = self._get_tenant_user(case_data.assigned_to)
@@ -149,7 +160,12 @@ class ComplianceService:
         case = self.repository.get_by_id(case_id)
 
         if case is None:
-            raise not_found("Compliance case")
+            deny_tenant_access(
+                self.db,
+                resource_type="compliance_case",
+                resource_id=case_id,
+                resource_name="Compliance case",
+            )
 
         return case
 
@@ -167,7 +183,12 @@ class ComplianceService:
         )
 
         if customer is None:
-            raise not_found("Customer")
+            deny_tenant_access(
+                self.db,
+                resource_type="customer",
+                resource_id=customer_id,
+                resource_name="Customer",
+            )
 
         return self.repository.get_by_customer_id(customer_id)
 

@@ -14,10 +14,11 @@ from app.schemas.customer import (
 )
 from app.services.audit_service import AuditService
 from app.services.customer_audit_log_service import CustomerAuditLogService
+from app.services.tenant_access_audit import deny_tenant_access
 from app.utils.audit import serialize_audit_value
 from app.utils.constants import DEFAULT_PAGE, DEFAULT_PAGE_SIZE
 from app.utils.enums import AuditEventType, CustomerStatus
-from app.utils.errors import bad_request, not_found
+from app.utils.errors import bad_request
 from app.utils.pagination import validate_pagination
 
 ALLOWED_STATUS_TRANSITIONS = {
@@ -130,8 +131,13 @@ class CustomerService:
         customer_id: UUID,
     ) -> Customer:
         customer = self.repository.get_by_id(customer_id)
-        if not customer:
-            raise not_found("Customer")
+        if customer is None:
+            deny_tenant_access(
+                self.db,
+                resource_type="customer",
+                resource_id=customer_id,
+                resource_name="Customer",
+            )
         return customer
 
     def update_customer(
