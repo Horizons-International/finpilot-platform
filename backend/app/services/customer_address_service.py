@@ -4,20 +4,23 @@ from sqlalchemy.orm import Session
 
 from app.models.customer_address import CustomerAddress
 from app.repositories.customer_address_repository import CustomerAddressRepository
-from app.schemas.customer_address import (
-    CustomerAddressCreate,
-    CustomerAddressUpdate,
-)
+from app.schemas.customer_address import CustomerAddressCreate, CustomerAddressUpdate
 from app.services.customer_audit_log_service import CustomerAuditLogService
+from app.services.tenant_context import resolve_tenant_context
 from app.utils.audit import serialize_audit_value
 from app.utils.errors import not_found
 
 
 class CustomerAddressService:
-    def __init__(self, db: Session) -> None:
+    def __init__(self, db: Session, tenant_id: UUID | None = None) -> None:
         self.db = db
-        self.repository = CustomerAddressRepository(db)
-        self.customer_audit_service = CustomerAuditLogService(db)
+        self.tenant_id = resolve_tenant_context(
+            db, tenant_id, resource_name="customer addresses"
+        )
+        self.repository = CustomerAddressRepository(db, tenant_id=self.tenant_id)
+        self.customer_audit_service = CustomerAuditLogService(
+            db, tenant_id=self.tenant_id
+        )
 
     def create_address(
         self,
@@ -26,14 +29,11 @@ class CustomerAddressService:
         created_by: UUID,
     ) -> CustomerAddress:
         previous_primary: CustomerAddress | None = None
-
         if data.is_primary:
             previous_primary = self.repository.get_primary_by_customer_id(customer_id)
-
             if previous_primary:
                 previous_primary.is_primary = False
                 self.repository.update(previous_primary)
-
                 self.customer_audit_service.create_audit_log(
                     customer_id=customer_id,
                     user_id=created_by,
@@ -45,6 +45,7 @@ class CustomerAddressService:
                 )
 
         address = CustomerAddress(
+            tenant_id=self.tenant_id,
             customer_id=customer_id,
             address_line_1=data.address_line_1,
             address_line_2=data.address_line_2,
@@ -55,9 +56,7 @@ class CustomerAddressService:
             address_type=data.address_type,
             is_primary=data.is_primary,
         )
-
         address = self.repository.create(address)
-
         self.customer_audit_service.create_audit_log(
             customer_id=customer_id,
             user_id=created_by,
@@ -76,16 +75,11 @@ class CustomerAddressService:
                 "is_primary": serialize_audit_value(address.is_primary),
             },
         )
-
         self.db.commit()
         self.db.refresh(address)
-
         return address
 
-    def get_addresses(
-        self,
-        customer_id: UUID,
-    ) -> list[CustomerAddress]:
+    def get_addresses(self, customer_id: UUID) -> list[CustomerAddress]:
         return self.repository.get_by_customer_id(customer_id)
 
     def update_address(
@@ -96,46 +90,27 @@ class CustomerAddressService:
         updated_by: UUID,
     ) -> CustomerAddress:
         address = self.repository.get_by_id(address_id)
-
         if address is None or address.customer_id != customer_id:
             raise not_found("Customer address")
 
         update_data = data.model_dump(exclude_unset=True)
-
-        # Empty request: nothing to update.
         if not update_data:
             return address
 
         changed_fields: list[tuple[str, object | None, object | None]] = []
-
         for field, new_value in update_data.items():
             old_value = getattr(address, field)
-
-            if old_value == new_value:
-                continue
-
-            changed_fields.append(
-                (
-                    field,
-                    old_value,
-                    new_value,
-                )
-            )
-
+            if old_value != new_value:
+                changed_fields.append((field, old_value, new_value))
         if not changed_fields:
             return address
 
-        # If the address is being changed to primary,
-        # demote the current primary address first
         if update_data.get("is_primary") is True and not address.is_primary:
             existing_primary = self.repository.get_primary_by_customer_id(customer_id)
-
             if existing_primary and existing_primary.id != address.id:
                 old_primary_value = existing_primary.is_primary
-
                 existing_primary.is_primary = False
                 self.repository.update(existing_primary)
-
                 self.customer_audit_service.create_audit_log(
                     customer_id=customer_id,
                     user_id=updated_by,
@@ -148,9 +123,7 @@ class CustomerAddressService:
 
         for field, _, new_value in changed_fields:
             setattr(address, field, new_value)
-
         address = self.repository.update(address)
-
         for field, old_value, new_value in changed_fields:
             self.customer_audit_service.create_audit_log(
                 customer_id=customer_id,
@@ -161,10 +134,8 @@ class CustomerAddressService:
                 old_value=serialize_audit_value(old_value),
                 new_value=serialize_audit_value(new_value),
             )
-
         self.db.commit()
         self.db.refresh(address)
-
         return address
 
     def set_primary(
@@ -174,20 +145,15 @@ class CustomerAddressService:
         updated_by: UUID,
     ) -> CustomerAddress:
         address = self.repository.get_by_id(address_id)
-
         if address is None or address.customer_id != customer_id:
             raise not_found("Customer address")
-
-        # Nothing changed.
         if address.is_primary:
             return address
 
         existing_primary = self.repository.get_primary_by_customer_id(customer_id)
-
         if existing_primary and existing_primary.id != address.id:
             existing_primary.is_primary = False
             self.repository.update(existing_primary)
-
             self.customer_audit_service.create_audit_log(
                 customer_id=customer_id,
                 user_id=updated_by,
@@ -200,7 +166,6 @@ class CustomerAddressService:
 
         address.is_primary = True
         self.repository.update(address)
-
         self.customer_audit_service.create_audit_log(
             customer_id=customer_id,
             user_id=updated_by,
@@ -210,8 +175,6 @@ class CustomerAddressService:
             old_value=False,
             new_value=True,
         )
-
         self.db.commit()
         self.db.refresh(address)
-
         return address

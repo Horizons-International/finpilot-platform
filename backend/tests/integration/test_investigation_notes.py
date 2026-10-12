@@ -516,8 +516,10 @@ def test_investigation_note_creation_is_audited(
 
 def test_create_investigation_note_commits_and_audits():
     db = MagicMock()
-
-    service = InvestigationNoteService(db)
+    tenant_id = uuid.uuid4()
+    # resolve_tenant_context expects a normal session-info mapping even in unit tests.
+    db.info = {"tenant_id": tenant_id}
+    service = InvestigationNoteService(db, tenant_id=tenant_id)
 
     case_id = uuid.uuid4()
     customer_id = uuid.uuid4()
@@ -557,6 +559,7 @@ def test_create_investigation_note_commits_and_audits():
 
     assert created.case_id == case_id
     assert created.user_id == reviewer_id
+    assert created.tenant_id == tenant_id
     assert created.activity_type == InvestigationNoteType.ACTION
     assert created.note == ("Requested additional evidence.")
     assert created.attachment_reference == ("file-reference-123")

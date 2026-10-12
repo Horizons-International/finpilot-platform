@@ -26,34 +26,32 @@ router = APIRouter(
 )
 
 
-def _get_authenticated_user(
-    current_user: dict[str, Any],
-) -> tuple[UUID, str]:
+def _get_authenticated_user(current_user: dict[str, Any]) -> tuple[UUID, str]:
     raw_user_id = current_user["sub"]
-
     try:
         user_id = UUID(str(raw_user_id))
-    except (TypeError, ValueError):
-        raise unauthorized("Invalid authenticated user.")
+    except (TypeError, ValueError) as exc:
+        raise unauthorized("Invalid authenticated user.") from exc
 
     email = current_user["email"]
-
     if not isinstance(email, str) or not email:
-        raise unauthorized(
-            "Authenticated user email is missing.",
-        )
-
+        raise unauthorized("Authenticated user email is missing.")
     return user_id, email
 
 
-def _request_metadata(
-    request: Request,
-) -> tuple[str | None, str | None]:
+def _request_metadata(request: Request) -> tuple[str | None, str | None]:
     client_host = request.client.host if request.client is not None else None
+    return client_host, request.headers.get("user-agent")
 
-    user_agent = request.headers.get("user-agent")
 
-    return client_host, user_agent
+def _service_for_tenant(
+    db: Session,
+    current_user: dict[str, Any],
+) -> VerificationCaseAssignmentService:
+    return VerificationCaseAssignmentService(
+        db,
+        tenant_id=UUID(current_user["tenant_id"]),
+    )
 
 
 @router.patch(
@@ -62,9 +60,8 @@ def _request_metadata(
     status_code=status.HTTP_200_OK,
     summary="Assign a verification case",
     description=(
-        "Assign or reassign a verification case to an active "
-        "reviewer. Only administrators and compliance officers "
-        "can perform case assignments."
+        "Assign or reassign a verification case to an active reviewer. "
+        "Only administrators and compliance officers can perform assignments."
     ),
 )
 def assign_verification_case(
@@ -81,15 +78,9 @@ def assign_verification_case(
         )
     ),
 ) -> APIResponse[VerificationCaseAssignmentResponse]:
-    user_id, email = _get_authenticated_user(
-        current_user,
-    )
-
+    user_id, email = _get_authenticated_user(current_user)
     ip_address, user_agent = _request_metadata(request)
-
-    service = VerificationCaseAssignmentService(db)
-
-    history = service.assign_case(
+    history = _service_for_tenant(db, current_user).assign_case(
         customer_id=customer_id,
         verification_case_id=verification_case_id,
         reviewer_id=payload.assigned_to,
@@ -98,7 +89,6 @@ def assign_verification_case(
         ip_address=ip_address,
         user_agent=user_agent,
     )
-
     response = VerificationCaseAssignmentResponse(
         verification_case_id=history.verification_case_id,
         assigned_to=history.assigned_to,
@@ -106,7 +96,6 @@ def assign_verification_case(
         assigned_by=history.assigned_by,
         previous_reviewer=history.previous_reviewer,
     )
-
     return APIResponse(
         success=True,
         message="Verification case assigned successfully.",
@@ -115,15 +104,11 @@ def assign_verification_case(
 
 
 @router.get(
-    "/customers/{customer_id}/verification-cases/"
-    "{verification_case_id}/assignment-history",
+    "/customers/{customer_id}/verification-cases/{verification_case_id}/assignment-history",
     response_model=APIResponse[list[VerificationCaseAssignmentHistoryResponse]],
     status_code=status.HTTP_200_OK,
     summary="Get verification case assignment history",
-    description=(
-        "Return the complete assignment and reassignment "
-        "history for a verification case."
-    ),
+    description="Return assignment and reassignment history for a verification case.",
 )
 def get_verification_case_assignment_history(
     customer_id: UUID,
@@ -138,22 +123,17 @@ def get_verification_case_assignment_history(
         )
     ),
 ) -> APIResponse[list[VerificationCaseAssignmentHistoryResponse]]:
-    service = VerificationCaseAssignmentService(db)
-
-    history = service.get_assignment_history(
+    history = _service_for_tenant(db, current_user).get_assignment_history(
         customer_id=customer_id,
         verification_case_id=verification_case_id,
     )
-
-    response = [
-        VerificationCaseAssignmentHistoryResponse.model_validate(item)
-        for item in history
-    ]
-
     return APIResponse(
         success=True,
-        message=("Verification case assignment history retrieved successfully."),
-        data=response,
+        message="Verification case assignment history retrieved successfully.",
+        data=[
+            VerificationCaseAssignmentHistoryResponse.model_validate(item)
+            for item in history
+        ],
     )
 
 
@@ -162,9 +142,7 @@ def get_verification_case_assignment_history(
     response_model=APIResponse[AssignedVerificationCasesResponse],
     status_code=status.HTTP_200_OK,
     summary="Get assigned verification cases",
-    description=(
-        "Return verification cases currently assigned to the authenticated user."
-    ),
+    description="Return verification cases assigned to the authenticated user.",
 )
 def get_my_assigned_verification_cases(
     db: Session = Depends(get_db),
@@ -178,11 +156,7 @@ def get_my_assigned_verification_cases(
     ),
 ) -> APIResponse[AssignedVerificationCasesResponse]:
     user_id, _ = _get_authenticated_user(current_user)
-
-    service = VerificationCaseAssignmentService(db)
-
-    cases = service.get_assigned_cases(user_id)
-
+    cases = _service_for_tenant(db, current_user).get_assigned_cases(user_id)
     response_cases = [
         AssignedVerificationCaseResponse(
             verification_case_id=case.id,
@@ -199,16 +173,12 @@ def get_my_assigned_verification_cases(
         for case in cases
         if case.assigned_to is not None
     ]
-
-    response = AssignedVerificationCasesResponse(
-        total=len(response_cases),
-        cases=response_cases,
-    )
-
     return APIResponse(
         success=True,
         message="Assigned verification cases retrieved successfully.",
-        data=response,
+        data=AssignedVerificationCasesResponse(
+            total=len(response_cases), cases=response_cases
+        ),
     )
 
 
@@ -218,14 +188,13 @@ def get_my_assigned_verification_cases(
     status_code=status.HTTP_200_OK,
     summary="Get all assigned verification cases",
     description=(
-        "Return all currently assigned verification cases "
-        "for workload management. Only administrators and "
-        "compliance officers can access this endpoint."
+        "Return assigned verification cases for workload management. "
+        "Only administrators and compliance officers can access this endpoint."
     ),
 )
 def get_all_assigned_verification_cases(
     db: Session = Depends(get_db),
-    _: dict[str, Any] = Depends(
+    current_user: dict[str, Any] = Depends(
         require_roles(
             UserRole.ADMINISTRATOR,
             UserRole.COMPLIANCE_OFFICER,
@@ -233,10 +202,7 @@ def get_all_assigned_verification_cases(
         )
     ),
 ) -> APIResponse[AssignedVerificationCasesResponse]:
-    service = VerificationCaseAssignmentService(db)
-
-    cases = service.get_all_assigned_cases()
-
+    cases = _service_for_tenant(db, current_user).get_all_assigned_cases()
     response_cases = [
         AssignedVerificationCaseResponse(
             verification_case_id=case.id,
@@ -253,14 +219,10 @@ def get_all_assigned_verification_cases(
         for case in cases
         if case.assigned_to is not None
     ]
-
-    response = AssignedVerificationCasesResponse(
-        total=len(response_cases),
-        cases=response_cases,
-    )
-
     return APIResponse(
         success=True,
-        message=("Assigned verification cases retrieved successfully."),
-        data=response,
+        message="Assigned verification cases retrieved successfully.",
+        data=AssignedVerificationCasesResponse(
+            total=len(response_cases), cases=response_cases
+        ),
     )

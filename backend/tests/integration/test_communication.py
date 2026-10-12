@@ -34,11 +34,13 @@ class FailingSMSProvider(SMSProvider):
 def test_email_can_be_triggered(
     db_session,
     cleanup_communication_logs,
+    default_tenant_id,
 ):
     service = CommunicationService(
         db=db_session,
         email_provider=MockEmailProvider(),
         sms_provider=MockSMSProvider(),
+        tenant_id=default_tenant_id,
     )
 
     communication = service.send_email(
@@ -58,11 +60,13 @@ def test_email_can_be_triggered(
 def test_sms_can_be_triggered(
     db_session,
     cleanup_communication_logs,
+    default_tenant_id,
 ):
     service = CommunicationService(
         db=db_session,
         email_provider=MockEmailProvider(),
         sms_provider=MockSMSProvider(),
+        tenant_id=default_tenant_id,
     )
 
     communication = service.send_sms(
@@ -81,11 +85,13 @@ def test_sms_can_be_triggered(
 def test_communication_history_is_stored(
     db_session,
     cleanup_communication_logs,
+    default_tenant_id,
 ):
     service = CommunicationService(
         db=db_session,
         email_provider=MockEmailProvider(),
         sms_provider=MockSMSProvider(),
+        tenant_id=default_tenant_id,
     )
 
     communication = service.send_email(
@@ -113,11 +119,13 @@ def test_communication_history_is_stored(
 def test_failed_email_is_logged(
     db_session,
     cleanup_communication_logs,
+    default_tenant_id,
 ):
     service = CommunicationService(
         db=db_session,
         email_provider=FailingEmailProvider(),
         sms_provider=MockSMSProvider(),
+        tenant_id=default_tenant_id,
     )
 
     communication = service.send_email(
@@ -145,11 +153,13 @@ def test_failed_email_is_logged(
 def test_failed_sms_is_logged(
     db_session,
     cleanup_communication_logs,
+    default_tenant_id,
 ):
     service = CommunicationService(
         db=db_session,
         email_provider=MockEmailProvider(),
         sms_provider=FailingSMSProvider(),
+        tenant_id=default_tenant_id,
     )
 
     communication = service.send_sms(
@@ -165,11 +175,13 @@ def test_failed_sms_is_logged(
 def test_delivery_status_can_be_updated(
     db_session,
     cleanup_communication_logs,
+    default_tenant_id,
 ):
     service = CommunicationService(
         db=db_session,
         email_provider=MockEmailProvider(),
         sms_provider=MockSMSProvider(),
+        tenant_id=default_tenant_id,
     )
 
     communication = service.send_email(

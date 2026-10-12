@@ -4,15 +4,12 @@ from sqlalchemy.orm import Session
 
 from app.models.audit_log import AuditEventType
 from app.models.verification_review import VerificationReview
-from app.repositories.verification_case_repository import (
-    VerificationCaseRepository,
-)
-from app.repositories.verification_review_repository import (
-    VerificationReviewRepository,
-)
+from app.repositories.verification_case_repository import VerificationCaseRepository
+from app.repositories.verification_review_repository import VerificationReviewRepository
 from app.services.audit_service import AuditService
 from app.services.customer_audit_log_service import CustomerAuditLogService
 from app.services.notification_service import NotificationService
+from app.services.tenant_context import resolve_tenant_context
 from app.utils.date_time import utc_now
 from app.utils.enums import (
     NotificationChannel,
@@ -26,15 +23,20 @@ from app.utils.errors import bad_request, not_found
 class VerificationReviewService:
     def __init__(self, db: Session, tenant_id: UUID) -> None:
         self.db = db
-        self.tenant_id = tenant_id
-        self.verification_case_repository = VerificationCaseRepository(
-            db,
-            self.tenant_id,
+        self.tenant_id = resolve_tenant_context(
+            db, tenant_id, resource_name="verification reviews"
         )
-        self.customer_audit_log_service = CustomerAuditLogService(db)
-        self.review_repository = VerificationReviewRepository(db)
+        self.verification_case_repository = VerificationCaseRepository(
+            db, self.tenant_id
+        )
+        self.customer_audit_log_service = CustomerAuditLogService(
+            db, tenant_id=self.tenant_id
+        )
+        self.review_repository = VerificationReviewRepository(
+            db, tenant_id=self.tenant_id
+        )
         self.audit_service = AuditService(db)
-        self.notification_service = NotificationService(db)
+        self.notification_service = NotificationService(db, tenant_id=self.tenant_id)
 
     def start_review(
         self,
@@ -51,22 +53,17 @@ class VerificationReviewService:
             customer_id=customer_id,
             reviewer_id=reviewer_id,
         )
-
         if case is None:
             raise not_found("Verification case")
-
         if case.status != VerificationStatus.PENDING:
             raise bad_request(
                 "Verification case cannot be started for review in its current status."
             )
-
         old_status = case.status
         new_status = VerificationStatus.UNDER_REVIEW
-
         try:
             case.status = new_status
             self.verification_case_repository.update(case)
-
             self.audit_service.log_event(
                 event_type=AuditEventType.VERIFICATION_CASE_STATUS_CHANGED,
                 user_id=reviewer_id,
@@ -76,23 +73,16 @@ class VerificationReviewService:
                 resource_type="verification_case",
                 resource_id=verification_case_id,
             )
-
             self.customer_audit_log_service.create_audit_log(
                 customer_id=case.customer_id,
                 user_id=reviewer_id,
                 resource_type="verification_case",
                 resource_id=verification_case_id,
                 action="START VERIFICATION REVIEW",
-                old_value={
-                    "status": old_status.value,
-                },
-                new_value={
-                    "status": new_status.value,
-                },
+                old_value={"status": old_status.value},
+                new_value={"status": new_status.value},
             )
-
             self.db.commit()
-
         except Exception:
             self.db.rollback()
             raise
@@ -114,49 +104,35 @@ class VerificationReviewService:
             customer_id=customer_id,
             reviewer_id=reviewer_id,
         )
-
         if case is None:
             raise not_found("Verification case")
-
         if case.status != VerificationStatus.UNDER_REVIEW:
             raise bad_request(
                 "Verification case must be under review before a decision can be made."
             )
-
         if decision == ReviewDecision.APPROVE:
             new_status = VerificationStatus.APPROVED
-
         elif decision == ReviewDecision.REJECT:
             new_status = VerificationStatus.REJECTED
-
         elif decision == ReviewDecision.REQUEST_MORE_INFORMATION:
             new_status = VerificationStatus.PENDING
-
         else:
             raise bad_request("Invalid review decision.")
 
         old_status = case.status
-
         review = VerificationReview(
+            tenant_id=self.tenant_id,
             verification_case_id=verification_case_id,
             reviewer_id=reviewer_id,
             decision=decision,
             notes=notes,
         )
-
         try:
             self.review_repository.create(review)
-
             case.status = new_status
-
-            if new_status in {
-                VerificationStatus.APPROVED,
-                VerificationStatus.REJECTED,
-            }:
+            if new_status in {VerificationStatus.APPROVED, VerificationStatus.REJECTED}:
                 case.completed_at = utc_now()
-
             self.verification_case_repository.update(case)
-
             self.audit_service.log_event(
                 event_type=AuditEventType.VERIFICATION_CASE_STATUS_CHANGED,
                 user_id=reviewer_id,
@@ -166,40 +142,31 @@ class VerificationReviewService:
                 resource_type="verification_case",
                 resource_id=verification_case_id,
             )
-
             self.customer_audit_log_service.create_audit_log(
                 customer_id=case.customer_id,
                 user_id=reviewer_id,
                 resource_type="verification_case",
                 resource_id=verification_case_id,
                 action="REVIEW VERIFICATION CASE",
-                old_value={
-                    "status": old_status.value,
-                },
+                old_value={"status": old_status.value},
                 new_value={
                     "status": new_status.value,
                     "decision": decision.value,
                     "notes": notes,
                 },
             )
-
             self.notification_service.create_notification(
                 user_id=reviewer_id,
                 title="Verification completed",
-                message=(
-                    f"Your verification case has been {new_status.value.lower()}."
-                ),
+                message=f"Your verification case has been {new_status.value.lower()}.",
                 event_type=NotificationEventType.VERIFICATION_COMPLETED,
                 resource_type="verification_case",
                 resource_id=case.id,
                 channels=(NotificationChannel.IN_APP,),
             )
-
             self.db.commit()
             self.db.refresh(review)
-
             return review
-
         except Exception:
             self.db.rollback()
             raise

@@ -6,6 +6,8 @@ from app.utils.enums import CustomerRiskLevel
 
 
 class RiskScoreThresholdRepository(BaseRepository[RiskScoreThreshold]):
+    """Platform-wide risk thresholds (global table; no tenant_id column)."""
+
     def __init__(self, db: Session) -> None:
         super().__init__(db, RiskScoreThreshold)
 
@@ -13,9 +15,7 @@ class RiskScoreThresholdRepository(BaseRepository[RiskScoreThreshold]):
         return (
             self.db.query(RiskScoreThreshold)
             .filter(RiskScoreThreshold.is_active.is_(True))
-            .order_by(
-                RiskScoreThreshold.min_score.asc(),
-            )
+            .order_by(RiskScoreThreshold.min_score.asc())
             .all()
         )
 

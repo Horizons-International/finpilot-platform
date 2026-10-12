@@ -1,5 +1,6 @@
 from datetime import date, datetime, time, timedelta, timezone
 from typing import Any
+from uuid import UUID
 
 from sqlalchemy import and_, func, select
 from sqlalchemy.orm import Session
@@ -23,8 +24,14 @@ from app.utils.enums import (
 
 
 class DashboardRepository:
-    def __init__(self, db: Session) -> None:
+    def __init__(self, db: Session, tenant_id: UUID | None = None) -> None:
+        resolved_tenant_id = (
+            tenant_id if tenant_id is not None else db.info.get("tenant_id")
+        )
+        if not isinstance(resolved_tenant_id, UUID):
+            raise ValueError("A tenant context is required for dashboard metrics.")
         self.db = db
+        self.tenant_id = resolved_tenant_id
 
     @staticmethod
     def _date_range(
@@ -32,25 +39,17 @@ class DashboardRepository:
         end_date: date | None,
     ) -> tuple[datetime | None, datetime | None]:
         start_at = (
-            datetime.combine(
-                start_date,
-                time.min,
-                tzinfo=timezone.utc,
-            )
+            datetime.combine(start_date, time.min, tzinfo=timezone.utc)
             if start_date is not None
             else None
         )
-
         end_at = (
             datetime.combine(
-                end_date + timedelta(days=1),
-                time.min,
-                tzinfo=timezone.utc,
+                end_date + timedelta(days=1), time.min, tzinfo=timezone.utc
             )
             if end_date is not None
             else None
         )
-
         return start_at, end_at
 
     @staticmethod
@@ -62,7 +61,6 @@ class DashboardRepository:
     ) -> None:
         if start_at is not None:
             filters.append(column >= start_at)
-
         if end_at is not None:
             filters.append(column < end_at)
 
@@ -75,82 +73,40 @@ class DashboardRepository:
         user_role: UserRole | None = None,
         now: datetime | None = None,
     ) -> dict[str, int]:
-        start_at, end_at = self._date_range(
-            start_date,
-            end_date,
-        )
-
+        start_at, end_at = self._date_range(start_date, end_date)
         current_time = now or datetime.now(timezone.utc)
 
-        # ------------------------------------------------------------------
-        # Customer metrics
-        # ------------------------------------------------------------------
-
-        customer_filters: list[Any] = []
-
-        self._add_date_filters(
-            customer_filters,
-            Customer.created_at,
-            start_at,
-            end_at,
-        )
-
+        customer_filters: list[Any] = [Customer.tenant_id == self.tenant_id]
+        self._add_date_filters(customer_filters, Customer.created_at, start_at, end_at)
         if country is not None:
-            customer_filters.append(
-                Customer.country_of_residence == country,
-            )
+            customer_filters.append(Customer.country_of_residence == country)
 
         total_customers = self.db.execute(
-            select(func.count(Customer.id)).where(
-                *customer_filters,
-            )
+            select(func.count(Customer.id)).where(*customer_filters)
         ).scalar_one()
-
         new_registrations = self.db.execute(
-            select(func.count(Customer.id)).where(
-                *customer_filters,
-            )
+            select(func.count(Customer.id)).where(*customer_filters)
         ).scalar_one()
-
-        pending_verification_filters = [
-            *customer_filters,
-            Customer.status == CustomerStatus.PENDING_VERIFICATION,
-        ]
-
         pending_verification = self.db.execute(
             select(func.count(Customer.id)).where(
-                *pending_verification_filters,
+                *customer_filters,
+                Customer.status == CustomerStatus.PENDING_VERIFICATION,
             )
         ).scalar_one()
-
-        verified_filters = [
-            *customer_filters,
-            Customer.status == CustomerStatus.VERIFIED,
-        ]
-
         verified_customers = self.db.execute(
             select(func.count(Customer.id)).where(
-                *verified_filters,
+                *customer_filters,
+                Customer.status == CustomerStatus.VERIFIED,
             )
         ).scalar_one()
 
-        # ------------------------------------------------------------------
-        # Workflow metrics
-        # ------------------------------------------------------------------
-
-        workflow_filters: list[Any] = []
-
+        workflow_filters: list[Any] = [WorkflowExecution.tenant_id == self.tenant_id]
         self._add_date_filters(
-            workflow_filters,
-            WorkflowExecution.started_at,
-            start_at,
-            end_at,
+            workflow_filters, WorkflowExecution.started_at, start_at, end_at
         )
-
         workflow_query = select(func.count(WorkflowExecution.id)).select_from(
             WorkflowExecution
         )
-
         if country is not None:
             workflow_query = workflow_query.join(
                 Customer,
@@ -159,19 +115,18 @@ class DashboardRepository:
                     func.lower(WorkflowExecution.entity_type) == "customer",
                 ),
             )
-
-            workflow_filters.append(
-                Customer.country_of_residence == country,
+            workflow_filters.extend(
+                [
+                    Customer.tenant_id == self.tenant_id,
+                    Customer.country_of_residence == country,
+                ]
             )
-
         if user_role is not None:
             workflow_query = workflow_query.join(
-                User,
-                WorkflowExecution.started_by == User.id,
+                User, WorkflowExecution.started_by == User.id
             )
-
-            workflow_filters.append(
-                User.role == user_role,
+            workflow_filters.extend(
+                [User.tenant_id == self.tenant_id, User.role == user_role]
             )
 
         active_workflows = self.db.execute(
@@ -180,14 +135,12 @@ class DashboardRepository:
                 WorkflowExecution.status == WorkflowExecutionStatus.IN_PROGRESS,
             )
         ).scalar_one()
-
         completed_workflows = self.db.execute(
             workflow_query.where(
                 *workflow_filters,
                 WorkflowExecution.status == WorkflowExecutionStatus.COMPLETED,
             )
         ).scalar_one()
-
         failed_workflows = self.db.execute(
             workflow_query.where(
                 *workflow_filters,
@@ -195,21 +148,9 @@ class DashboardRepository:
             )
         ).scalar_one()
 
-        # ------------------------------------------------------------------
-        # Task metrics
-        # ------------------------------------------------------------------
-
-        task_filters: list[Any] = []
-
-        self._add_date_filters(
-            task_filters,
-            Task.created_at,
-            start_at,
-            end_at,
-        )
-
+        task_filters: list[Any] = [Task.tenant_id == self.tenant_id]
+        self._add_date_filters(task_filters, Task.created_at, start_at, end_at)
         task_query = select(func.count(Task.id)).select_from(Task)
-
         if country is not None:
             task_query = task_query.join(
                 WorkflowExecution,
@@ -221,19 +162,17 @@ class DashboardRepository:
                     func.lower(WorkflowExecution.entity_type) == "customer",
                 ),
             )
-
-            task_filters.append(
-                Customer.country_of_residence == country,
+            task_filters.extend(
+                [
+                    WorkflowExecution.tenant_id == self.tenant_id,
+                    Customer.tenant_id == self.tenant_id,
+                    Customer.country_of_residence == country,
+                ]
             )
-
         if user_role is not None:
-            task_query = task_query.join(
-                User,
-                Task.assigned_to == User.id,
-            )
-
-            task_filters.append(
-                User.role == user_role,
+            task_query = task_query.join(User, Task.assigned_to == User.id)
+            task_filters.extend(
+                [User.tenant_id == self.tenant_id, User.role == user_role]
             )
 
         open_task_statuses = (
@@ -241,21 +180,12 @@ class DashboardRepository:
             TaskStatus.ASSIGNED,
             TaskStatus.IN_PROGRESS,
         )
-
         open_tasks = self.db.execute(
-            task_query.where(
-                *task_filters,
-                Task.status.in_(open_task_statuses),
-            )
+            task_query.where(*task_filters, Task.status.in_(open_task_statuses))
         ).scalar_one()
-
         completed_tasks = self.db.execute(
-            task_query.where(
-                *task_filters,
-                Task.status == TaskStatus.COMPLETED,
-            )
+            task_query.where(*task_filters, Task.status == TaskStatus.COMPLETED)
         ).scalar_one()
-
         overdue_tasks = self.db.execute(
             task_query.where(
                 *task_filters,
@@ -265,41 +195,30 @@ class DashboardRepository:
             )
         ).scalar_one()
 
-        # ------------------------------------------------------------------
-        # Compliance metrics
-        # ------------------------------------------------------------------
-
-        compliance_filters: list[Any] = []
-
+        compliance_filters: list[Any] = [ComplianceCase.tenant_id == self.tenant_id]
         self._add_date_filters(
-            compliance_filters,
-            ComplianceCase.created_at,
-            start_at,
-            end_at,
+            compliance_filters, ComplianceCase.created_at, start_at, end_at
         )
-
         compliance_query = select(func.count(ComplianceCase.id)).select_from(
             ComplianceCase
         )
-
         if country is not None:
             compliance_query = compliance_query.join(
                 Customer,
                 ComplianceCase.customer_id == Customer.id,
             )
-
-            compliance_filters.append(
-                Customer.country_of_residence == country,
+            compliance_filters.extend(
+                [
+                    Customer.tenant_id == self.tenant_id,
+                    Customer.country_of_residence == country,
+                ]
             )
-
         if user_role is not None:
             compliance_query = compliance_query.join(
-                User,
-                ComplianceCase.assigned_to == User.id,
+                User, ComplianceCase.assigned_to == User.id
             )
-
-            compliance_filters.append(
-                User.role == user_role,
+            compliance_filters.extend(
+                [User.tenant_id == self.tenant_id, User.role == user_role]
             )
 
         open_case_statuses = (
@@ -308,97 +227,62 @@ class DashboardRepository:
             ComplianceCaseStatus.UNDER_REVIEW,
             ComplianceCaseStatus.ESCALATED,
         )
-
         open_cases = self.db.execute(
             compliance_query.where(
-                *compliance_filters,
-                ComplianceCase.status.in_(open_case_statuses),
+                *compliance_filters, ComplianceCase.status.in_(open_case_statuses)
             )
         ).scalar_one()
 
-        # ------------------------------------------------------------------
-        # High-risk customers
-        # ------------------------------------------------------------------
-
         risk_filters: list[Any] = [
+            Customer.tenant_id == self.tenant_id,
+            CustomerRiskProfile.tenant_id == self.tenant_id,
             CustomerRiskProfile.risk_level.in_(
-                (
-                    CustomerRiskLevel.HIGH,
-                    CustomerRiskLevel.CRITICAL,
-                )
-            )
+                (CustomerRiskLevel.HIGH, CustomerRiskLevel.CRITICAL)
+            ),
         ]
-
-        self._add_date_filters(
-            risk_filters,
-            Customer.created_at,
-            start_at,
-            end_at,
-        )
-
+        self._add_date_filters(risk_filters, Customer.created_at, start_at, end_at)
         risk_query = (
             select(func.count(Customer.id))
             .select_from(Customer)
-            .join(
-                CustomerRiskProfile,
-                CustomerRiskProfile.customer_id == Customer.id,
-            )
+            .join(CustomerRiskProfile, CustomerRiskProfile.customer_id == Customer.id)
         )
-
         if country is not None:
-            risk_filters.append(
-                Customer.country_of_residence == country,
-            )
-
+            risk_filters.append(Customer.country_of_residence == country)
         high_risk_customers = self.db.execute(
-            risk_query.where(
-                *risk_filters,
-            )
+            risk_query.where(*risk_filters)
         ).scalar_one()
 
-        # ------------------------------------------------------------------
-        # Pending verification reviews
-        # ------------------------------------------------------------------
-
         review_filters: list[Any] = [
+            IdentityVerificationCase.tenant_id == self.tenant_id,
             IdentityVerificationCase.status == VerificationStatus.UNDER_REVIEW,
         ]
-
         self._add_date_filters(
-            review_filters,
-            IdentityVerificationCase.created_at,
-            start_at,
-            end_at,
+            review_filters, IdentityVerificationCase.created_at, start_at, end_at
         )
-
         review_query = select(func.count(IdentityVerificationCase.id)).select_from(
             IdentityVerificationCase
         )
-
         if country is not None:
             review_query = review_query.join(
                 Customer,
                 IdentityVerificationCase.customer_id == Customer.id,
             )
-
-            review_filters.append(
-                Customer.country_of_residence == country,
+            review_filters.extend(
+                [
+                    Customer.tenant_id == self.tenant_id,
+                    Customer.country_of_residence == country,
+                ]
             )
-
         if user_role is not None:
             review_query = review_query.join(
                 User,
                 IdentityVerificationCase.assigned_to == User.id,
             )
-
-            review_filters.append(
-                User.role == user_role,
+            review_filters.extend(
+                [User.tenant_id == self.tenant_id, User.role == user_role]
             )
-
         pending_reviews = self.db.execute(
-            review_query.where(
-                *review_filters,
-            )
+            review_query.where(*review_filters)
         ).scalar_one()
 
         return {

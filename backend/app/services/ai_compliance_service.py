@@ -32,6 +32,7 @@ class AIComplianceService:
     def __init__(
         self,
         db: Session,
+        tenant_id: UUID,
         retrieval_service: RetrievalService | None = None,
     ) -> None:
         self.db = db
@@ -41,11 +42,15 @@ class AIComplianceService:
         self.context_service = AIContextService(
             db=db,
             retrieval_service=retrieval_service,
+            tenant_id=tenant_id,
         )
 
         self.prompt_loader = AIPromptLoader(db)
         self.retrieval_service = retrieval_service
-        self.usage_service = AIUsageService(db)
+        self.usage_service = AIUsageService(
+            db,
+            tenant_id,
+        )
 
         self.ai_service = AIService(
             provider=get_ai_provider(),

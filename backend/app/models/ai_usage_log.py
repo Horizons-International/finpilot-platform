@@ -12,9 +12,14 @@ class AIUsageLog(Base):
     __tablename__ = "ai_usage_logs"
 
     id: Mapped[UUID] = mapped_column(
+        PostgreSQLUUID(as_uuid=True), primary_key=True, default=uuid4
+    )
+
+    tenant_id: Mapped[UUID] = mapped_column(
         PostgreSQLUUID(as_uuid=True),
-        primary_key=True,
-        default=uuid4,
+        ForeignKey("tenants.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
     )
 
     user_id: Mapped[UUID] = mapped_column(
@@ -24,47 +29,22 @@ class AIUsageLog(Base):
         index=True,
     )
 
-    feature: Mapped[str] = mapped_column(
-        String(100),
-        nullable=False,
-        index=True,
-    )
+    feature: Mapped[str] = mapped_column(String(100), nullable=False, index=True)
 
-    model: Mapped[str] = mapped_column(
-        String(100),
-        nullable=False,
-    )
+    model: Mapped[str] = mapped_column(String(100), nullable=False)
 
-    input_tokens: Mapped[int] = mapped_column(
-        Integer,
-        nullable=False,
-        default=0,
-    )
+    input_tokens: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
 
-    output_tokens: Mapped[int] = mapped_column(
-        Integer,
-        nullable=False,
-        default=0,
-    )
+    output_tokens: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
 
-    response_time: Mapped[int] = mapped_column(
-        Integer,
-        nullable=False,
-    )
+    response_time: Mapped[int] = mapped_column(Integer, nullable=False)
 
-    error_message: Mapped[str | None] = mapped_column(
-        Text,
-        nullable=True,
-    )
+    error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True),
-        nullable=False,
-        server_default=func.now(),
-        index=True,
+        DateTime(timezone=True), nullable=False, server_default=func.now(), index=True
     )
 
-    user = relationship(
-        "User",
-        foreign_keys=[user_id],
-    )
+    user = relationship("User", foreign_keys=[user_id])
+
+    tenant = relationship("Tenant")

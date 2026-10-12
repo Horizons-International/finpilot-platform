@@ -20,6 +20,13 @@ class CustomerAuditLog(Base):
         default=uuid.uuid4,
     )
 
+    tenant_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("tenants.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+
     customer_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
         ForeignKey("customers.id"),
@@ -65,10 +72,6 @@ class CustomerAuditLog(Base):
         nullable=False,
     )
 
-    customer: Mapped[Customer] = relationship(
-        "Customer",
-    )
-
-    user: Mapped[User] = relationship(
-        "User",
-    )
+    customer: Mapped[Customer] = relationship("Customer")
+    user: Mapped[User] = relationship("User")
+    tenant = relationship("Tenant")

@@ -38,7 +38,7 @@ def create_customer_address(
             resource_type="customer",
         )
     ),
-):
+) -> APIResponse[CustomerAddressResponse]:
     service = CustomerAddressService(db)
 
     address = service.create_address(
@@ -64,19 +64,17 @@ def create_customer_address(
 def get_customer_addresses(
     customer_id: UUID,
     db: Session = Depends(get_db),
-    _: dict[str, Any] = Depends(
+    current_user: dict[str, Any] = Depends(
         require_roles(
             UserRole.ADMINISTRATOR,
             UserRole.COMPLIANCE_OFFICER,
             resource_type="customer",
         )
     ),
-):
+) -> APIResponse[list[CustomerAddressResponse]]:
     service = CustomerAddressService(db)
 
-    addresses = service.get_addresses(
-        customer_id=customer_id,
-    )
+    addresses = service.get_addresses(customer_id=customer_id)
 
     return APIResponse(
         success=True,
@@ -103,7 +101,7 @@ def update_customer_address(
             resource_type="customer",
         )
     ),
-):
+) -> APIResponse[CustomerAddressResponse]:
     service = CustomerAddressService(db)
 
     address = service.update_address(
@@ -137,7 +135,7 @@ def set_customer_address_primary(
             resource_type="customer",
         )
     ),
-):
+) -> APIResponse[CustomerAddressResponse]:
     service = CustomerAddressService(db)
 
     address = service.set_primary(

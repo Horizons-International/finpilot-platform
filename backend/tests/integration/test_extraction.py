@@ -337,6 +337,7 @@ def create_extraction_service(
 
 def test_extract_document_sends_ocr_text_to_provider(
     client,
+    db_session,
     create_test_user,
     cleanup_test_customers,
 ):

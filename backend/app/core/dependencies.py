@@ -57,6 +57,7 @@ from app.services.organization_user_service import (
 from app.services.report_export_service import (
     ReportExportService,
 )
+from app.services.report_service import ReportService
 from app.services.risk_prediction_service import (
     RiskPredictionService,
 )
@@ -164,15 +165,21 @@ def get_knowledge_indexing_service(
 
 
 def get_retrieval_service(
-    db: Session = Depends(get_db),
+    db: Session = Depends(get_db), current_user: User = Depends(get_current_user)
 ) -> RetrievalService:
-    return RetrievalService(db)
+    return RetrievalService(
+        db=db,
+        tenant_id=current_user.tenant_id,
+    )
 
 
 def get_ai_usage_service(
-    db: Session = Depends(get_db),
+    db: Session = Depends(get_db), current_user: User = Depends(get_current_user)
 ) -> AIUsageService:
-    return AIUsageService(db)
+    return AIUsageService(
+        db,
+        tenant_id=current_user.tenant_id,
+    )
 
 
 def get_compliance_service(
@@ -205,10 +212,12 @@ def get_ai_compliance_service(
     retrieval_service: RetrievalService = Depends(
         get_retrieval_service,
     ),
+    current_user: User = Depends(get_current_user),
 ) -> AIComplianceService:
     return AIComplianceService(
         db,
         retrieval_service=retrieval_service,
+        tenant_id=current_user.tenant_id,
     )
 
 
@@ -278,26 +287,36 @@ def get_task_assignment_service(
 
 def get_notification_service(
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ) -> NotificationService:
-    return NotificationService(db)
+    return NotificationService(
+        db,
+        tenant_id=current_user.tenant_id,
+    )
 
 
 def get_communication_service(
     db: Session = Depends(get_db),
     email_provider: EmailProvider = Depends(get_email_provider),
     sms_provider: SMSProvider = Depends(get_sms_provider),
+    current_user: User = Depends(get_current_user),
 ) -> CommunicationService:
     return CommunicationService(
         db=db,
         email_provider=email_provider,
         sms_provider=sms_provider,
+        tenant_id=current_user.tenant_id,
     )
 
 
 def get_dashboard_service(
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ) -> DashboardService:
-    return DashboardService(db)
+    return DashboardService(
+        db=db,
+        tenant_id=current_user.tenant_id,
+    )
 
 
 def get_system_configuration_service(
@@ -312,8 +331,12 @@ def get_system_configuration_service(
 
 def get_metric_service(
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ) -> MetricService:
-    return MetricService(db)
+    return MetricService(
+        db=db,
+        tenant_id=current_user.tenant_id,
+    )
 
 
 def get_executive_dashboard_service(
@@ -365,8 +388,12 @@ def get_ai_analytics_assistant_service(
 
 def get_risk_prediction_service(
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ) -> RiskPredictionService:
-    return RiskPredictionService(db)
+    return RiskPredictionService(
+        db=db,
+        tenant_id=current_user.tenant_id,
+    )
 
 
 def get_report_export_service(
@@ -377,6 +404,16 @@ def get_report_export_service(
     return ReportExportService(
         db=db,
         storage=storage,
+        tenant_id=current_user.tenant_id,
+    )
+
+
+def get_report_service(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> ReportService:
+    return ReportService(
+        db=db,
         tenant_id=current_user.tenant_id,
     )
 

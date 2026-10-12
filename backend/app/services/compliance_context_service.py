@@ -17,8 +17,16 @@ from app.utils.errors import bad_request, not_found
 
 
 class ComplianceContextService:
-    def __init__(self, db: Session) -> None:
-        self.repository = ComplianceContextRepository(db)
+    def __init__(
+        self,
+        db: Session,
+        tenant_id: UUID,
+    ) -> None:
+        self.tenant_id = tenant_id
+        self.repository = ComplianceContextRepository(
+            db,
+            self.tenant_id,
+        )
 
     def build_context(
         self,

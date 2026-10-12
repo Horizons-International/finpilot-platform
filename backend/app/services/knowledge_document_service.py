@@ -12,12 +12,13 @@ from app.schemas.knowledge_document import (
 )
 from app.services.audit_service import AuditService
 from app.services.file_service import FileService
+from app.services.tenant_access_audit import deny_tenant_access
 from app.utils.enums import (
     AuditEventType,
     KnowledgeDocumentCategory,
     KnowledgeDocumentStatus,
 )
-from app.utils.errors import bad_request, not_found
+from app.utils.errors import bad_request
 
 
 class KnowledgeDocumentService:
@@ -26,10 +27,18 @@ class KnowledgeDocumentService:
         db: Session,
         file_service: FileService,
         tenant_id: UUID,
+        *,
+        actor_user_id: UUID | None = None,
+        actor_email: str | None = None,
+        ip_address: str | None = None,
+        user_agent: str | None = None,
     ) -> None:
         self.db = db
         self.tenant_id = tenant_id
-
+        self.actor_user_id = actor_user_id
+        self.actor_email = actor_email
+        self.ip_address = ip_address
+        self.user_agent = user_agent
         self.repository = KnowledgeDocumentRepository(
             db=db,
             tenant_id=tenant_id,
@@ -128,11 +137,16 @@ class KnowledgeDocumentService:
         latest_document = self.repository.get_by_id(document_id)
 
         if latest_document is None:
-            self.audit_service.log_access_denied(
-                resource_type="customer_document",
+            deny_tenant_access(
+                self.db,
+                user_id=uploaded_by,
+                email=email,
+                ip_address=ip_address,
+                user_agent=user_agent,
+                resource_type="knowledge_customer",
                 resource_id=document_id,
+                resource_name="Knowledge Customer",
             )
-            raise not_found("Knowledge document")
 
         name = data.name.strip() if data.name else latest_document.name
 
@@ -210,11 +224,16 @@ class KnowledgeDocumentService:
         document = self.repository.get_by_id(document_id)
 
         if document is None:
-            self.audit_service.log_access_denied(
-                resource_type="customer_document",
+            deny_tenant_access(
+                self.db,
+                user_id=self.actor_user_id,
+                email=self.actor_email,
+                ip_address=self.ip_address,
+                user_agent=self.user_agent,
+                resource_type="knowledge_customer",
                 resource_id=document_id,
+                resource_name="Knowledge Customer",
             )
-            raise not_found("Knowledge document")
 
         return document
 
@@ -228,11 +247,16 @@ class KnowledgeDocumentService:
         document = self.repository.get_by_id(document_id)
 
         if document is None:
-            self.audit_service.log_access_denied(
-                resource_type="customer_document",
+            deny_tenant_access(
+                self.db,
+                user_id=self.actor_user_id,
+                email=self.actor_email,
+                ip_address=self.ip_address,
+                user_agent=self.user_agent,
+                resource_type="knowledge_customer",
                 resource_id=document_id,
+                resource_name="Knowledge Customer",
             )
-            raise not_found("Knowledge document")
 
         return self.repository.get_all_versions(
             document.name,
@@ -249,11 +273,16 @@ class KnowledgeDocumentService:
         document = self.repository.get_by_id(document_id)
 
         if document is None:
-            self.audit_service.log_access_denied(
-                resource_type="customer_document",
+            deny_tenant_access(
+                self.db,
+                user_id=self.actor_user_id,
+                email=self.actor_email,
+                ip_address=self.ip_address,
+                user_agent=self.user_agent,
+                resource_type="knowledge_customer",
                 resource_id=document_id,
+                resource_name="Knowledge Customer",
             )
-            raise not_found("Knowledge document")
 
         if document.status == KnowledgeDocumentStatus.ACTIVE:
             raise bad_request("The knowledge document is already active.")
@@ -298,11 +327,16 @@ class KnowledgeDocumentService:
         document = self.repository.get_by_id(document_id)
 
         if document is None:
-            self.audit_service.log_access_denied(
-                resource_type="customer_document",
+            deny_tenant_access(
+                self.db,
+                user_id=self.actor_user_id,
+                email=self.actor_email,
+                ip_address=self.ip_address,
+                user_agent=self.user_agent,
+                resource_type="knowledge_customer",
                 resource_id=document_id,
+                resource_name="Knowledge Customer",
             )
-            raise not_found("Knowledge document")
 
         if document.status == KnowledgeDocumentStatus.INACTIVE:
             raise bad_request("The knowledge document is already inactive.")

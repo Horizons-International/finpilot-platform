@@ -191,7 +191,7 @@ def test_workflow_execution_records_complete_audit_history(
         item for item in history if item["action"] == "WORKFLOW_STARTED"
     )
 
-    assert workflow_started["workflow_id"] == execution_id
+    assert workflow_started["workflow_execution_id"] == execution_id
     assert workflow_started["step_name"] == "Verification Review"
     assert workflow_started["old_status"] is None
     assert workflow_started["new_status"] == "IN_PROGRESS"
@@ -235,7 +235,7 @@ def test_workflow_execution_records_complete_audit_history(
 
     step_started = next(item for item in history if item["action"] == "STEP_STARTED")
 
-    assert step_started["workflow_id"] == execution_id
+    assert step_started["workflow_execution_id"] == execution_id
     assert step_started["step_name"] == "Compliance Review"
     assert step_started["old_status"] == WorkflowStepExecutionStatus.PENDING.value
     assert step_started["new_status"] == WorkflowStepExecutionStatus.IN_PROGRESS.value
@@ -246,7 +246,7 @@ def test_workflow_execution_records_complete_audit_history(
         item for item in history if item["action"] == "WORKFLOW_COMPLETED"
     )
 
-    assert workflow_completed["workflow_id"] == execution_id
+    assert workflow_completed["workflow_execution_id"] == execution_id
     assert workflow_completed["step_name"] == "Compliance Review"
     assert workflow_completed["old_status"] == WorkflowExecutionStatus.IN_PROGRESS.value
     assert workflow_completed["new_status"] == WorkflowExecutionStatus.COMPLETED.value
@@ -365,7 +365,7 @@ def test_workflow_cancellation_is_audited(
 
     skipped = next(item for item in history if item["action"] == "STEP_SKIPPED")
 
-    assert skipped["workflow_id"] == execution_id
+    assert skipped["workflow_execution_id"] == execution_id
     assert skipped["step_name"] == "Review Step"
     assert skipped["old_status"] == WorkflowStepExecutionStatus.IN_PROGRESS.value
     assert skipped["new_status"] == WorkflowStepExecutionStatus.SKIPPED.value
@@ -374,7 +374,7 @@ def test_workflow_cancellation_is_audited(
 
     cancelled = next(item for item in history if item["action"] == "WORKFLOW_CANCELLED")
 
-    assert cancelled["workflow_id"] == execution_id
+    assert cancelled["workflow_execution_id"] == execution_id
     assert cancelled["step_name"] == "Review Step"
     assert cancelled["old_status"] == WorkflowExecutionStatus.IN_PROGRESS.value
     assert cancelled["new_status"] == WorkflowExecutionStatus.CANCELLED.value
@@ -436,7 +436,7 @@ def test_workflow_failure_is_audited(
 
     step_failed = next(item for item in history if item["action"] == "STEP_FAILED")
 
-    assert step_failed["workflow_id"] == execution_id
+    assert step_failed["workflow_execution_id"] == execution_id
     assert step_failed["step_name"] == "Verification Provider"
     assert step_failed["old_status"] == WorkflowStepExecutionStatus.IN_PROGRESS.value
     assert step_failed["new_status"] == WorkflowStepExecutionStatus.FAILED.value
@@ -447,7 +447,7 @@ def test_workflow_failure_is_audited(
         item for item in history if item["action"] == "WORKFLOW_FAILED"
     )
 
-    assert workflow_failed["workflow_id"] == execution_id
+    assert workflow_failed["workflow_execution_id"] == execution_id
     assert workflow_failed["step_name"] == "Verification Provider"
     assert workflow_failed["old_status"] == WorkflowExecutionStatus.IN_PROGRESS.value
     assert workflow_failed["new_status"] == WorkflowExecutionStatus.FAILED.value

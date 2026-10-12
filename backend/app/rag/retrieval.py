@@ -1,3 +1,5 @@
+from uuid import UUID
+
 from sqlalchemy.orm import Session
 
 from app.rag.embeddings import EmbeddingService
@@ -16,9 +18,14 @@ class RetrievalService:
     def __init__(
         self,
         db: Session,
+        tenant_id: UUID | None = None,
         embedding_service: EmbeddingService | None = None,
     ) -> None:
-        self.repository = KnowledgeDocumentChunkRepository(db)
+        self.tenant_id = tenant_id
+        self.repository = KnowledgeDocumentChunkRepository(
+            db,
+            self.tenant_id,
+        )
         self.embedding_service = (
             embedding_service if embedding_service is not None else EmbeddingService()
         )

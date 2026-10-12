@@ -19,29 +19,42 @@ class CustomerContact(Base):
         primary_key=True,
         default=uuid.uuid4,
     )
+
+    tenant_id: Mapped[UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("tenants.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+
     customer_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
         ForeignKey("customers.id"),
         nullable=False,
     )
+
     phone_number: Mapped[str | None] = mapped_column(
         String(30),
         nullable=True,
     )
+
     email: Mapped[str | None] = mapped_column(
         String(255),
         nullable=True,
     )
+
     phone_verified: Mapped[bool] = mapped_column(
         Boolean,
         nullable=False,
         default=False,
     )
+
     email_verified: Mapped[bool] = mapped_column(
         Boolean,
         nullable=False,
         default=False,
     )
+
     preferred_contact_method: Mapped[PreferredContactMethod | None] = mapped_column(
         SQLAlchemyEnum(
             PreferredContactMethod,
@@ -49,6 +62,7 @@ class CustomerContact(Base):
         ),
         nullable=True,
     )
+
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         server_default=func.now(),

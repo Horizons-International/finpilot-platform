@@ -172,7 +172,7 @@ class WorkflowAuditLogResponse(BaseModel):
     )
 
     id: UUID
-    workflow_id: UUID
+    workflow_execution_id: UUID
     step_name: str | None
     action: str
     old_status: str | None

@@ -116,10 +116,21 @@ def client():
 
 
 @pytest.fixture
-def db_session():
-    db = TestSessionLocal()
+def db_session(request):
+    """
+    Give direct AI prompt-loader tests the same
+    explicit tenant context as API requests.
+    """
 
+    db = TestSessionLocal()
     try:
+        if request.module.__name__.endswith("test_ai_prompts"):
+            tenant = db.query(Tenant).filter(Tenant.code == "DEFAULT").first()
+            if tenant is None:
+                raise RuntimeError(
+                    "Default tenant is required for AI prompt-loader tests."
+                )
+            db.info["tenant_id"] = tenant.id
         yield db
     finally:
         db.close()
@@ -347,28 +358,34 @@ def cleanup_test_customers():
 
 
 @pytest.fixture
-def cleanup_ai_prompts():
+def cleanup_ai_prompts(default_tenant_id):
+    """Clean up test-created prompts within the default tenant only."""
     setup_db = TestSessionLocal()
-    repository = AIPromptRepository(setup_db)
-
-    existing_prompts = {prompt.id for prompt in repository.get_all()}
-
+    setup_db.info["tenant_id"] = default_tenant_id
+    repository = AIPromptRepository(setup_db, tenant_id=default_tenant_id)
+    existing_prompt_ids = {prompt.id for prompt in repository.get_all()}
     setup_db.close()
 
     yield
 
     db = TestSessionLocal()
-    repository = AIPromptRepository(db)
+    db.info["tenant_id"] = default_tenant_id
+    repository = AIPromptRepository(db, tenant_id=default_tenant_id)
 
     current_prompts = repository.get_all()
+    created_prompt_ids = {
+        prompt.id for prompt in current_prompts if prompt.id not in existing_prompt_ids
+    }
 
-    for prompt in current_prompts:
-        if prompt.id not in existing_prompts:
-            db.query(AIPromptAssignment).filter(
-                AIPromptAssignment.prompt_id == prompt.id
-            ).delete(synchronize_session=False)
+    if created_prompt_ids:
+        db.query(AIPromptAssignment).filter(
+            AIPromptAssignment.tenant_id == default_tenant_id,
+            AIPromptAssignment.prompt_id.in_(created_prompt_ids),
+        ).delete(synchronize_session=False)
 
-            repository.delete(prompt)
+        for prompt in current_prompts:
+            if prompt.id in created_prompt_ids:
+                repository.delete(prompt)
 
     db.commit()
     db.close()
@@ -949,38 +966,21 @@ def cleanup_workflow_audit_logs(db_session):
 
 @pytest.fixture
 def cleanup_analytics_snapshots(db_session):
-    existing_customer_dates = {
-        row.snapshot_date for row in db_session.query(CustomerAnalyticsDaily).all()
-    }
+    """Delete only new snapshots, using row identity rather than snapshot dates."""
 
-    existing_compliance_dates = {
-        row.snapshot_date for row in db_session.query(ComplianceAnalyticsDaily).all()
+    models = (
+        CustomerAnalyticsDaily,
+        ComplianceAnalyticsDaily,
+        OperationsAnalyticsDaily,
+    )
+    existing_ids = {
+        model: {row.id for row in db_session.query(model).all()} for model in models
     }
-
-    existing_operations_dates = {
-        row.snapshot_date for row in db_session.query(OperationsAnalyticsDaily).all()
-    }
-
     yield
-
-    current_customer_rows = db_session.query(CustomerAnalyticsDaily).all()
-
-    for row in current_customer_rows:
-        if row.snapshot_date not in existing_customer_dates:
-            db_session.delete(row)
-
-    current_compliance_rows = db_session.query(ComplianceAnalyticsDaily).all()
-
-    for row in current_compliance_rows:
-        if row.snapshot_date not in existing_compliance_dates:
-            db_session.delete(row)
-
-    current_operations_rows = db_session.query(OperationsAnalyticsDaily).all()
-
-    for row in current_operations_rows:
-        if row.snapshot_date not in existing_operations_dates:
-            db_session.delete(row)
-
+    for model in models:
+        for row in db_session.query(model).all():
+            if row.id not in existing_ids[model]:
+                db_session.delete(row)
     db_session.commit()
 
 

@@ -1,7 +1,9 @@
-import uuid
 from datetime import datetime, timezone
+from typing import cast
+from uuid import UUID, uuid4
 
 from app.models.aml_rule import AMLRule
+from app.models.customer import Customer
 from app.models.customer_risk_assessment_history import (
     CustomerRiskAssessmentHistory,
 )
@@ -26,6 +28,20 @@ from tests.helpers import (
 )
 
 
+def _customer_tenant_id(db_session, customer_id: UUID) -> UUID:
+
+    tenant_id = cast(
+        UUID | None,
+        db_session.query(Customer.tenant_id)
+        .filter(Customer.id == customer_id)
+        .scalar(),
+    )
+
+    assert tenant_id is not None
+
+    return tenant_id
+
+
 def test_compliance_cases_report_returns_case_metrics(
     client,
     db_session,
@@ -33,7 +49,7 @@ def test_compliance_cases_report_returns_case_metrics(
     cleanup_test_customers,
 ):
     manager = create_test_user(
-        email=(f"reports-case-manager-{uuid.uuid4()}@example.com"),
+        email=(f"reports-case-manager-{uuid4()}@example.com"),
         role=UserRole.ADMINISTRATOR,
     )
 
@@ -41,13 +57,13 @@ def test_compliance_cases_report_returns_case_metrics(
 
     customer_response = create_customer_with_data(
         client,
-        email=(f"reports-case-customer-{uuid.uuid4()}@example.com"),
+        email=(f"reports-case-customer-{uuid4()}@example.com"),
         country_of_residence="SD",
     )
 
     assert customer_response.status_code == 201
 
-    customer_id = uuid.UUID(customer_response.json()["data"]["id"])
+    customer_id = UUID(customer_response.json()["data"]["id"])
 
     first_case = create_verification_case(
         client,
@@ -60,19 +76,11 @@ def test_compliance_cases_report_returns_case_metrics(
         verification_type="ADDRESS",
     )
 
-    first_case_id = uuid.UUID(first_case["id"])
+    first_case_id = UUID(first_case["id"])
+    second_case_id = UUID(second_case["id"])
 
-    second_case_id = uuid.UUID(second_case["id"])
-
-    first = db_session.get(
-        IdentityVerificationCase,
-        first_case_id,
-    )
-
-    second = db_session.get(
-        IdentityVerificationCase,
-        second_case_id,
-    )
+    first = db_session.get(IdentityVerificationCase, first_case_id)
+    second = db_session.get(IdentityVerificationCase, second_case_id)
 
     assert first is not None
     assert second is not None
@@ -134,7 +142,7 @@ def test_compliance_cases_report_risk_filter_works(
     cleanup_test_customers,
 ):
     manager = create_test_user(
-        email=(f"reports-case-risk-manager-{uuid.uuid4()}@example.com"),
+        email=(f"reports-case-risk-manager-{uuid4()}@example.com"),
         role=UserRole.ADMINISTRATOR,
     )
 
@@ -142,19 +150,18 @@ def test_compliance_cases_report_risk_filter_works(
 
     customer_response = create_customer_with_data(
         client,
-        email=(f"reports-case-risk-customer-{uuid.uuid4()}@example.com"),
+        email=(f"reports-case-risk-customer-{uuid4()}@example.com"),
     )
 
     assert customer_response.status_code == 201
 
-    customer_id = uuid.UUID(customer_response.json()["data"]["id"])
+    customer_id = UUID(customer_response.json()["data"]["id"])
+    tenant_id = _customer_tenant_id(db_session, customer_id)
 
-    create_verification_case(
-        client,
-        str(customer_id),
-    )
+    create_verification_case(client, str(customer_id))
 
     profile = CustomerRiskProfile(
+        tenant_id=tenant_id,
         customer_id=customer_id,
         risk_level=CustomerRiskLevel.HIGH,
         risk_score=90,
@@ -169,16 +176,11 @@ def test_compliance_cases_report_risk_filter_works(
 
     response = client.get(
         "/api/v1/reports/compliance-cases",
-        params={
-            "risk_level": "HIGH",
-        },
+        params={"risk_level": "HIGH"},
     )
 
     assert response.status_code == 200
-
-    data = response.json()["data"]
-
-    assert data["total_cases"] == 1
+    assert response.json()["data"]["total_cases"] == 1
 
 
 def test_aml_alert_report_returns_matched_alerts(
@@ -190,7 +192,7 @@ def test_aml_alert_report_returns_matched_alerts(
     cleanup_transaction_monitoring_results,
 ):
     manager = create_test_user(
-        email=(f"reports-alert-manager-{uuid.uuid4()}@example.com"),
+        email=(f"reports-alert-manager-{uuid4()}@example.com"),
         role=UserRole.ADMINISTRATOR,
     )
 
@@ -198,15 +200,17 @@ def test_aml_alert_report_returns_matched_alerts(
 
     customer_response = create_customer_with_data(
         client,
-        email=(f"reports-alert-customer-{uuid.uuid4()}@example.com"),
+        email=(f"reports-alert-customer-{uuid4()}@example.com"),
         country_of_residence="SD",
     )
 
     assert customer_response.status_code == 201
 
-    customer_id = uuid.UUID(customer_response.json()["data"]["id"])
+    customer_id = UUID(customer_response.json()["data"]["id"])
+    tenant_id = _customer_tenant_id(db_session, customer_id)
 
     rule = AMLRule(
+        tenant_id=tenant_id,
         name="Large Transaction",
         description="Report test rule",
         rule_type=AMLRuleType.TRANSACTION,
@@ -224,7 +228,8 @@ def test_aml_alert_report_returns_matched_alerts(
 
     db_session.add(
         TransactionMonitoringResult(
-            transaction_id=uuid.uuid4(),
+            tenant_id=tenant_id,
+            transaction_id=uuid4(),
             customer_id=customer_id,
             rule_id=rule.id,
             country="SD",
@@ -242,7 +247,8 @@ def test_aml_alert_report_returns_matched_alerts(
 
     db_session.add(
         TransactionMonitoringResult(
-            transaction_id=uuid.uuid4(),
+            tenant_id=tenant_id,
+            transaction_id=uuid4(),
             customer_id=customer_id,
             rule_id=rule.id,
             country="SD",
@@ -274,24 +280,11 @@ def test_aml_alert_report_returns_matched_alerts(
     data = response.json()["data"]
 
     assert data["total_alerts"] == 1
-
-    assert data["alerts_by_severity"] == [
-        {
-            "severity": "HIGH",
-            "count": 1,
-        }
-    ]
-
+    assert data["alerts_by_severity"] == [{"severity": "HIGH", "count": 1}]
     assert len(data["alerts_by_rule"]) == 1
-    assert data["alerts_by_rule"][0]["rule_name"] == ("Large Transaction")
+    assert data["alerts_by_rule"][0]["rule_name"] == "Large Transaction"
     assert data["alerts_by_rule"][0]["count"] == 1
-
-    assert data["alert_status"] == [
-        {
-            "status": "OPEN",
-            "count": 1,
-        }
-    ]
+    assert data["alert_status"] == [{"status": "OPEN", "count": 1}]
 
 
 def test_customer_risk_report_returns_current_distribution(
@@ -302,7 +295,7 @@ def test_customer_risk_report_returns_current_distribution(
     cleanup_customer_risk_assessment_history,
 ):
     manager = create_test_user(
-        email=(f"reports-risk-manager-{uuid.uuid4()}@example.com"),
+        email=(f"reports-risk-manager-{uuid4()}@example.com"),
         role=UserRole.ADMINISTRATOR,
     )
 
@@ -310,15 +303,17 @@ def test_customer_risk_report_returns_current_distribution(
 
     customer_response = create_customer_with_data(
         client,
-        email=(f"reports-risk-customer-{uuid.uuid4()}@example.com"),
+        email=(f"reports-risk-customer-{uuid4()}@example.com"),
         country_of_residence="SD",
     )
 
     assert customer_response.status_code == 201
 
-    customer_id = uuid.UUID(customer_response.json()["data"]["id"])
+    customer_id = UUID(customer_response.json()["data"]["id"])
+    tenant_id = _customer_tenant_id(db_session, customer_id)
 
     profile = CustomerRiskProfile(
+        tenant_id=tenant_id,
         customer_id=customer_id,
         risk_level=CustomerRiskLevel.CRITICAL,
         risk_score=99,
@@ -340,6 +335,7 @@ def test_customer_risk_report_returns_current_distribution(
     db_session.add_all(
         [
             CustomerRiskAssessmentHistory(
+                tenant_id=tenant_id,
                 customer_id=customer_id,
                 risk_level=CustomerRiskLevel.MEDIUM,
                 risk_score=50,
@@ -355,6 +351,7 @@ def test_customer_risk_report_returns_current_distribution(
                 assessment_source="TEST",
             ),
             CustomerRiskAssessmentHistory(
+                tenant_id=tenant_id,
                 customer_id=customer_id,
                 risk_level=CustomerRiskLevel.HIGH,
                 risk_score=75,
@@ -370,6 +367,7 @@ def test_customer_risk_report_returns_current_distribution(
                 assessment_source="TEST",
             ),
             CustomerRiskAssessmentHistory(
+                tenant_id=tenant_id,
                 customer_id=customer_id,
                 risk_level=CustomerRiskLevel.CRITICAL,
                 risk_score=99,
@@ -413,11 +411,9 @@ def test_customer_risk_report_returns_current_distribution(
     changes = data["risk_changes_over_time"]
 
     assert len(changes) == 2
-
     assert changes[0]["previous_risk_level"] == "MEDIUM"
     assert changes[0]["new_risk_level"] == "HIGH"
     assert changes[0]["count"] == 1
-
     assert changes[1]["previous_risk_level"] == "HIGH"
     assert changes[1]["new_risk_level"] == "CRITICAL"
     assert changes[1]["count"] == 1
@@ -428,15 +424,13 @@ def test_auditor_cannot_access_compliance_reports(
     create_test_user,
 ):
     auditor = create_test_user(
-        email=(f"reports-auditor-{uuid.uuid4()}@example.com"),
+        email=(f"reports-auditor-{uuid4()}@example.com"),
         role=UserRole.AUDITOR,
     )
 
     authenticate_client(client, auditor)
 
-    response = client.get(
-        "/api/v1/reports/compliance-cases",
-    )
+    response = client.get("/api/v1/reports/compliance-cases")
 
     assert response.status_code == 403
 
@@ -446,15 +440,13 @@ def test_compliance_officer_can_access_compliance_reports(
     create_test_user,
 ):
     officer = create_test_user(
-        email=(f"reports-officer-{uuid.uuid4()}@example.com"),
+        email=(f"reports-officer-{uuid4()}@example.com"),
         role=UserRole.COMPLIANCE_OFFICER,
     )
 
     authenticate_client(client, officer)
 
-    response = client.get(
-        "/api/v1/reports/compliance-cases",
-    )
+    response = client.get("/api/v1/reports/compliance-cases")
 
     assert response.status_code == 200
 
@@ -464,7 +456,7 @@ def test_report_rejects_invalid_date_range(
     create_test_user,
 ):
     manager = create_test_user(
-        email=(f"reports-date-manager-{uuid.uuid4()}@example.com"),
+        email=(f"reports-date-manager-{uuid4()}@example.com"),
         role=UserRole.ADMINISTRATOR,
     )
 
@@ -489,7 +481,7 @@ def test_customer_risk_report_filter_by_risk_level(
     cleanup_customer_risk_assessment_history,
 ):
     manager = create_test_user(
-        email=(f"reports-risk-filter-manager-{uuid.uuid4()}@example.com"),
+        email=(f"reports-risk-filter-manager-{uuid4()}@example.com"),
         role=UserRole.ADMINISTRATOR,
     )
 
@@ -497,27 +489,30 @@ def test_customer_risk_report_filter_by_risk_level(
 
     first_customer_response = create_customer_with_data(
         client,
-        email=(f"reports-risk-filter-high-{uuid.uuid4()}@example.com"),
+        email=(f"reports-risk-filter-high-{uuid4()}@example.com"),
     )
 
     assert first_customer_response.status_code == 201
 
-    first_customer_id = uuid.UUID(first_customer_response.json()["data"]["id"])
+    first_customer_id = UUID(first_customer_response.json()["data"]["id"])
+    first_tenant_id = _customer_tenant_id(db_session, first_customer_id)
 
     second_customer_response = create_customer_with_data(
         client,
-        email=(f"reports-risk-filter-low-{uuid.uuid4()}@example.com"),
+        email=(f"reports-risk-filter-low-{uuid4()}@example.com"),
     )
 
     assert second_customer_response.status_code == 201
 
-    second_customer_id = uuid.UUID(second_customer_response.json()["data"]["id"])
+    second_customer_id = UUID(second_customer_response.json()["data"]["id"])
+    second_tenant_id = _customer_tenant_id(db_session, second_customer_id)
 
     now = datetime.now(timezone.utc)
 
     db_session.add_all(
         [
             CustomerRiskProfile(
+                tenant_id=first_tenant_id,
                 customer_id=first_customer_id,
                 risk_level=CustomerRiskLevel.HIGH,
                 risk_score=80,
@@ -526,6 +521,7 @@ def test_customer_risk_report_filter_by_risk_level(
                 assessment_source="TEST",
             ),
             CustomerRiskProfile(
+                tenant_id=second_tenant_id,
                 customer_id=second_customer_id,
                 risk_level=CustomerRiskLevel.LOW,
                 risk_score=10,
@@ -540,9 +536,7 @@ def test_customer_risk_report_filter_by_risk_level(
 
     response = client.get(
         "/api/v1/reports/customer-risk",
-        params={
-            "risk_level": "HIGH",
-        },
+        params={"risk_level": "HIGH"},
     )
 
     assert response.status_code == 200
@@ -553,8 +547,5 @@ def test_customer_risk_report_filter_by_risk_level(
         item["risk_level"]: item["count"] for item in data["customers_by_risk_level"]
     }
 
-    assert distribution == {
-        "HIGH": 1,
-    }
-
+    assert distribution == {"HIGH": 1}
     assert data["high_risk_customers"] == 1

@@ -48,7 +48,8 @@ def test_create_user(client, create_test_user, db_session):
     assert data["role"] == "Reviewer"
 
     # The endpoint-created user is not created by create_test_user,
-    # so explicitly remove it and its audit records.
+    # so explicitly remove it and its audit records from this tenant.
+    db_session.info["tenant_id"] = admin.tenant_id
     created_user = (
         db_session.query(User).filter(User.email == "new-user-test@example.com").first()
     )

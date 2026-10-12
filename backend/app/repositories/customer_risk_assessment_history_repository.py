@@ -1,50 +1,48 @@
 from uuid import UUID
 
-from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.models.customer import Customer
-from app.models.customer_risk_assessment_history import (
-    CustomerRiskAssessmentHistory,
-)
+from app.models.customer_risk_assessment_history import CustomerRiskAssessmentHistory
+from app.repositories.tenant_scoped_repository import TenantScopedRepository
 
 
-class CustomerRiskAssessmentHistoryRepository:
-    def __init__(
-        self,
-        db: Session,
-        tenant_id: UUID,
-    ) -> None:
-        self.db = db
-        self.tenant_id = tenant_id
+class CustomerRiskAssessmentHistoryRepository(
+    TenantScopedRepository[CustomerRiskAssessmentHistory]
+):
+    def __init__(self, db: Session, tenant_id: UUID) -> None:
+        super().__init__(db, CustomerRiskAssessmentHistory, tenant_id)
+
+    def _ensure_customer_belongs_to_tenant(self, customer_id: UUID) -> None:
+        customer_exists = (
+            self.db.query(Customer.id)
+            .filter(
+                Customer.id == customer_id,
+                Customer.tenant_id == self.tenant_id,
+            )
+            .first()
+        )
+        if customer_exists is None:
+            raise ValueError("The customer does not belong to the current tenant.")
 
     def create(
         self,
         history: CustomerRiskAssessmentHistory,
     ) -> CustomerRiskAssessmentHistory:
-        self.db.add(history)
-        self.db.flush()
-        self.db.refresh(history)
+        self._ensure_customer_belongs_to_tenant(history.customer_id)
+        return super().create(history)
 
-        return history
-
-    def get_by_customer(
+    def update(
         self,
-        customer_id: UUID,
-    ) -> list[CustomerRiskAssessmentHistory]:
-        statement = (
-            select(CustomerRiskAssessmentHistory)
-            .join(
-                Customer,
-                Customer.id == CustomerRiskAssessmentHistory.customer_id,
-            )
-            .where(
-                CustomerRiskAssessmentHistory.customer_id == customer_id,
-                Customer.tenant_id == self.tenant_id,
-            )
-            .order_by(
-                CustomerRiskAssessmentHistory.assessed_at.asc(),
-            )
-        )
+        history: CustomerRiskAssessmentHistory,
+    ) -> CustomerRiskAssessmentHistory:
+        self._ensure_customer_belongs_to_tenant(history.customer_id)
+        return super().update(history)
 
-        return list(self.db.scalars(statement).all())
+    def get_by_customer(self, customer_id: UUID) -> list[CustomerRiskAssessmentHistory]:
+        return (
+            self.query()
+            .filter(CustomerRiskAssessmentHistory.customer_id == customer_id)
+            .order_by(CustomerRiskAssessmentHistory.assessed_at.asc())
+            .all()
+        )

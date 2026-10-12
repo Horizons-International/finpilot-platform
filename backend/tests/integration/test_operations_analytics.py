@@ -160,6 +160,7 @@ def test_operations_performance_returns_accurate_metrics(
     db_session.flush()
 
     workflow_completed_1 = WorkflowExecution(
+        tenant_id=tenant.id,
         workflow_id=workflow.id,
         entity_type="CUSTOMER",
         entity_id=admin.id,
@@ -184,6 +185,7 @@ def test_operations_performance_returns_accurate_metrics(
     )
 
     workflow_completed_2 = WorkflowExecution(
+        tenant_id=tenant.id,
         workflow_id=workflow.id,
         entity_type="CUSTOMER",
         entity_id=reviewer.id,

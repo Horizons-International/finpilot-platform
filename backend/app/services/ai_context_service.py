@@ -28,9 +28,12 @@ class AIContextService:
     def __init__(
         self,
         db: Session,
+        tenant_id: UUID,
         retrieval_service: RetrievalService | None = None,
     ) -> None:
-        self.compliance_context_service = ComplianceContextService(db)
+        self.compliance_context_service = ComplianceContextService(
+            db=db, tenant_id=tenant_id
+        )
 
         self.rag_context_builder = RAGContextBuilder(
             retrieval_service=retrieval_service,

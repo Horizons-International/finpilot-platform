@@ -3,13 +3,12 @@ from uuid import uuid4
 
 import pytest
 
-from app.ai.prompts.compliance import (
-    build_compliance_prompt,
-)
+from app.ai.prompts.compliance import build_compliance_prompt
 from app.models.ai_interaction import AIInteraction
 from app.models.ai_prompt import AIPrompt
 from app.models.ai_prompt_assignment import AIPromptAssignment
 from app.models.ai_usage_log import AIUsageLog
+from app.models.user import User
 from app.schemas.rag import RetrievalResult
 from app.utils.enums import (
     AIFunction,
@@ -31,7 +30,6 @@ from tests.seed import seed_ai_prompts
 @pytest.fixture(autouse=True)
 def seed_ai_assistant_data():
     db = TestSessionLocal()
-
     try:
         seed_ai_prompts(db)
     finally:
@@ -46,7 +44,12 @@ def create_active_prompt(
     prompt_text: str,
     created_by,
 ):
+    # Direct ORM setup must assign the same tenant as the prompt creator.
+    tenant_id = db_session.query(User.tenant_id).filter(User.id == created_by).scalar()
+    assert tenant_id is not None
+
     prompt = AIPrompt(
+        tenant_id=tenant_id,
         name=name,
         purpose=purpose,
         prompt_text=prompt_text,
@@ -58,7 +61,6 @@ def create_active_prompt(
     db_session.add(prompt)
     db_session.commit()
     db_session.refresh(prompt)
-
     return prompt
 
 
@@ -68,7 +70,13 @@ def create_prompt_assignment(
     ai_function: AIFunction,
     prompt_id,
 ):
+    tenant_id = (
+        db_session.query(AIPrompt.tenant_id).filter(AIPrompt.id == prompt_id).scalar()
+    )
+    assert tenant_id is not None
+
     assignment = AIPromptAssignment(
+        tenant_id=tenant_id,
         ai_function=ai_function,
         prompt_id=prompt_id,
     )
@@ -76,7 +84,6 @@ def create_prompt_assignment(
     db_session.add(assignment)
     db_session.commit()
     db_session.refresh(assignment)
-
     return assignment
 
 
@@ -88,36 +95,20 @@ def test_compliance_officer_can_send_ai_request(
     cleanup_ai_data,
 ):
     admin = create_test_user(
-        email="officer-send@example.com",
-        role=UserRole.ADMINISTRATOR,
+        email="officer-send@example.com", role=UserRole.ADMINISTRATOR
     )
-
     authenticate_client(client, admin)
-
-    response = create_customer_with_data(
-        client,
-        first_name="Officer",
-    )
-
+    response = create_customer_with_data(client, first_name="Officer")
     customer_id = response.json()["data"]["id"]
-
     case = create_verification_case(client, customer_id)
-    case_id = case["id"]
 
     compliance_officer = create_test_user(
-        email="ai-compliance@example.com",
-        role=UserRole.COMPLIANCE_OFFICER,
+        email="ai-compliance@example.com", role=UserRole.COMPLIANCE_OFFICER
     )
-
     authenticate_client(client, compliance_officer)
-
-    fake_retrieval_service = FakeRetrievalService(
-        results=[],
-    )
-
+    fake_retrieval_service = FakeRetrievalService(results=[])
     with patch(
-        "app.core.dependencies.RetrievalService",
-        return_value=fake_retrieval_service,
+        "app.core.dependencies.RetrievalService", return_value=fake_retrieval_service
     ):
         response = client.post(
             "/api/v1/ai-assistant/ask",
@@ -125,14 +116,12 @@ def test_compliance_officer_can_send_ai_request(
                 "ai_function": "CASE_SUMMARY",
                 "question": "Summarize this compliance case.",
                 "customer_id": customer_id,
-                "verification_case_id": case_id,
+                "verification_case_id": case["id"],
             },
         )
 
     assert response.status_code == 201
-
     data = response.json()["data"]
-
     assert data["interaction_id"] is not None
     assert data["ai_function"] == "CASE_SUMMARY"
     assert data["prompt_id"] is not None
@@ -150,62 +139,39 @@ def test_ai_request_returns_structured_response(
     cleanup_ai_data,
 ):
     admin = create_test_user(
-        email="officer-send@example.com",
-        role=UserRole.ADMINISTRATOR,
+        email="officer-send@example.com", role=UserRole.ADMINISTRATOR
     )
-
     authenticate_client(client, admin)
-
-    response = create_customer_with_data(
-        client,
-        first_name="Officer",
-    )
-
+    response = create_customer_with_data(client, first_name="Officer")
     customer_id = response.json()["data"]["id"]
-
     case = create_verification_case(client, customer_id)
-    case_id = case["id"]
-
     compliance_officer = create_test_user(
-        email="ai-structured@example.com",
-        role=UserRole.COMPLIANCE_OFFICER,
+        email="ai-structured@example.com", role=UserRole.COMPLIANCE_OFFICER
     )
-
     authenticate_client(client, compliance_officer)
-
-    fake_retrieval_service = FakeRetrievalService(
-        results=[],
-    )
-
+    fake_retrieval_service = FakeRetrievalService(results=[])
     with patch(
-        "app.core.dependencies.RetrievalService",
-        return_value=fake_retrieval_service,
+        "app.core.dependencies.RetrievalService", return_value=fake_retrieval_service
     ):
         response = client.post(
             "/api/v1/ai-assistant/ask",
             json={
                 "ai_function": "CASE_SUMMARY",
                 "question": "Summarize this customer's verification status.",
-                "verification_case_id": case_id,
+                "verification_case_id": case["id"],
                 "document_id": customer_id,
             },
         )
 
     assert response.status_code == 201
-
-    data = response.json()["data"]
-
-    assert data["result"] is not None
-
-    result = data["result"]
-
+    result = response.json()["data"]["result"]
+    assert result is not None
     assert "summary" in result
     assert "customer_status" in result
     assert "missing_documents" in result
     assert "findings" in result
     assert "recommendation" in result
     assert "confidence" in result
-
     assert isinstance(result["summary"], str)
     assert isinstance(result["customer_status"], str)
     assert isinstance(result["missing_documents"], list)
@@ -223,60 +189,37 @@ def test_ai_request_is_logged(
     db_session,
 ):
     admin = create_test_user(
-        email="officer-send@example.com",
-        role=UserRole.ADMINISTRATOR,
+        email="officer-send@example.com", role=UserRole.ADMINISTRATOR
     )
-
     authenticate_client(client, admin)
-
-    response = create_customer_with_data(
-        client,
-        first_name="Officer",
-    )
-
+    response = create_customer_with_data(client, first_name="Officer")
     customer_id = response.json()["data"]["id"]
-
     case = create_verification_case(client, customer_id)
-    case_id = case["id"]
-
     compliance_officer = create_test_user(
-        email="ai-logged@example.com",
-        role=UserRole.COMPLIANCE_OFFICER,
+        email="ai-logged@example.com", role=UserRole.COMPLIANCE_OFFICER
     )
-
     authenticate_client(client, compliance_officer)
-
-    fake_retrieval_service = FakeRetrievalService(
-        results=[],
-    )
-
+    fake_retrieval_service = FakeRetrievalService(results=[])
     with patch(
-        "app.core.dependencies.RetrievalService",
-        return_value=fake_retrieval_service,
+        "app.core.dependencies.RetrievalService", return_value=fake_retrieval_service
     ):
         response = client.post(
             "/api/v1/ai-assistant/ask",
             json={
                 "ai_function": "CASE_SUMMARY",
                 "question": "Summarize this compliance case.",
-                "verification_case_id": case_id,
+                "verification_case_id": case["id"],
                 "document_id": customer_id,
             },
         )
 
     assert response.status_code == 201
-
     interaction_id = response.json()["data"]["interaction_id"]
-
-    interaction = db_session.get(
-        AIInteraction,
-        interaction_id,
-    )
-
+    interaction = db_session.get(AIInteraction, interaction_id)
     assert interaction is not None
     assert interaction.user_id == compliance_officer.id
     assert interaction.ai_function == AIFunction.CASE_SUMMARY
-    assert interaction.question == ("Summarize this compliance case.")
+    assert interaction.question == "Summarize this compliance case."
     assert interaction.status.value == "COMPLETED"
     assert interaction.response_text is not None
     assert interaction.response_data is not None
@@ -293,65 +236,37 @@ def test_ai_request_uses_assigned_prompt(
     db_session,
 ):
     admin = create_test_user(
-        email="officer-send@example.com",
-        role=UserRole.ADMINISTRATOR,
+        email="officer-send@example.com", role=UserRole.ADMINISTRATOR
     )
-
     authenticate_client(client, admin)
-
-    response = create_customer_with_data(
-        client,
-        first_name="Officer",
-    )
-
+    response = create_customer_with_data(client, first_name="Officer")
     customer_id = response.json()["data"]["id"]
-
     case = create_verification_case(client, customer_id)
-    case_id = case["id"]
-
     compliance_officer = create_test_user(
-        email="ai-prompt-user@example.com",
-        role=UserRole.COMPLIANCE_OFFICER,
+        email="ai-prompt-user@example.com", role=UserRole.COMPLIANCE_OFFICER
     )
-
     authenticate_client(client, compliance_officer)
-
-    fake_retrieval_service = FakeRetrievalService(
-        results=[],
-    )
-
+    fake_retrieval_service = FakeRetrievalService(results=[])
     with patch(
-        "app.core.dependencies.RetrievalService",
-        return_value=fake_retrieval_service,
+        "app.core.dependencies.RetrievalService", return_value=fake_retrieval_service
     ):
         response = client.post(
             "/api/v1/ai-assistant/ask",
             json={
                 "ai_function": "CASE_SUMMARY",
                 "question": "Summarize this case.",
-                "verification_case_id": case_id,
+                "verification_case_id": case["id"],
                 "customer_id": customer_id,
             },
         )
-
     assert response.status_code == 201
-
-    data = response.json()["data"]
-
-    interaction_id = data["interaction_id"]
-
     interaction = db_session.get(
-        AIInteraction,
-        interaction_id,
+        AIInteraction, response.json()["data"]["interaction_id"]
     )
-
     assert interaction is not None
 
 
-def test_ai_request_requires_authentication(
-    client,
-    cleanup_ai_prompts,
-):
+def test_ai_request_requires_authentication(client, cleanup_ai_prompts):
     response = client.post(
         "/api/v1/ai-assistant/ask",
         json={
@@ -359,17 +274,11 @@ def test_ai_request_requires_authentication(
             "question": "Summarize this compliance case.",
         },
     )
-
     assert response.status_code == 401
 
 
 @pytest.mark.parametrize(
-    "role",
-    [
-        UserRole.ADMINISTRATOR,
-        UserRole.COMPLIANCE_OFFICER,
-        UserRole.REVIEWER,
-    ],
+    "role", [UserRole.ADMINISTRATOR, UserRole.COMPLIANCE_OFFICER, UserRole.REVIEWER]
 )
 def test_ai_request_allowed_roles(
     client,
@@ -380,47 +289,29 @@ def test_ai_request_allowed_roles(
     role,
 ):
     admin = create_test_user(
-        email="officer-send@example.com",
-        role=UserRole.ADMINISTRATOR,
+        email="officer-send@example.com", role=UserRole.ADMINISTRATOR
     )
-
     authenticate_client(client, admin)
-
-    response = create_customer_with_data(
-        client,
-        first_name="Officer",
-    )
-
+    response = create_customer_with_data(client, first_name="Officer")
     customer_id = response.json()["data"]["id"]
-
     case = create_verification_case(client, customer_id)
-    case_id = case["id"]
-
     user = create_test_user(
-        email=(f"ai-role-{role.value.lower().replace(' ', '-')}@example.com"),
-        role=role,
+        email=f"ai-role-{role.value.lower().replace(' ', '-')}@example.com", role=role
     )
-
     authenticate_client(client, user)
-
-    fake_retrieval_service = FakeRetrievalService(
-        results=[],
-    )
-
+    fake_retrieval_service = FakeRetrievalService(results=[])
     with patch(
-        "app.core.dependencies.RetrievalService",
-        return_value=fake_retrieval_service,
+        "app.core.dependencies.RetrievalService", return_value=fake_retrieval_service
     ):
         response = client.post(
             "/api/v1/ai-assistant/ask",
             json={
                 "ai_function": "CASE_SUMMARY",
                 "question": "Summarize this compliance case.",
-                "verification_case_id": case_id,
+                "verification_case_id": case["id"],
                 "customer_id": customer_id,
             },
         )
-
     assert response.status_code == 201
 
 
@@ -431,39 +322,23 @@ def test_auditor_cannot_send_ai_request(
     cleanup_ai_prompts,
 ):
     admin = create_test_user(
-        email="officer-send@example.com",
-        role=UserRole.ADMINISTRATOR,
+        email="officer-send@example.com", role=UserRole.ADMINISTRATOR
     )
-
     authenticate_client(client, admin)
-
-    response = create_customer_with_data(
-        client,
-        first_name="Officer",
-    )
-
+    response = create_customer_with_data(client, first_name="Officer")
     customer_id = response.json()["data"]["id"]
-
     case = create_verification_case(client, customer_id)
-    case_id = case["id"]
-
-    auditor = create_test_user(
-        email="ai-auditor@example.com",
-        role=UserRole.AUDITOR,
-    )
-
+    auditor = create_test_user(email="ai-auditor@example.com", role=UserRole.AUDITOR)
     authenticate_client(client, auditor)
-
     response = client.post(
         "/api/v1/ai-assistant/ask",
         json={
             "ai_function": "CASE_SUMMARY",
             "question": "Summarize this compliance case.",
-            "verification_case_id": case_id,
+            "verification_case_id": case["id"],
             "customer_id": customer_id,
         },
     )
-
     assert response.status_code == 403
 
 
@@ -475,71 +350,42 @@ def test_ai_interaction_can_be_retrieved(
     cleanup_ai_data,
 ):
     admin = create_test_user(
-        email="officer-send@example.com",
-        role=UserRole.ADMINISTRATOR,
+        email="officer-send@example.com", role=UserRole.ADMINISTRATOR
     )
-
     authenticate_client(client, admin)
-
-    response = create_customer_with_data(
-        client,
-        first_name="Officer",
-    )
-
+    response = create_customer_with_data(client, first_name="Officer")
     customer_id = response.json()["data"]["id"]
-
     case = create_verification_case(client, customer_id)
-    case_id = case["id"]
-
     compliance_officer = create_test_user(
-        email="ai-retrieve@example.com",
-        role=UserRole.COMPLIANCE_OFFICER,
+        email="ai-retrieve@example.com", role=UserRole.COMPLIANCE_OFFICER
     )
-
     authenticate_client(client, compliance_officer)
-
-    fake_retrieval_service = FakeRetrievalService(
-        results=[],
-    )
-
+    fake_retrieval_service = FakeRetrievalService(results=[])
     with patch(
-        "app.core.dependencies.RetrievalService",
-        return_value=fake_retrieval_service,
+        "app.core.dependencies.RetrievalService", return_value=fake_retrieval_service
     ):
         create_response = client.post(
             "/api/v1/ai-assistant/ask",
             json={
                 "ai_function": "CASE_SUMMARY",
                 "question": "Summarize this compliance case.",
-                "verification_case_id": case_id,
+                "verification_case_id": case["id"],
                 "customer_id": customer_id,
             },
         )
-
     assert create_response.status_code == 201
-
     interaction_id = create_response.json()["data"]["interaction_id"]
-
-    fake_retrieval_service = FakeRetrievalService(
-        results=[],
-    )
-
+    fake_retrieval_service = FakeRetrievalService(results=[])
     with patch(
-        "app.core.dependencies.RetrievalService",
-        return_value=fake_retrieval_service,
+        "app.core.dependencies.RetrievalService", return_value=fake_retrieval_service
     ):
-        response = client.get(
-            f"/api/v1/ai-assistant/interactions/{interaction_id}",
-        )
-
+        response = client.get(f"/api/v1/ai-assistant/interactions/{interaction_id}")
     assert response.status_code == 200
-
     data = response.json()["data"]
-
     assert data["id"] == interaction_id
     assert data["user_id"] == str(compliance_officer.id)
     assert data["ai_function"] == "CASE_SUMMARY"
-    assert data["question"] == ("Summarize this compliance case.")
+    assert data["question"] == "Summarize this compliance case."
     assert data["status"] == "COMPLETED"
 
 
@@ -551,72 +397,41 @@ def test_ai_interaction_belongs_to_requesting_user(
     cleanup_ai_data,
 ):
     admin = create_test_user(
-        email="officer-send@example.com",
-        role=UserRole.ADMINISTRATOR,
+        email="officer-send@example.com", role=UserRole.ADMINISTRATOR
     )
-
     authenticate_client(client, admin)
-
-    response = create_customer_with_data(
-        client,
-        first_name="Officer",
-    )
-
+    response = create_customer_with_data(client, first_name="Officer")
     customer_id = response.json()["data"]["id"]
-
     case = create_verification_case(client, customer_id)
-    case_id = case["id"]
-
     first_user = create_test_user(
-        email="ai-owner-one@example.com",
-        role=UserRole.COMPLIANCE_OFFICER,
+        email="ai-owner-one@example.com", role=UserRole.COMPLIANCE_OFFICER
     )
-
     second_user = create_test_user(
-        email="ai-owner-two@example.com",
-        role=UserRole.COMPLIANCE_OFFICER,
+        email="ai-owner-two@example.com", role=UserRole.COMPLIANCE_OFFICER
     )
-
     authenticate_client(client, first_user)
-
-    fake_retrieval_service = FakeRetrievalService(
-        results=[],
-    )
-
+    fake_retrieval_service = FakeRetrievalService(results=[])
     with patch(
-        "app.core.dependencies.RetrievalService",
-        return_value=fake_retrieval_service,
+        "app.core.dependencies.RetrievalService", return_value=fake_retrieval_service
     ):
         create_response = client.post(
             "/api/v1/ai-assistant/ask",
             json={
                 "ai_function": "CASE_SUMMARY",
                 "question": "Summarize this compliance case.",
-                "verification_case_id": case_id,
+                "verification_case_id": case["id"],
                 "customer_id": customer_id,
             },
         )
-
     assert create_response.status_code == 201
-
     interaction_id = create_response.json()["data"]["interaction_id"]
-
     client.headers.pop("Authorization")
-
     authenticate_client(client, second_user)
-
-    fake_retrieval_service = FakeRetrievalService(
-        results=[],
-    )
-
+    fake_retrieval_service = FakeRetrievalService(results=[])
     with patch(
-        "app.core.dependencies.RetrievalService",
-        return_value=fake_retrieval_service,
+        "app.core.dependencies.RetrievalService", return_value=fake_retrieval_service
     ):
-        response = client.get(
-            f"/api/v1/ai-assistant/interactions/{interaction_id}",
-        )
-
+        response = client.get(f"/api/v1/ai-assistant/interactions/{interaction_id}")
     assert response.status_code == 400
 
 
@@ -628,37 +443,22 @@ def test_ai_request_with_customer_context(
     cleanup_ai_data,
 ):
     compliance_officer = create_test_user(
-        email="ai-customer-context@example.com",
-        role=UserRole.COMPLIANCE_OFFICER,
+        email="ai-customer-context@example.com", role=UserRole.COMPLIANCE_OFFICER
     )
-
     admin = create_test_user(
-        email="ai-customer-admin@example.com",
-        role=UserRole.ADMINISTRATOR,
+        email="ai-customer-admin@example.com", role=UserRole.ADMINISTRATOR
     )
-
     authenticate_client(client, admin)
-
     customer_response = create_customer_with_data(
-        client,
-        email="ai-context-customer@example.com",
+        client, email="ai-context-customer@example.com"
     )
-
     assert customer_response.status_code == 201
-
     customer_id = customer_response.json()["data"]["id"]
-
     client.headers.pop("Authorization")
-
     authenticate_client(client, compliance_officer)
-
-    fake_retrieval_service = FakeRetrievalService(
-        results=[],
-    )
-
+    fake_retrieval_service = FakeRetrievalService(results=[])
     with patch(
-        "app.core.dependencies.RetrievalService",
-        return_value=fake_retrieval_service,
+        "app.core.dependencies.RetrievalService", return_value=fake_retrieval_service
     ):
         response = client.post(
             "/api/v1/ai-assistant/ask",
@@ -668,11 +468,8 @@ def test_ai_request_with_customer_context(
                 "customer_id": customer_id,
             },
         )
-
     assert response.status_code == 201
-
     data = response.json()["data"]
-
     assert data["ai_function"] == "CUSTOMER_SUMMARY"
     assert data["interaction_id"] is not None
     assert data["result"] is not None
@@ -686,42 +483,23 @@ def test_ai_request_with_case_context(
     cleanup_ai_data,
 ):
     compliance_officer = create_test_user(
-        email="ai-case-context@example.com",
-        role=UserRole.COMPLIANCE_OFFICER,
+        email="ai-case-context@example.com", role=UserRole.COMPLIANCE_OFFICER
     )
-
     admin = create_test_user(
-        email="ai-case-admin@example.com",
-        role=UserRole.ADMINISTRATOR,
+        email="ai-case-admin@example.com", role=UserRole.ADMINISTRATOR
     )
-
     authenticate_client(client, admin)
-
     customer_response = create_customer_with_data(
-        client,
-        email="ai-case-customer@example.com",
+        client, email="ai-case-customer@example.com"
     )
-
     assert customer_response.status_code == 201
-
     customer_id = customer_response.json()["data"]["id"]
-
-    case = create_verification_case(
-        client,
-        customer_id,
-    )
-
+    case = create_verification_case(client, customer_id)
     client.headers.pop("Authorization")
-
     authenticate_client(client, compliance_officer)
-
-    fake_retrieval_service = FakeRetrievalService(
-        results=[],
-    )
-
+    fake_retrieval_service = FakeRetrievalService(results=[])
     with patch(
-        "app.core.dependencies.RetrievalService",
-        return_value=fake_retrieval_service,
+        "app.core.dependencies.RetrievalService", return_value=fake_retrieval_service
     ):
         response = client.post(
             "/api/v1/ai-assistant/ask",
@@ -732,11 +510,8 @@ def test_ai_request_with_case_context(
                 "verification_case_id": case["id"],
             },
         )
-
     assert response.status_code == 201
-
     data = response.json()["data"]
-
     assert data["ai_function"] == "CASE_SUMMARY"
     assert data["interaction_id"] is not None
     assert data["result"] is not None
@@ -751,34 +526,20 @@ def test_ai_request_includes_retrieved_knowledge_in_context(
     db_session,
 ):
     admin = create_test_user(
-        email="rag-ai-admin@example.com",
-        role=UserRole.ADMINISTRATOR,
+        email="rag-ai-admin@example.com", role=UserRole.ADMINISTRATOR
     )
-
-    authenticate_client(
-        client,
-        admin,
-    )
-
+    authenticate_client(client, admin)
     customer_response = create_customer_with_data(
-        client,
-        email="rag-ai-customer@example.com",
+        client, email="rag-ai-customer@example.com"
     )
-
     assert customer_response.status_code == 201
-
     customer_id = customer_response.json()["data"]["id"]
-
-    case = create_verification_case(
-        client,
-        customer_id,
-    )
-
+    case = create_verification_case(client, customer_id)
     retrieval_result = RetrievalResult(
         chunk_id=uuid4(),
         document_id=uuid4(),
-        document_name=("Customer Verification Policy"),
-        category=(KnowledgeDocumentCategory.COMPLIANCE_POLICY),
+        document_name="Customer Verification Policy",
+        category=KnowledgeDocumentCategory.COMPLIANCE_POLICY,
         version=2,
         content=(
             "Customers must provide a valid government-issued "
@@ -786,53 +547,33 @@ def test_ai_request_includes_retrieved_knowledge_in_context(
         ),
         similarity=0.94,
     )
-
-    fake_retrieval_service = FakeRetrievalService(
-        results=[retrieval_result],
-    )
-
+    fake_retrieval_service = FakeRetrievalService(results=[retrieval_result])
     with patch(
-        "app.core.dependencies.RetrievalService",
-        return_value=fake_retrieval_service,
+        "app.core.dependencies.RetrievalService", return_value=fake_retrieval_service
     ):
         response = client.post(
             "/api/v1/ai-assistant/ask",
             json={
                 "ai_function": "CASE_SUMMARY",
-                "question": ("What identity document is required?"),
+                "question": "What identity document is required?",
                 "customer_id": customer_id,
                 "verification_case_id": case["id"],
                 "retrieval_limit": 5,
             },
         )
-
     assert response.status_code == 201
-
-    interaction_id = response.json()["data"]["interaction_id"]
-
     interaction = db_session.get(
-        AIInteraction,
-        interaction_id,
+        AIInteraction, response.json()["data"]["interaction_id"]
     )
-
     assert interaction is not None
-
     assert "knowledge_base" in interaction.context
-
     knowledge_base = interaction.context["knowledge_base"]
-
-    assert knowledge_base["query"] == ("What identity document is required?")
-
+    assert knowledge_base["query"] == "What identity document is required?"
     assert len(knowledge_base["results"]) == 1
-
     result = knowledge_base["results"][0]
-
-    assert result["document_name"] == ("Customer Verification Policy")
-
+    assert result["document_name"] == "Customer Verification Policy"
     assert result["version"] == 2
-
     assert result["similarity"] == 0.94
-
     assert "government-issued" in result["content"]
 
 
@@ -844,37 +585,19 @@ def test_ai_request_passes_rag_options(
     cleanup_ai_data,
 ):
     admin = create_test_user(
-        email="rag-options@example.com",
-        role=UserRole.ADMINISTRATOR,
+        email="rag-options@example.com", role=UserRole.ADMINISTRATOR
     )
     user = create_test_user(
-        email="rag-options2@example.com",
-        role=UserRole.COMPLIANCE_OFFICER,
+        email="rag-options2@example.com", role=UserRole.COMPLIANCE_OFFICER
     )
-
-    authenticate_client(
-        client,
-        admin,
-    )
-
+    authenticate_client(client, admin)
     create_response = create_customer_with_data(client, name="edward")
-
     customer_id = create_response.json()["data"]["id"]
-
     retrieval_result = create_fake_retrieval_result()
-
-    fake_retrieval_service = FakeRetrievalService(
-        results=[retrieval_result],
-    )
-
-    authenticate_client(
-        client,
-        user,
-    )
-
+    fake_retrieval_service = FakeRetrievalService(results=[retrieval_result])
+    authenticate_client(client, user)
     with patch(
-        "app.core.dependencies.RetrievalService",
-        return_value=fake_retrieval_service,
+        "app.core.dependencies.RetrievalService", return_value=fake_retrieval_service
     ):
         response = client.post(
             "/api/v1/ai-assistant/ask",
@@ -882,20 +605,13 @@ def test_ai_request_passes_rag_options(
                 "ai_function": "CUSTOMER_SUMMARY",
                 "question": "What does our policy say?",
                 "customer_id": customer_id,
-                "knowledge_category": ("COMPLIANCE_POLICY"),
+                "knowledge_category": "COMPLIANCE_POLICY",
                 "retrieval_limit": 7,
             },
         )
-
-    assert response.status_code in {
-        201,
-        404,
-    }
-
-    assert fake_retrieval_service.last_query == ("What does our policy say?")
-
+    assert response.status_code in {201, 404}
+    assert fake_retrieval_service.last_query == "What does our policy say?"
     assert fake_retrieval_service.last_limit == 7
-
     assert (
         fake_retrieval_service.last_category
         == KnowledgeDocumentCategory.COMPLIANCE_POLICY
@@ -904,37 +620,29 @@ def test_ai_request_passes_rag_options(
 
 def test_compliance_prompt_contains_knowledge_context():
     context = {
-        "customer": {
-            "status": "pending_verification",
-        },
+        "customer": {"status": "pending_verification"},
         "knowledge_base": {
             "query": "What identity document is required?",
             "results": [
                 {
-                    "document_name": ("Customer Verification Policy"),
-                    "category": ("COMPLIANCE_POLICY"),
+                    "document_name": "Customer Verification Policy",
+                    "category": "COMPLIANCE_POLICY",
                     "version": 2,
-                    "content": ("A government-issued identity document is required."),
+                    "content": "A government-issued identity document is required.",
                     "similarity": 0.94,
                 }
             ],
         },
     }
-
     prompt = build_compliance_prompt(
         system_prompt="You are a compliance assistant.",
-        question=("What identity document is required?"),
+        question="What identity document is required?",
         context=context,
     )
-
     assert "Customer Verification Policy" in prompt
-
     assert "government-issued identity document" in prompt
-
     assert "COMPLIANCE_POLICY" in prompt
-
     assert "version" in prompt
-
     assert "0.94" in prompt
 
 
@@ -945,51 +653,31 @@ def test_ai_request_works_when_no_knowledge_is_retrieved(
     cleanup_ai_prompts,
     cleanup_ai_data,
 ):
-    admin = create_test_user(
-        email="rag-empty@example.com",
-        role=UserRole.ADMINISTRATOR,
-    )
-
+    admin = create_test_user(email="rag-empty@example.com", role=UserRole.ADMINISTRATOR)
     user = create_test_user(
-        email="rag-empty2@example.com",
-        role=UserRole.COMPLIANCE_OFFICER,
+        email="rag-empty2@example.com", role=UserRole.COMPLIANCE_OFFICER
     )
-
     authenticate_client(client, admin)
-
     customer_response = create_customer_with_data(
-        client,
-        email="rag-empty-customer@example.com",
+        client, email="rag-empty-customer@example.com"
     )
-
     assert customer_response.status_code == 201
-
     customer_id = customer_response.json()["data"]["id"]
-
-    fake_retrieval_service = FakeRetrievalService(
-        results=[],
-    )
-
+    fake_retrieval_service = FakeRetrievalService(results=[])
     authenticate_client(client, user)
-
     with patch(
-        "app.core.dependencies.RetrievalService",
-        return_value=fake_retrieval_service,
+        "app.core.dependencies.RetrievalService", return_value=fake_retrieval_service
     ):
         response = client.post(
             "/api/v1/ai-assistant/ask",
             json={
                 "ai_function": "CUSTOMER_SUMMARY",
-                "question": ("Summarize this customer."),
+                "question": "Summarize this customer.",
                 "customer_id": customer_id,
             },
         )
-
     assert response.status_code == 201
-
-    data = response.json()["data"]
-
-    assert data["status"] == "COMPLETED"
+    assert response.json()["data"]["status"] == "COMPLETED"
 
 
 def test_ai_request_creates_usage_log(
@@ -1001,31 +689,16 @@ def test_ai_request_creates_usage_log(
     db_session,
 ):
     admin = create_test_user(
-        email="usage-admin@example.com",
-        role=UserRole.ADMINISTRATOR,
+        email="usage-admin@example.com", role=UserRole.ADMINISTRATOR
     )
-
     authenticate_client(client, admin)
-
-    customer_response = create_customer_with_data(
-        client,
-        name="usage-customer",
-    )
-
+    customer_response = create_customer_with_data(client, name="usage-customer")
     assert customer_response.status_code == 201
-
     customer_id = customer_response.json()["data"]["id"]
-
     case = create_verification_case(client, customer_id)
-    case_id = case["id"]
-
-    fake_retrieval_service = FakeRetrievalService(
-        results=[],
-    )
-
+    fake_retrieval_service = FakeRetrievalService(results=[])
     with patch(
-        "app.core.dependencies.RetrievalService",
-        return_value=fake_retrieval_service,
+        "app.core.dependencies.RetrievalService", return_value=fake_retrieval_service
     ):
         response = client.post(
             "/api/v1/ai-assistant/ask",
@@ -1033,22 +706,18 @@ def test_ai_request_creates_usage_log(
                 "ai_function": "CUSTOMER_SUMMARY",
                 "question": "Summarize this customer.",
                 "customer_id": customer_id,
-                "verification_case_id": case_id,
+                "verification_case_id": case["id"],
             },
         )
-
     assert response.status_code == 201
-
     usage_log = (
         db_session.query(AIUsageLog)
         .filter(
-            AIUsageLog.user_id == admin.id,
-            AIUsageLog.feature == "CUSTOMER_SUMMARY",
+            AIUsageLog.user_id == admin.id, AIUsageLog.feature == "CUSTOMER_SUMMARY"
         )
         .order_by(AIUsageLog.created_at.desc())
         .first()
     )
-
     assert usage_log is not None
     assert usage_log.input_tokens >= 0
     assert usage_log.output_tokens >= 0
@@ -1065,31 +734,16 @@ def test_ai_request_creates_one_usage_log(
     db_session,
 ):
     admin = create_test_user(
-        email="usage-single@example.com",
-        role=UserRole.ADMINISTRATOR,
+        email="usage-single@example.com", role=UserRole.ADMINISTRATOR
     )
-
     authenticate_client(client, admin)
-
-    customer_response = create_customer_with_data(
-        client,
-        name="usage-single-customer",
-    )
-
+    customer_response = create_customer_with_data(client, name="usage-single-customer")
     assert customer_response.status_code == 201
-
     customer_id = customer_response.json()["data"]["id"]
-
     case = create_verification_case(client, customer_id)
-    case_id = case["id"]
-
-    fake_retrieval_service = FakeRetrievalService(
-        results=[],
-    )
-
+    fake_retrieval_service = FakeRetrievalService(results=[])
     with patch(
-        "app.core.dependencies.RetrievalService",
-        return_value=fake_retrieval_service,
+        "app.core.dependencies.RetrievalService", return_value=fake_retrieval_service
     ):
         response = client.post(
             "/api/v1/ai-assistant/ask",
@@ -1097,21 +751,17 @@ def test_ai_request_creates_one_usage_log(
                 "ai_function": "CUSTOMER_SUMMARY",
                 "question": "Summarize this customer.",
                 "customer_id": customer_id,
-                "verification_case_id": case_id,
+                "verification_case_id": case["id"],
             },
         )
-
     assert response.status_code == 201
-
     usage_logs = (
         db_session.query(AIUsageLog)
         .filter(
-            AIUsageLog.user_id == admin.id,
-            AIUsageLog.feature == "CUSTOMER_SUMMARY",
+            AIUsageLog.user_id == admin.id, AIUsageLog.feature == "CUSTOMER_SUMMARY"
         )
         .all()
     )
-
     assert len(usage_logs) == 1
 
 
@@ -1124,28 +774,14 @@ def test_failed_ai_request_creates_usage_log(
     db_session,
 ):
     admin = create_test_user(
-        email="usage-failure@example.com",
-        role=UserRole.ADMINISTRATOR,
+        email="usage-failure@example.com", role=UserRole.ADMINISTRATOR
     )
-
     authenticate_client(client, admin)
-
-    customer_response = create_customer_with_data(
-        client,
-        name="usage-failure-customer",
-    )
-
+    customer_response = create_customer_with_data(client, name="usage-failure-customer")
     assert customer_response.status_code == 201
-
     customer_id = customer_response.json()["data"]["id"]
-
     case = create_verification_case(client, customer_id)
-    case_id = case["id"]
-
-    fake_retrieval_service = FakeRetrievalService(
-        results=[],
-    )
-
+    fake_retrieval_service = FakeRetrievalService(results=[])
     with (
         patch(
             "app.core.dependencies.RetrievalService",
@@ -1163,20 +799,17 @@ def test_failed_ai_request_creates_usage_log(
                     "ai_function": "CUSTOMER_SUMMARY",
                     "question": "Summarize this customer.",
                     "customer_id": customer_id,
-                    "verification_case_id": case_id,
+                    "verification_case_id": case["id"],
                 },
             )
-
     usage_log = (
         db_session.query(AIUsageLog)
         .filter(
-            AIUsageLog.user_id == admin.id,
-            AIUsageLog.feature == "CUSTOMER_SUMMARY",
+            AIUsageLog.user_id == admin.id, AIUsageLog.feature == "CUSTOMER_SUMMARY"
         )
         .order_by(AIUsageLog.created_at.desc())
         .first()
     )
-
     assert usage_log is not None
     assert usage_log.input_tokens == 0
     assert usage_log.output_tokens == 0

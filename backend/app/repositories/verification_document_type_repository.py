@@ -7,23 +7,19 @@ from app.repositories.base_repository import BaseRepository
 
 
 class VerificationDocumentTypeRepository(BaseRepository[VerificationDocumentType]):
+    """Repository for shared, platform-wide verification document type catalog."""
+
     def __init__(self, db: Session) -> None:
         super().__init__(db, VerificationDocumentType)
 
-    def get_by_id(
-        self,
-        document_type_id: UUID,
-    ) -> VerificationDocumentType | None:
+    def get_by_id(self, document_type_id: UUID) -> VerificationDocumentType | None:
         return (
             self.db.query(VerificationDocumentType)
             .filter(VerificationDocumentType.id == document_type_id)
             .first()
         )
 
-    def get_by_name(
-        self,
-        name: str,
-    ) -> VerificationDocumentType | None:
+    def get_by_name(self, name: str) -> VerificationDocumentType | None:
         return (
             self.db.query(VerificationDocumentType)
             .filter(VerificationDocumentType.name == name)

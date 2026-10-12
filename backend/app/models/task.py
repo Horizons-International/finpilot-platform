@@ -181,6 +181,13 @@ class TaskStatusHistory(Base):
         default=uuid.uuid4,
     )
 
+    tenant_id: Mapped[UUID] = mapped_column(
+        PostgreSQLUUID(as_uuid=True),
+        ForeignKey("tenants.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+
     task_id: Mapped[UUID] = mapped_column(
         PostgreSQLUUID(as_uuid=True),
         ForeignKey(
@@ -236,6 +243,8 @@ class TaskStatusHistory(Base):
         foreign_keys=[changed_by],
     )
 
+    tenant = relationship("Tenant")
+
 
 class TaskComment(Base):
     __tablename__ = "task_comments"
@@ -244,6 +253,13 @@ class TaskComment(Base):
         PostgreSQLUUID(as_uuid=True),
         primary_key=True,
         default=uuid.uuid4,
+    )
+
+    tenant_id: Mapped[UUID] = mapped_column(
+        PostgreSQLUUID(as_uuid=True),
+        ForeignKey("tenants.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
     )
 
     task_id: Mapped[UUID] = mapped_column(
@@ -287,3 +303,5 @@ class TaskComment(Base):
         "User",
         foreign_keys=[author_id],
     )
+
+    tenant = relationship("Tenant")

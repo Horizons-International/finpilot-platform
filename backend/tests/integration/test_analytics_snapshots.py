@@ -9,9 +9,7 @@ from app.models.aml_rule import AMLRule
 from app.models.compliance_case import ComplianceCase
 from app.models.customer_risk_profile import CustomerRiskProfile
 from app.models.task import Task
-from app.models.transaction_monitoring_result import (
-    TransactionMonitoringResult,
-)
+from app.models.transaction_monitoring_result import TransactionMonitoringResult
 from app.models.workflow import Workflow, WorkflowExecution
 from app.utils.enums import (
     AMLRuleSeverity,
@@ -44,45 +42,33 @@ def test_capture_snapshot_creates_customer_compliance_and_operations_rows(
     cleanup_workflows,
     cleanup_analytics_snapshots,
 ):
+    tenant = create_test_tenant(
+        name="Tenant B", code=f"TENANT-B-{uuid4().hex[:6].upper()}"
+    )
     admin = create_test_user(
         role=UserRole.ADMINISTRATOR,
         email="analytics-admin@example.com",
+        tenant_id=tenant.id,
     )
-
-    tenant = create_test_tenant(
-        name="Tenant B",
-        code=f"TENANT-B-{uuid4().hex[:6].upper()}",
-    )
-
-    as_of = datetime(
-        2026,
-        10,
-        4,
-        12,
-        0,
-        tzinfo=timezone.utc,
-    )
-
+    as_of = datetime(2026, 10, 4, 12, 0, tzinfo=timezone.utc)
     old_customer = create_test_customer(
         status=CustomerStatus.VERIFIED,
         created_at=as_of - timedelta(days=10),
         tenant_id=tenant.id,
     )
-
     new_customer = create_test_customer(
         status=CustomerStatus.PENDING_VERIFICATION,
         created_at=as_of - timedelta(hours=1),
         tenant_id=tenant.id,
     )
-
     risk_customer = create_test_customer(
         status=CustomerStatus.VERIFIED,
         created_at=as_of - timedelta(hours=2),
         tenant_id=tenant.id,
     )
-
     db_session.add(
         CustomerRiskProfile(
+            tenant_id=tenant.id,
             customer_id=risk_customer.id,
             risk_level=CustomerRiskLevel.HIGH,
             risk_score=85,
@@ -91,32 +77,30 @@ def test_capture_snapshot_creates_customer_compliance_and_operations_rows(
             assessment_source="TEST",
         )
     )
-
     db_session.add(
         ComplianceCase(
+            tenant_id=tenant.id,
             customer_id=risk_customer.id,
             case_type=ComplianceCaseType.CUSTOMER_REVIEW,
             priority=ComplianceCasePriority.HIGH,
             status=ComplianceCaseStatus.OPEN,
             assigned_to=admin.id,
             created_at=as_of - timedelta(hours=1),
-            tenant_id=tenant.id,
         )
     )
-
     aml_rule = AMLRule(
+        tenant_id=tenant.id,
         name="Analytics AML Rule",
         rule_type=AMLRuleType.TRANSACTION,
         condition={"amount": {"greater_than": 10000}},
         severity=AMLRuleSeverity.HIGH,
         status=AMLRuleStatus.ACTIVE,
     )
-
     db_session.add(aml_rule)
     db_session.flush()
-
     db_session.add(
         TransactionMonitoringResult(
+            tenant_id=tenant.id,
             transaction_id=old_customer.id,
             customer_id=risk_customer.id,
             rule_id=aml_rule.id,
@@ -125,18 +109,16 @@ def test_capture_snapshot_creates_customer_compliance_and_operations_rows(
             created_at=as_of - timedelta(hours=3),
         )
     )
-
     workflow = Workflow(
         tenant_id=tenant.id,
         name="Analytics Workflow",
         description="Analytics test workflow",
         status=WorkflowStatus.ACTIVE,
     )
-
     db_session.add(workflow)
     db_session.flush()
-
     active_execution = WorkflowExecution(
+        tenant_id=tenant.id,
         workflow_id=workflow.id,
         entity_type="CUSTOMER",
         entity_id=new_customer.id,
@@ -146,8 +128,8 @@ def test_capture_snapshot_creates_customer_compliance_and_operations_rows(
         due_date=as_of + timedelta(hours=3),
         sla_status=SLAStatus.WITHIN_SLA,
     )
-
     completed_execution = WorkflowExecution(
+        tenant_id=tenant.id,
         workflow_id=workflow.id,
         entity_type="CUSTOMER",
         entity_id=old_customer.id,
@@ -158,8 +140,8 @@ def test_capture_snapshot_creates_customer_compliance_and_operations_rows(
         completed_at=as_of - timedelta(hours=3),
         sla_status=SLAStatus.COMPLETED,
     )
-
     failed_execution = WorkflowExecution(
+        tenant_id=tenant.id,
         workflow_id=workflow.id,
         entity_type="CUSTOMER",
         entity_id=risk_customer.id,
@@ -170,18 +152,11 @@ def test_capture_snapshot_creates_customer_compliance_and_operations_rows(
         completed_at=as_of - timedelta(hours=5),
         sla_status=SLAStatus.BREACHED,
     )
-
-    db_session.add_all(
-        [
-            active_execution,
-            completed_execution,
-            failed_execution,
-        ]
-    )
+    db_session.add_all([active_execution, completed_execution, failed_execution])
     db_session.flush()
-
     db_session.add(
         Task(
+            tenant_id=tenant.id,
             title="Analytics open task",
             status=TaskStatus.IN_PROGRESS,
             assigned_to=admin.id,
@@ -189,24 +164,22 @@ def test_capture_snapshot_creates_customer_compliance_and_operations_rows(
             sla_status=SLAStatus.WITHIN_SLA,
             workflow_execution_id=active_execution.id,
             created_at=as_of - timedelta(hours=2),
-            tenant_id=tenant.id,
         )
     )
-
     db_session.add(
         Task(
+            tenant_id=tenant.id,
             title="Analytics overdue task",
             status=TaskStatus.ASSIGNED,
             assigned_to=admin.id,
             due_date=as_of - timedelta(hours=1),
             sla_status=SLAStatus.BREACHED,
             created_at=as_of - timedelta(hours=4),
-            tenant_id=tenant.id,
         )
     )
-
     db_session.add(
         Task(
+            tenant_id=tenant.id,
             title="Analytics completed task",
             status=TaskStatus.COMPLETED,
             assigned_to=admin.id,
@@ -214,32 +187,23 @@ def test_capture_snapshot_creates_customer_compliance_and_operations_rows(
             completed_at=as_of - timedelta(hours=4),
             sla_status=SLAStatus.COMPLETED,
             created_at=as_of - timedelta(days=1),
-            tenant_id=tenant.id,
         )
     )
-
     db_session.commit()
-
     service = AnalyticsSnapshotService(db_session, tenant.id)
-
     customer_snapshot, compliance_snapshot, operations_snapshot = (
-        service.capture_snapshot(
-            as_of=as_of,
-        )
+        service.capture_snapshot(as_of=as_of)
     )
-
     assert customer_snapshot.snapshot_date == as_of.date()
     assert customer_snapshot.customers_registered_during_day >= 2
     assert customer_snapshot.ending_pending_verification_customers >= 1
     assert customer_snapshot.ending_verified_customers >= 2
-
     assert compliance_snapshot.snapshot_date == as_of.date()
     assert compliance_snapshot.ending_total_cases >= 1
     assert compliance_snapshot.ending_open_cases >= 1
     assert compliance_snapshot.ending_total_alerts >= 1
     assert compliance_snapshot.ending_high_severity_alerts >= 1
     assert compliance_snapshot.ending_high_risk_customers >= 1
-
     assert operations_snapshot.snapshot_date == as_of.date()
     assert operations_snapshot.ending_total_tasks >= 3
     assert operations_snapshot.ending_open_tasks >= 2
@@ -248,7 +212,6 @@ def test_capture_snapshot_creates_customer_compliance_and_operations_rows(
     assert operations_snapshot.ending_tasks_sla_within_target >= 1
     assert operations_snapshot.ending_tasks_sla_breached >= 1
     assert operations_snapshot.ending_tasks_sla_completed_on_time >= 1
-
     assert operations_snapshot.ending_total_workflows >= 3
     assert operations_snapshot.ending_active_workflows >= 1
     assert operations_snapshot.ending_total_completed_workflows >= 1
@@ -259,145 +222,94 @@ def test_capture_snapshot_creates_customer_compliance_and_operations_rows(
 
 
 def test_capture_snapshot_is_idempotent_for_same_day(
-    db_session,
-    default_tenant_id,
-    cleanup_analytics_snapshots,
+    db_session, default_tenant_id, cleanup_analytics_snapshots
 ):
-    as_of = datetime(
-        2026,
-        10,
-        4,
-        9,
-        0,
-        tzinfo=timezone.utc,
-    )
-
+    as_of = datetime(2026, 10, 4, 9, 0, tzinfo=timezone.utc)
     service = AnalyticsSnapshotService(db_session, default_tenant_id)
-
-    service.capture_snapshot(
-        as_of=as_of,
-    )
-
+    service.capture_snapshot(as_of=as_of)
     first_customer = db_session.query(CustomerAnalyticsDaily).filter(
         CustomerAnalyticsDaily.tenant_id == default_tenant_id,
         CustomerAnalyticsDaily.snapshot_date == as_of.date(),
     )
-
     first_compliance = db_session.query(ComplianceAnalyticsDaily).filter(
         ComplianceAnalyticsDaily.tenant_id == default_tenant_id,
         ComplianceAnalyticsDaily.snapshot_date == as_of.date(),
     )
-
     first_operations = db_session.query(OperationsAnalyticsDaily).filter(
         OperationsAnalyticsDaily.tenant_id == default_tenant_id,
         OperationsAnalyticsDaily.snapshot_date == as_of.date(),
     )
-
     assert first_customer is not None
     assert first_compliance is not None
     assert first_operations is not None
-
-    service.capture_snapshot(
-        as_of=as_of + timedelta(hours=2),
-    )
-
+    service.capture_snapshot(as_of=as_of + timedelta(hours=2))
     customer_rows = (
         db_session.query(CustomerAnalyticsDaily)
         .filter(
+            CustomerAnalyticsDaily.tenant_id == default_tenant_id,
             CustomerAnalyticsDaily.snapshot_date == as_of.date(),
         )
         .all()
     )
-
     compliance_rows = (
         db_session.query(ComplianceAnalyticsDaily)
         .filter(
+            ComplianceAnalyticsDaily.tenant_id == default_tenant_id,
             ComplianceAnalyticsDaily.snapshot_date == as_of.date(),
         )
         .all()
     )
-
     operations_rows = (
         db_session.query(OperationsAnalyticsDaily)
         .filter(
+            OperationsAnalyticsDaily.tenant_id == default_tenant_id,
             OperationsAnalyticsDaily.snapshot_date == as_of.date(),
         )
         .all()
     )
-
     assert len(customer_rows) == 1
     assert len(compliance_rows) == 1
     assert len(operations_rows) == 1
 
 
 def test_different_days_are_preserved_as_history(
-    db_session,
-    default_tenant_id,
-    cleanup_analytics_snapshots,
+    db_session, default_tenant_id, cleanup_analytics_snapshots
 ):
-    first_day = datetime(
-        2026,
-        10,
-        2,
-        12,
-        0,
-        tzinfo=timezone.utc,
-    )
-
-    second_day = datetime(
-        2026,
-        10,
-        3,
-        12,
-        0,
-        tzinfo=timezone.utc,
-    )
-
+    first_day = datetime(2026, 10, 2, 12, 0, tzinfo=timezone.utc)
+    second_day = datetime(2026, 10, 3, 12, 0, tzinfo=timezone.utc)
     service = AnalyticsSnapshotService(db_session, default_tenant_id)
-
-    service.capture_snapshot(
-        as_of=first_day,
-    )
-
-    service.capture_snapshot(
-        as_of=second_day,
-    )
-
+    service.capture_snapshot(as_of=first_day)
+    service.capture_snapshot(as_of=second_day)
     customer_snapshots = (
         db_session.query(CustomerAnalyticsDaily)
-        .order_by(
-            CustomerAnalyticsDaily.snapshot_date,
+        .filter(
+            CustomerAnalyticsDaily.tenant_id == default_tenant_id,
         )
+        .order_by(CustomerAnalyticsDaily.snapshot_date)
         .all()
     )
-
     compliance_snapshots = (
         db_session.query(ComplianceAnalyticsDaily)
-        .order_by(
-            ComplianceAnalyticsDaily.snapshot_date,
+        .filter(
+            ComplianceAnalyticsDaily.tenant_id == default_tenant_id,
         )
+        .order_by(ComplianceAnalyticsDaily.snapshot_date)
         .all()
     )
-
     operations_snapshots = (
         db_session.query(OperationsAnalyticsDaily)
-        .order_by(
-            OperationsAnalyticsDaily.snapshot_date,
+        .filter(
+            OperationsAnalyticsDaily.tenant_id == default_tenant_id,
         )
+        .order_by(OperationsAnalyticsDaily.snapshot_date)
         .all()
     )
-
     customer_dates = {row.snapshot_date for row in customer_snapshots}
-
     compliance_dates = {row.snapshot_date for row in compliance_snapshots}
-
     operations_dates = {row.snapshot_date for row in operations_snapshots}
-
     assert first_day.date() in customer_dates
     assert second_day.date() in customer_dates
-
     assert first_day.date() in compliance_dates
     assert second_day.date() in compliance_dates
-
     assert first_day.date() in operations_dates
     assert second_day.date() in operations_dates

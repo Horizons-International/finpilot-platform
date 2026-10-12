@@ -22,8 +22,10 @@ from tests.helpers import authenticate_client
 
 def test_metric_engine_calculates_ratio(
     db_session,
+    default_tenant_id,
 ):
     metric = MetricDefinition(
+        tenant_id=default_tenant_id,
         key="test_ratio_metric",
         name="Test Ratio",
         description="Test metric.",
@@ -47,7 +49,11 @@ def test_metric_engine_calculates_ratio(
 
 def test_metric_service_calculates_and_stores_results(
     db_session,
+    default_tenant_id,
 ):
+    # Direct service tests must bind the session to one tenant, just as
+    # authentication does for API requests.
+    db_session.info["tenant_id"] = default_tenant_id
     service = MetricService(db_session)
 
     results = service.calculate(
@@ -122,20 +128,19 @@ def test_admin_can_create_custom_metric(
 def test_customer_registration_rate_is_calculated_correctly(
     client,
     db_session,
+    default_tenant_id,
     create_test_tenant,
     create_test_user,
     cleanup_metric_results,
     cleanup_test_customers,
 ):
-    tenant = create_test_tenant(
-        name="Tenant B",
-        code=f"TENANT-B-{uuid4().hex[:6].upper()}",
-    )
+    tenant_id = default_tenant_id
+    db_session.info["tenant_id"] = tenant_id
 
     admin = create_test_user(
         role=UserRole.ADMINISTRATOR,
         email="metrics-calculate-admin@example.com",
-        tenant_id=tenant.id,
+        tenant_id=tenant_id,
     )
 
     authenticate_client(
@@ -156,7 +161,7 @@ def test_customer_registration_rate_is_calculated_correctly(
     for index in range(10):
         db_session.add(
             Customer(
-                tenant_id=tenant.id,
+                tenant_id=tenant_id,
                 first_name="Existing",
                 last_name=f"Customer {index}",
                 email=f"existing-{uuid4()}@example.com",
@@ -170,7 +175,7 @@ def test_customer_registration_rate_is_calculated_correctly(
     for index in range(2):
         db_session.add(
             Customer(
-                tenant_id=tenant.id,
+                tenant_id=tenant_id,
                 first_name="New",
                 last_name=f"Customer {index}",
                 email=f"new-{uuid4()}@example.com",
@@ -205,21 +210,20 @@ def test_customer_registration_rate_is_calculated_correctly(
 def test_average_compliance_review_time_is_calculated_correctly(
     client,
     db_session,
+    default_tenant_id,
     create_test_tenant,
     create_test_user,
     cleanup_metric_results,
     cleanup_test_customers,
     cleanup_compliance_cases,
 ):
-    tenant = create_test_tenant(
-        name="Tenant B",
-        code=f"TENANT-B-{uuid4().hex[:6].upper()}",
-    )
+    tenant_id = default_tenant_id
+    db_session.info["tenant_id"] = tenant_id
 
     admin = create_test_user(
         role=UserRole.ADMINISTRATOR,
         email="metrics-duration-admin@example.com",
-        tenant_id=tenant.id,
+        tenant_id=tenant_id,
     )
 
     authenticate_client(
@@ -237,7 +241,7 @@ def test_average_compliance_review_time_is_calculated_correctly(
     )
 
     customer_one = Customer(
-        tenant_id=tenant.id,
+        tenant_id=tenant_id,
         first_name="Duration",
         last_name="One",
         email=f"duration-one-{uuid4()}@example.com",
@@ -247,7 +251,7 @@ def test_average_compliance_review_time_is_calculated_correctly(
     )
 
     customer_two = Customer(
-        tenant_id=tenant.id,
+        tenant_id=tenant_id,
         first_name="Duration",
         last_name="Two",
         email=f"duration-two-{uuid4()}@example.com",
@@ -274,7 +278,7 @@ def test_average_compliance_review_time_is_calculated_correctly(
                 status=ComplianceCaseStatus.CLOSED,
                 created_at=start,
                 closed_at=start + timedelta(hours=1),
-                tenant_id=tenant.id,
+                tenant_id=tenant_id,
             ),
             ComplianceCase(
                 customer_id=customer_two.id,
@@ -283,7 +287,7 @@ def test_average_compliance_review_time_is_calculated_correctly(
                 status=ComplianceCaseStatus.CLOSED,
                 created_at=start,
                 closed_at=start + timedelta(hours=3),
-                tenant_id=tenant.id,
+                tenant_id=tenant_id,
             ),
         ]
     )
@@ -391,6 +395,8 @@ def test_metric_calculation_is_idempotent(
 
     assert second_response.status_code == 200
 
+    # Scope the follow-up database assertion to the same tenant as the API call.
+    db_session.info["tenant_id"] = admin.tenant_id
     rows = (
         db_session.query(MetricResult)
         .join(

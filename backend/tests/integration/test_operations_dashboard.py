@@ -81,6 +81,7 @@ def test_operations_dashboard_returns_accurate_metrics(
     )
 
     risk_profile = CustomerRiskProfile(
+        tenant_id=tenant.id,
         customer_id=customer_4.id,
         risk_level=CustomerRiskLevel.HIGH,
         risk_score=85,
@@ -113,6 +114,7 @@ def test_operations_dashboard_returns_accurate_metrics(
     db_session.flush()
 
     workflow_active = WorkflowExecution(
+        tenant_id=tenant.id,
         workflow_id=workflow.id,
         entity_type="customer",
         entity_id=customer_1.id,
@@ -121,6 +123,7 @@ def test_operations_dashboard_returns_accurate_metrics(
     )
 
     workflow_completed = WorkflowExecution(
+        tenant_id=tenant.id,
         workflow_id=workflow.id,
         entity_type="customer",
         entity_id=customer_2.id,
@@ -129,6 +132,7 @@ def test_operations_dashboard_returns_accurate_metrics(
     )
 
     workflow_failed = WorkflowExecution(
+        tenant_id=tenant.id,
         workflow_id=workflow.id,
         entity_type="customer",
         entity_id=customer_3.id,
@@ -286,6 +290,7 @@ def test_operations_dashboard_filters_by_country(
     db_session.flush()
 
     sudan_execution = WorkflowExecution(
+        tenant_id=tenant.id,
         workflow_id=workflow.id,
         entity_type="customer",
         entity_id=sudan_customer.id,
@@ -294,6 +299,7 @@ def test_operations_dashboard_filters_by_country(
     )
 
     uk_execution = WorkflowExecution(
+        tenant_id=tenant.id,
         workflow_id=workflow.id,
         entity_type="customer",
         entity_id=uk_customer.id,
@@ -442,13 +448,17 @@ def test_operations_dashboard_filters_by_date(
     old_customer = create_test_customer(
         country_of_residence="Sudan",
         status=CustomerStatus.NEW,
+        tenant_id=admin.tenant_id,
     )
 
     recent_customer = create_test_customer(
         country_of_residence="Sudan",
         status=CustomerStatus.NEW,
+        tenant_id=admin.tenant_id,
     )
 
+    # Use the authenticated tenant context when modifying test data directly.
+    db_session.info["tenant_id"] = admin.tenant_id
     db_session.query(type(old_customer)).filter(
         type(old_customer).id == old_customer.id
     ).update(

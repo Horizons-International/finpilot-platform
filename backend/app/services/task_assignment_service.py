@@ -443,6 +443,7 @@ class TaskAssignmentService:
                 task.status = TaskStatus.ASSIGNED
 
                 history = TaskStatusHistory(
+                    tenant_id=self.tenant_id,
                     task_id=task.id,
                     changed_by=user_id,
                     from_status=old_status,

@@ -1,6 +1,7 @@
 import pytest
 
 from app.models.ai_usage_log import AIUsageLog
+from app.models.user import User
 from app.utils.enums import UserRole
 from tests.helpers import authenticate_client
 
@@ -16,7 +17,12 @@ def create_usage_log(
     response_time=500,
     error_message=None,
 ):
+    # AI usage is owned by the tenant of the user who generated the request.
+    tenant_id = db_session.query(User.tenant_id).filter(User.id == user_id).scalar()
+    assert tenant_id is not None
+
     usage_log = AIUsageLog(
+        tenant_id=tenant_id,
         user_id=user_id,
         feature=feature,
         model=model,

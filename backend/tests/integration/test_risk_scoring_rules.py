@@ -334,6 +334,7 @@ def test_admin_can_list_risk_scoring_rules(
     )
 
     rule = RiskScoringRule(
+        tenant_id=admin.tenant_id,
         factor_key="country",
         operator=RiskRuleOperator.EQUALS,
         expected_value="SD",

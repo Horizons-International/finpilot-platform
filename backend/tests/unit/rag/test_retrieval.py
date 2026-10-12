@@ -27,6 +27,7 @@ def create_chunk(
 ) -> KnowledgeDocumentChunk:
     document = KnowledgeDocument(
         id=uuid4(),
+        tenant_id=uuid4(),
         name=document_name,
         category=category,
         file_reference=str(uuid4()),

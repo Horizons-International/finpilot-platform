@@ -46,10 +46,9 @@ class UserService:
             user_data.tenant_id if user_data.tenant_id is not None else actor_tenant_id
         )
 
-        if target_tenant_id != actor_tenant_id and not actor_is_platform_admin:
-            raise forbidden(
-                "You cannot create a user in another tenant.",
-            )
+        cross_tenant_admin_action = target_tenant_id != actor_tenant_id
+        if cross_tenant_admin_action and not actor_is_platform_admin:
+            raise forbidden("You cannot create a user in another tenant.")
 
         tenant = self.db.get(
             Tenant,
@@ -63,6 +62,14 @@ class UserService:
             raise bad_request(
                 "Cannot create a user in an inactive tenant.",
             )
+
+        # A platform administrator may explicitly create a user in another
+        # tenant. Rebind this request's session only after that privilege and
+        # the target tenant have both been validated, then scope the repository
+        # and subsequent audit insert to the destination tenant.
+        if cross_tenant_admin_action:
+            self.db.info["tenant_id"] = target_tenant_id
+            self.repository = UserRepository(self.db, tenant_id=target_tenant_id)
 
         user = User(
             first_name=user_data.first_name,

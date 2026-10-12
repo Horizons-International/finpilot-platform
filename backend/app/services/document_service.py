@@ -38,10 +38,7 @@ class DocumentService:
         self.ip_address = ip_address
         self.user_agent = user_agent
 
-        self.repository = CustomerDocumentRepository(
-            db,
-            tenant_id,
-        )
+        self.repository = CustomerDocumentRepository(db, tenant_id)
         self.audit_service = AuditService(db)
         self.file_service = FileService(
             db=db,
@@ -52,16 +49,6 @@ class DocumentService:
             ip_address=ip_address,
             user_agent=user_agent,
         )
-        self.storage = storage
-
-        self.audit_service = AuditService(db)
-
-        self.file_service = FileService(
-            db=db,
-            storage=storage,
-            tenant_id=tenant_id,
-        )
-
         self.storage = storage
 
     async def upload_document(
@@ -75,9 +62,6 @@ class DocumentService:
         ip_address: str | None = None,
         user_agent: str | None = None,
     ) -> CustomerDocument:
-        # ---------------------------------------------------------
-        # 1. Verify customer exists
-        # ---------------------------------------------------------
         customer = (
             self.db.query(Customer)
             .filter(
@@ -86,7 +70,6 @@ class DocumentService:
             )
             .first()
         )
-
         if customer is None:
             deny_tenant_access(
                 self.db,
@@ -99,9 +82,6 @@ class DocumentService:
                 resource_name="Customer",
             )
 
-        # ---------------------------------------------------------
-        # 2. Verify verification case exists and belongs to customer
-        # ---------------------------------------------------------
         verification_case = (
             self.db.query(IdentityVerificationCase)
             .filter(
@@ -111,7 +91,6 @@ class DocumentService:
             )
             .first()
         )
-
         if verification_case is None:
             deny_tenant_access(
                 self.db,
@@ -124,31 +103,20 @@ class DocumentService:
                 resource_name="Verification case",
             )
 
-        # ---------------------------------------------------------
-        # 3. Verify document type exists and is active
-        # ---------------------------------------------------------
         document_type = (
             self.db.query(VerificationDocumentType)
-            .filter(
-                VerificationDocumentType.id == document_type_id,
-            )
+            .filter(VerificationDocumentType.id == document_type_id)
             .first()
         )
-
         if document_type is None:
             raise not_found("Verification document type")
-
         if not document_type.is_active:
             raise bad_request("Verification document type is inactive.")
 
         DocumentValidationService.validate_document_type(document_type_id)
 
-        # ---------------------------------------------------------
-        # 4. Upload physical file + File metadata
-        #
-        # IMPORTANT:
-        # commit=False keeps everything in the current transaction.
-        # ---------------------------------------------------------
+        # Keep file metadata, customer document metadata, and their audit rows
+        # in one database transaction.
         file_record = await self.file_service.upload_file(
             file=file,
             uploaded_by=user_id,
@@ -162,9 +130,6 @@ class DocumentService:
         )
 
         try:
-            # -----------------------------------------------------
-            # 5. Create CustomerDocument metadata
-            # -----------------------------------------------------
             document = CustomerDocument(
                 customer_id=customer_id,
                 tenant_id=self.tenant_id,
@@ -177,13 +142,13 @@ class DocumentService:
                 status=DocumentStatus.UPLOADED,
                 uploaded_by=user_id,
             )
-
             document = self.repository.create(document)
 
-            # -----------------------------------------------------
-            # 6. Detailed customer audit
-            # -----------------------------------------------------
+            # customer_audit_logs.tenant_id is NOT NULL after the tenant
+            # ownership migration. This direct insert must therefore provide
+            # the service's trusted tenant explicitly.
             customer_audit_log = CustomerAuditLog(
+                tenant_id=self.tenant_id,
                 customer_id=customer_id,
                 user_id=user_id,
                 resource_type="customer_document",
@@ -200,13 +165,9 @@ class DocumentService:
                     "status": document.status.value,
                 },
             )
-
             self.db.add(customer_audit_log)
             self.db.flush()
 
-            # -----------------------------------------------------
-            # 7. General audit
-            # -----------------------------------------------------
             self.audit_service.log_event(
                 event_type=AuditEventType.CUSTOMER_DOCUMENT_CREATED,
                 user_id=user_id,
@@ -217,36 +178,24 @@ class DocumentService:
                 resource_id=document.id,
             )
 
-            # -----------------------------------------------------
-            # 8. Commit File + CustomerDocument + audits together
-            # -----------------------------------------------------
             self.db.commit()
             self.db.refresh(document)
-
             return document
 
         except Exception:
-            # Roll back File metadata, CustomerDocument metadata,
-            # and audit records.
             self.db.rollback()
-
-            # FileService already created the physical file, so
-            # remove it when the downstream document transaction fails.
             try:
                 if self.storage.exists(file_record.storage_path):
                     self.storage.delete(file_record.storage_path)
             except Exception:
-                # Do not hide the original exception if physical
-                # cleanup itself fails.
+                # Preserve the original database/service exception.
                 pass
-
             raise
 
     def get_documents_by_customer(
         self,
         customer_id: UUID,
     ) -> list[CustomerDocument]:
-
         customer = (
             self.db.query(Customer)
             .filter(
@@ -255,7 +204,6 @@ class DocumentService:
             )
             .first()
         )
-
         if customer is None:
             deny_tenant_access(
                 self.db,
@@ -284,7 +232,6 @@ class DocumentService:
             )
             .first()
         )
-
         if verification_case is None:
             deny_tenant_access(
                 self.db,
@@ -310,7 +257,6 @@ class DocumentService:
             customer_id=customer_id,
             verification_case_id=verification_case_id,
         )
-
         if document is None:
             deny_tenant_access(
                 self.db,

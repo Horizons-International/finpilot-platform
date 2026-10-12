@@ -1,120 +1,95 @@
 from datetime import date, datetime, time, timedelta, timezone
 from uuid import UUID
 
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
 from app.analytics.models.compliance_daily import ComplianceAnalyticsDaily
 from app.analytics.models.customer_daily import CustomerAnalyticsDaily
 from app.analytics.models.operations_daily import OperationsAnalyticsDaily
+from app.analytics.tenant_context import resolve_tenant_id
 from app.models.task import Task
 from app.models.user import User
-from app.utils.enums import SLAStatus, TaskStatus
+from app.models.workflow import Workflow, WorkflowExecution
+from app.utils.enums import SLAStatus, TaskStatus, WorkflowExecutionStatus
 
 
 class ExecutiveDashboardRepository:
-    """Read model for executive dashboard data."""
+    """Tenant-scoped read model for executive dashboard data."""
 
-    OPEN_TASK_STATUSES = (
-        TaskStatus.NEW,
-        TaskStatus.ASSIGNED,
-        TaskStatus.IN_PROGRESS,
-    )
+    OPEN_TASK_STATUSES = (TaskStatus.NEW, TaskStatus.ASSIGNED, TaskStatus.IN_PROGRESS)
 
-    def __init__(
-        self,
-        db: Session,
-        tenant_id: UUID,
-    ) -> None:
-        self.tenant_id = tenant_id
+    def __init__(self, db: Session, tenant_id: UUID) -> None:
         self.db = db
+        self.tenant_id = resolve_tenant_id(db, tenant_id)
 
     @staticmethod
     def _end_of_day_exclusive(end_date: date) -> datetime:
         return datetime.combine(
-            end_date + timedelta(days=1),
-            time.min,
-            tzinfo=timezone.utc,
+            end_date + timedelta(days=1), time.min, tzinfo=timezone.utc
         )
 
     def get_customer_trend(
-        self,
-        *,
-        start_date: date,
-        end_date: date,
+        self, *, start_date: date, end_date: date
     ) -> list[CustomerAnalyticsDaily]:
         statement = (
             select(CustomerAnalyticsDaily)
             .where(
+                CustomerAnalyticsDaily.tenant_id == self.tenant_id,
                 CustomerAnalyticsDaily.snapshot_date >= start_date,
                 CustomerAnalyticsDaily.snapshot_date <= end_date,
             )
             .order_by(CustomerAnalyticsDaily.snapshot_date)
         )
-
         return list(self.db.scalars(statement).all())
 
     def get_latest_customer_snapshot(
-        self,
-        *,
-        end_date: date,
+        self, *, end_date: date
     ) -> CustomerAnalyticsDaily | None:
         statement = (
             select(CustomerAnalyticsDaily)
             .where(
+                CustomerAnalyticsDaily.tenant_id == self.tenant_id,
                 CustomerAnalyticsDaily.snapshot_date <= end_date,
             )
             .order_by(CustomerAnalyticsDaily.snapshot_date.desc())
             .limit(1)
         )
-
         return self.db.scalars(statement).first()
 
     def get_latest_compliance_snapshot(
-        self,
-        *,
-        end_date: date,
+        self, *, end_date: date
     ) -> ComplianceAnalyticsDaily | None:
         statement = (
             select(ComplianceAnalyticsDaily)
             .where(
+                ComplianceAnalyticsDaily.tenant_id == self.tenant_id,
                 ComplianceAnalyticsDaily.snapshot_date <= end_date,
             )
             .order_by(ComplianceAnalyticsDaily.snapshot_date.desc())
             .limit(1)
         )
-
         return self.db.scalars(statement).first()
 
     def get_latest_operations_snapshot(
-        self,
-        *,
-        end_date: date,
+        self, *, end_date: date
     ) -> OperationsAnalyticsDaily | None:
         statement = (
             select(OperationsAnalyticsDaily)
             .where(
+                OperationsAnalyticsDaily.tenant_id == self.tenant_id,
                 OperationsAnalyticsDaily.snapshot_date <= end_date,
             )
             .order_by(OperationsAnalyticsDaily.snapshot_date.desc())
             .limit(1)
         )
-
         return self.db.scalars(statement).first()
 
     def get_task_sla_metrics(
-        self,
-        *,
-        start_date: date,
-        end_date: date,
+        self, *, start_date: date, end_date: date
     ) -> dict[str, int]:
-        start_at = datetime.combine(
-            start_date,
-            time.min,
-            tzinfo=timezone.utc,
-        )
+        start_at = datetime.combine(start_date, time.min, tzinfo=timezone.utc)
         end_at = self._end_of_day_exclusive(end_date)
-
         statement = select(
             func.count(Task.id)
             .filter(
@@ -139,10 +114,8 @@ class ExecutiveDashboardRepository:
                 Task.completed_at < end_at,
             )
             .label("tasks_completed_breached_sla"),
-        )
-
+        ).where(Task.tenant_id == self.tenant_id)
         row = self.db.execute(statement).one()
-
         return {
             "tasks_completed": int(row.tasks_completed or 0),
             "tasks_completed_within_sla": int(row.tasks_completed_within_sla or 0),
@@ -150,49 +123,41 @@ class ExecutiveDashboardRepository:
         }
 
     def get_workflow_sla_metrics(
-        self,
-        *,
-        start_date: date,
-        end_date: date,
+        self, *, start_date: date, end_date: date
     ) -> dict[str, int]:
-        from app.models.workflow import WorkflowExecution
-        from app.utils.enums import WorkflowExecutionStatus
-
-        start_at = datetime.combine(
-            start_date,
-            time.min,
-            tzinfo=timezone.utc,
-        )
+        start_at = datetime.combine(start_date, time.min, tzinfo=timezone.utc)
         end_at = self._end_of_day_exclusive(end_date)
-
-        statement = select(
-            func.count(WorkflowExecution.id)
-            .filter(
-                WorkflowExecution.status == WorkflowExecutionStatus.COMPLETED,
-                WorkflowExecution.completed_at >= start_at,
-                WorkflowExecution.completed_at < end_at,
+        statement = (
+            select(
+                func.count(WorkflowExecution.id)
+                .filter(
+                    WorkflowExecution.status == WorkflowExecutionStatus.COMPLETED,
+                    WorkflowExecution.completed_at >= start_at,
+                    WorkflowExecution.completed_at < end_at,
+                )
+                .label("workflows_completed"),
+                func.count(WorkflowExecution.id)
+                .filter(
+                    WorkflowExecution.status == WorkflowExecutionStatus.COMPLETED,
+                    WorkflowExecution.sla_status == SLAStatus.COMPLETED,
+                    WorkflowExecution.completed_at >= start_at,
+                    WorkflowExecution.completed_at < end_at,
+                )
+                .label("workflows_completed_within_sla"),
+                func.count(WorkflowExecution.id)
+                .filter(
+                    WorkflowExecution.status == WorkflowExecutionStatus.COMPLETED,
+                    WorkflowExecution.sla_status == SLAStatus.BREACHED,
+                    WorkflowExecution.completed_at >= start_at,
+                    WorkflowExecution.completed_at < end_at,
+                )
+                .label("workflows_completed_breached_sla"),
             )
-            .label("workflows_completed"),
-            func.count(WorkflowExecution.id)
-            .filter(
-                WorkflowExecution.status == WorkflowExecutionStatus.COMPLETED,
-                WorkflowExecution.sla_status == SLAStatus.COMPLETED,
-                WorkflowExecution.completed_at >= start_at,
-                WorkflowExecution.completed_at < end_at,
-            )
-            .label("workflows_completed_within_sla"),
-            func.count(WorkflowExecution.id)
-            .filter(
-                WorkflowExecution.status == WorkflowExecutionStatus.COMPLETED,
-                WorkflowExecution.sla_status == SLAStatus.BREACHED,
-                WorkflowExecution.completed_at >= start_at,
-                WorkflowExecution.completed_at < end_at,
-            )
-            .label("workflows_completed_breached_sla"),
+            .select_from(WorkflowExecution)
+            .join(Workflow, Workflow.id == WorkflowExecution.workflow_id)
+            .where(Workflow.tenant_id == self.tenant_id)
         )
-
         row = self.db.execute(statement).one()
-
         return {
             "workflows_completed": int(row.workflows_completed or 0),
             "workflows_completed_within_sla": int(
@@ -210,47 +175,30 @@ class ExecutiveDashboardRepository:
         department: str | None = None,
     ) -> list[tuple[str, str | None, int, int]]:
         end_at = self._end_of_day_exclusive(end_date)
-
         statement = (
             select(
-                func.coalesce(
-                    User.department,
-                    "Unassigned",
-                ).label("team"),
+                func.coalesce(User.department, "Unassigned").label("team"),
                 User.role.label("user_role"),
                 func.count(Task.id).label("open_tasks"),
                 func.count(Task.id)
-                .filter(
-                    Task.due_date.is_not(None),
-                    Task.due_date < end_at,
-                )
+                .filter(Task.due_date.is_not(None), Task.due_date < end_at)
                 .label("overdue_tasks"),
             )
             .select_from(Task)
-            .outerjoin(
-                User,
-                Task.assigned_to == User.id,
-            )
+            .outerjoin(User, Task.assigned_to == User.id)
             .where(
+                Task.tenant_id == self.tenant_id,
                 Task.created_at < end_at,
                 Task.status.in_(self.OPEN_TASK_STATUSES),
+                or_(Task.assigned_to.is_(None), User.tenant_id == self.tenant_id),
             )
         )
-
         if department is not None:
-            statement = statement.where(
-                User.department == department,
-            )
-
-        statement = statement.group_by(
-            User.department,
-            User.role,
-        ).order_by(
-            func.count(Task.id).desc(),
+            statement = statement.where(User.department == department)
+        statement = statement.group_by(User.department, User.role).order_by(
+            func.count(Task.id).desc()
         )
-
         rows = self.db.execute(statement).all()
-
         return [
             (
                 str(row.team),

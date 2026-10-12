@@ -1,5 +1,5 @@
-import uuid
 from datetime import datetime
+from uuid import UUID, uuid4
 
 from sqlalchemy import DateTime, ForeignKey, Text, func
 from sqlalchemy import Enum as SQLEnum
@@ -13,13 +13,20 @@ from app.utils.enums import ReviewDecision
 class VerificationReview(Base):
     __tablename__ = "verification_reviews"
 
-    id: Mapped[uuid.UUID] = mapped_column(
+    id: Mapped[UUID] = mapped_column(
         PostgreSQLUUID(as_uuid=True),
         primary_key=True,
-        default=uuid.uuid4,
+        default=uuid4,
     )
 
-    verification_case_id: Mapped[uuid.UUID] = mapped_column(
+    tenant_id: Mapped[UUID] = mapped_column(
+        PostgreSQLUUID(as_uuid=True),
+        ForeignKey("tenants.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+
+    verification_case_id: Mapped[UUID] = mapped_column(
         ForeignKey(
             "identity_verification_cases.id",
             ondelete="CASCADE",
@@ -28,7 +35,7 @@ class VerificationReview(Base):
         index=True,
     )
 
-    reviewer_id: Mapped[uuid.UUID] = mapped_column(
+    reviewer_id: Mapped[UUID] = mapped_column(
         ForeignKey(
             "users.id",
             ondelete="RESTRICT",

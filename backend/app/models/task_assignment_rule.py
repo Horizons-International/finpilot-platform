@@ -38,6 +38,13 @@ class TaskAssignmentRule(Base):
         default=uuid.uuid4,
     )
 
+    tenant_id: Mapped[UUID] = mapped_column(
+        PostgreSQLUUID(as_uuid=True),
+        ForeignKey("tenants.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+
     name: Mapped[str] = mapped_column(
         String(200),
         nullable=False,
@@ -139,3 +146,5 @@ class TaskAssignmentRule(Base):
         "User",
         foreign_keys=[created_by],
     )
+
+    tenant = relationship("Tenant")
