@@ -1,20 +1,14 @@
-from datetime import date
+from datetime import date, timedelta
 from unittest.mock import patch
 from uuid import UUID, uuid4
 
 import pytest
 
 from app.ai.schemas.responses import AIResponse
-from app.analytics.models.customer_daily import (
-    CustomerAnalyticsDaily,
-)
+from app.analytics.models.customer_daily import CustomerAnalyticsDaily
 from app.models.ai_interaction import AIInteraction
-from app.models.verification_case import (
-    IdentityVerificationCase,
-)
-from app.models.verification_review import (
-    VerificationReview,
-)
+from app.models.verification_case import IdentityVerificationCase
+from app.models.verification_review import VerificationReview
 from app.utils.date_time import utc_now
 from app.utils.enums import (
     AIFunction,
@@ -41,7 +35,6 @@ def seed_ai_assistant_data():
 
 def seed_analytics_ai_data():
     db = TestSessionLocal()
-
     try:
         seed_ai_prompts(db)
     finally:
@@ -66,11 +59,9 @@ def make_customer_snapshot(
         ending_suspended_customers=5,
         ending_rejected_customers=5,
     )
-
     db_session.add(snapshot)
     db_session.commit()
     db_session.refresh(snapshot)
-
     return snapshot
 
 
@@ -85,17 +76,11 @@ def test_ai_analytics_assistant_answers_pending_verification(
         email="analytics-ai-admin@example.com",
         role=UserRole.ADMINISTRATOR,
     )
-
-    authenticate_client(
-        client,
-        admin,
-    )
+    authenticate_client(client, admin)
 
     today = utc_now().date()
-
     current_month_start = today.replace(day=1)
-
-    previous_month_end = current_month_start - __import__("datetime").timedelta(days=1)
+    previous_month_end = current_month_start - timedelta(days=1)
 
     make_customer_snapshot(
         db_session,
@@ -103,7 +88,6 @@ def test_ai_analytics_assistant_answers_pending_verification(
         snapshot_date=previous_month_end,
         pending_verification=200,
     )
-
     make_customer_snapshot(
         db_session,
         tenant_id=admin.tenant_id,
@@ -111,10 +95,7 @@ def test_ai_analytics_assistant_answers_pending_verification(
         pending_verification=224,
     )
 
-    fake_retrieval_service = FakeRetrievalService(
-        results=[],
-    )
-
+    fake_retrieval_service = FakeRetrievalService(results=[])
     fake_ai_response = AIResponse(
         provider_name="mock",
         request_type="analytics_assistant",
@@ -124,9 +105,7 @@ def test_ai_analytics_assistant_answers_pending_verification(
                 "There are 224 customers pending verification, "
                 "up 12% from the previous comparison period."
             ),
-            "suggested_insights": [
-                "Pending verification volume increased by 12%.",
-            ],
+            "suggested_insights": ["Pending verification volume increased by 12%."],
             "confidence": 0.98,
         },
         request_id=uuid4(),
@@ -147,26 +126,17 @@ def test_ai_analytics_assistant_answers_pending_verification(
         response = client.post(
             "/api/v1/ai-assistant/analytics/ask",
             params={
-                "question": ("How many customers are pending verification this month?"),
+                "question": "How many customers are pending verification this month?"
             },
         )
 
     assert response.status_code == 201
-
     data = response.json()["data"]
-
     assert data["ai_function"] == AIFunction.ANALYTICS_ASSISTANT.value
-
-    assert data["result"]["summary"].startswith(
-        "There are 224 customers",
-    )
-
+    assert data["result"]["summary"].startswith("There are 224 customers")
     supporting_data = data["result"]["supporting_data"]
-
     assert len(supporting_data) == 1
-
     evidence = supporting_data[0]
-
     assert evidence["key"] == "pending_verification_customers"
     assert evidence["value"] == 224
     assert evidence["comparison_value"] == 200
@@ -184,21 +154,15 @@ def test_ai_analytics_interaction_stores_supporting_data(
         email="analytics-ai-storage@example.com",
         role=UserRole.ADMINISTRATOR,
     )
-
-    authenticate_client(
-        client,
-        admin,
-    )
+    authenticate_client(client, admin)
 
     today = utc_now().date()
-
     make_customer_snapshot(
         db_session,
         tenant_id=admin.tenant_id,
         snapshot_date=today,
         pending_verification=245,
     )
-
     fake_ai_response = AIResponse(
         provider_name="mock",
         request_type="analytics_assistant",
@@ -212,35 +176,23 @@ def test_ai_analytics_interaction_stores_supporting_data(
         input_tokens=20,
         output_tokens=10,
     )
-
     with patch(
         "app.services.ai_analytics_assistant_service.AIService.generate",
         return_value=fake_ai_response,
     ):
         response = client.post(
             "/api/v1/ai-assistant/analytics/ask",
-            params={
-                "question": ("How many customers are pending verification today?"),
-            },
+            params={"question": "How many customers are pending verification today?"},
         )
 
     assert response.status_code == 201
-
-    interaction_id = response.json()["data"]["interaction_id"]
-
     interaction = db_session.get(
-        AIInteraction,
-        interaction_id,
+        AIInteraction, response.json()["data"]["interaction_id"]
     )
-
     assert interaction is not None
-
-    assert interaction.ai_function == (AIFunction.ANALYTICS_ASSISTANT)
-
-    assert interaction.resource_type == (AIResourceType.ANALYTICS)
-
+    assert interaction.ai_function == AIFunction.ANALYTICS_ASSISTANT
+    assert interaction.resource_type == AIResourceType.ANALYTICS
     assert interaction.response_data is not None
-
     assert interaction.response_data["supporting_data"][0]["value"] == 245
 
 
@@ -255,21 +207,14 @@ def test_ai_analytics_assistant_answers_rejection_reason(
         email="analytics-rejection@example.com",
         role=UserRole.ADMINISTRATOR,
     )
-
     reviewer = create_test_user(
         email="analytics-rejection-reviewer@example.com",
         role=UserRole.REVIEWER,
     )
-
     authenticate_client(client, admin)
 
-    response = create_customer_with_data(
-        client,
-        country_of_residence="Sudan",
-    )
-
+    response = create_customer_with_data(client, country_of_residence="Sudan")
     assert response.status_code == 201
-
     customer_id = response.json()["data"]["id"]
 
     verification_case = IdentityVerificationCase(
@@ -278,32 +223,26 @@ def test_ai_analytics_assistant_answers_rejection_reason(
         status=VerificationStatus.REJECTED,
         tenant_id=admin.tenant_id,
     )
-
     db_session.add(verification_case)
     db_session.flush()
-
     db_session.add(
         VerificationReview(
+            tenant_id=admin.tenant_id,
             verification_case_id=verification_case.id,
             reviewer_id=reviewer.id,
             decision=ReviewDecision.REJECT,
             notes="Missing documents",
         )
     )
-
     db_session.commit()
 
-    authenticate_client(
-        client,
-        admin,
-    )
-
+    authenticate_client(client, admin)
     fake_ai_response = AIResponse(
         provider_name="mock",
         request_type="analytics_assistant",
         content="Analytics answer generated.",
         structured_data={
-            "summary": ("Missing documents is the main rejection reason."),
+            "summary": "Missing documents is the main rejection reason.",
             "suggested_insights": [
                 "Document completeness appears to be the main verification bottleneck."
             ],
@@ -313,51 +252,32 @@ def test_ai_analytics_assistant_answers_rejection_reason(
         input_tokens=20,
         output_tokens=15,
     )
-
     with patch(
         "app.services.ai_analytics_assistant_service.AIService.generate",
         return_value=fake_ai_response,
     ):
         response = client.post(
             "/api/v1/ai-assistant/analytics/ask",
-            params={
-                "question": ("What is the main reason for rejected verification?"),
-            },
+            params={"question": "What is the main reason for rejected verification?"},
         )
 
     assert response.status_code == 201
-
-    data = response.json()["data"]
-
-    evidence = data["result"]["supporting_data"][0]
-
-    assert evidence["key"] == ("top_verification_rejection_reason")
-
+    evidence = response.json()["data"]["result"]["supporting_data"][0]
+    assert evidence["key"] == "top_verification_rejection_reason"
     assert evidence["value"] == "Missing documents"
     assert evidence["details"]["count"] == 1
 
 
-def test_reviewer_cannot_use_analytics_ai_assistant(
-    client,
-    create_test_user,
-):
+def test_reviewer_cannot_use_analytics_ai_assistant(client, create_test_user):
     reviewer = create_test_user(
         email="analytics-ai-reviewer@example.com",
         role=UserRole.REVIEWER,
     )
-
-    authenticate_client(
-        client,
-        reviewer,
-    )
-
+    authenticate_client(client, reviewer)
     response = client.post(
         "/api/v1/ai-assistant/analytics/ask",
-        params={
-            "question": ("How many customers are pending verification this month?"),
-        },
+        params={"question": "How many customers are pending verification this month?"},
     )
-
     assert response.status_code == 403
 
 
@@ -372,43 +292,30 @@ def test_ai_analytics_assistant_includes_rag_context(
         email="analytics-rag@example.com",
         role=UserRole.ADMINISTRATOR,
     )
-
-    authenticate_client(
-        client,
-        admin,
-    )
-
+    authenticate_client(client, admin)
     today = utc_now().date()
-
     make_customer_snapshot(
         db_session,
         tenant_id=admin.tenant_id,
         snapshot_date=today,
         pending_verification=245,
     )
-
     fake_retrieval_service = FakeRetrievalService(
-        results=[
-            create_fake_retrieval_result(),
-        ],
+        results=[create_fake_retrieval_result()]
     )
-
     fake_ai_response = AIResponse(
         provider_name="mock",
         request_type="analytics_assistant",
         content="Analytics answer generated.",
         structured_data={
             "summary": "245 customers are pending verification.",
-            "suggested_insights": [
-                "Review verification backlog capacity.",
-            ],
+            "suggested_insights": ["Review verification backlog capacity."],
             "confidence": 0.94,
         },
         request_id=uuid4(),
         input_tokens=50,
         output_tokens=20,
     )
-
     with (
         patch(
             "app.core.dependencies.RetrievalService",
@@ -421,9 +328,6 @@ def test_ai_analytics_assistant_includes_rag_context(
     ):
         response = client.post(
             "/api/v1/ai-assistant/analytics/ask",
-            params={
-                "question": ("How many customers are pending verification today?"),
-            },
+            params={"question": "How many customers are pending verification today?"},
         )
-
     assert response.status_code == 201

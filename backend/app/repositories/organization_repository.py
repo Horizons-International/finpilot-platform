@@ -1,55 +1,28 @@
 from uuid import UUID
 
-from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.models.organization import Organization
+from app.repositories.tenant_scoped_repository import TenantScopedRepository
 
 
-class OrganizationRepository:
-    def __init__(
-        self,
-        db: Session,
-        tenant_id: UUID,
-    ) -> None:
-        self.db = db
-        self.tenant_id = tenant_id
+class OrganizationRepository(TenantScopedRepository[Organization]):
+    def __init__(self, db: Session, tenant_id: UUID) -> None:
+        super().__init__(db=db, model=Organization, tenant_id=tenant_id)
 
-    def create(
-        self,
-        organization: Organization,
-    ) -> Organization:
-        self.db.add(organization)
-        self.db.flush()
-        self.db.refresh(organization)
+    def create(self, organization: Organization) -> Organization:
+        existing_tenant_id = organization.tenant_id
+        if existing_tenant_id is not None and existing_tenant_id != self.tenant_id:
+            raise ValueError("Cannot create an organization for another tenant.")
+        return super().create(organization)
 
-        return organization
+    def get_by_id(self, organization_id: UUID) -> Organization | None:
+        return self.query().filter(Organization.id == organization_id).first()
 
-    def get_by_id(
-        self,
-        organization_id: UUID,
-    ) -> Organization | None:
-        statement = select(Organization).where(
-            Organization.id == organization_id,
-            Organization.tenant_id == self.tenant_id,
-        )
+    def get_current(self) -> Organization | None:
+        return self.query().first()
 
-        return self.db.scalar(statement)
-
-    def get_current(
-        self,
-    ) -> Organization | None:
-        statement = select(Organization).where(
-            Organization.tenant_id == self.tenant_id,
-        )
-
-        return self.db.scalar(statement)
-
-    def update(
-        self,
-        organization: Organization,
-    ) -> Organization:
-        self.db.flush()
-        self.db.refresh(organization)
-
-        return organization
+    def update(self, organization: Organization) -> Organization:
+        if organization.tenant_id != self.tenant_id:
+            raise ValueError("Cannot update an organization owned by another tenant.")
+        return super().update(organization)

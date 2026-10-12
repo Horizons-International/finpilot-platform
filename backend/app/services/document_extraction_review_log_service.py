@@ -12,8 +12,16 @@ from app.repositories.document_extraction_review_log_repository import (
 
 
 class DocumentExtractionReviewLogService:
-    def __init__(self, db: Session) -> None:
-        self.repository = DocumentExtractionReviewLogRepository(db)
+    def __init__(
+        self,
+        db: Session,
+        tenant_id: UUID,
+    ) -> None:
+        self.tenant_id = tenant_id
+        self.repository = DocumentExtractionReviewLogRepository(
+            db,
+            self.tenant_id,
+        )
 
     def log_change(
         self,

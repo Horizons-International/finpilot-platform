@@ -15,7 +15,7 @@ class WorkflowAuditLog(Base):
     __table_args__ = (
         Index(
             "ix_workflow_audit_logs_workflow_created",
-            "workflow_id",
+            "workflow_execution_id",
             "created_at",
         ),
         Index(
@@ -30,8 +30,15 @@ class WorkflowAuditLog(Base):
         default=uuid.uuid4,
     )
 
+    tenant_id: Mapped[UUID] = mapped_column(
+        PostgreSQLUUID(as_uuid=True),
+        ForeignKey("tenants.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+
     # This is the WorkflowExecution ID.
-    workflow_id: Mapped[UUID] = mapped_column(
+    workflow_execution_id: Mapped[UUID] = mapped_column(
         PostgreSQLUUID(as_uuid=True),
         ForeignKey(
             "workflow_executions.id",
@@ -92,3 +99,5 @@ class WorkflowAuditLog(Base):
         "User",
         foreign_keys=[user_id],
     )
+
+    tenant = relationship("Tenant")

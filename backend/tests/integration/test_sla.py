@@ -27,6 +27,7 @@ def test_task_sla_breach_updates_status_and_creates_notification(
         role=UserRole.REVIEWER,
         email=f"sla-task-{uuid4()}@example.com",
     )
+    db_session.info["tenant_id"] = user.tenant_id
 
     created_at = datetime(
         2026,
@@ -96,15 +97,16 @@ def test_workflow_sla_breach_updates_status_and_notifies_user(
     cleanup_workflows,
     cleanup_notifications,
 ):
-    user = create_test_user(
-        role=UserRole.REVIEWER,
-        email=f"sla-workflow-{uuid4()}@example.com",
-    )
-
     tenant = create_test_tenant(
         name="Tenant B",
         code=f"TENANT-B-{uuid4().hex[:6].upper()}",
     )
+    user = create_test_user(
+        role=UserRole.REVIEWER,
+        email=f"sla-workflow-{uuid4()}@example.com",
+        tenant_id=tenant.id,
+    )
+    db_session.info["tenant_id"] = tenant.id
 
     workflow = Workflow(
         name=f"SLA workflow {uuid4()}",
@@ -140,13 +142,14 @@ def test_workflow_sla_breach_updates_status_and_notifies_user(
         started_at=started_at,
         due_date=due_date,
         sla_status=SLAStatus.WITHIN_SLA,
+        tenant_id=tenant.id,
     )
 
     db_session.add(execution)
     db_session.commit()
     db_session.refresh(execution)
 
-    service = SLAService(db_session, user.tenant_id)
+    service = SLAService(db_session, tenant.id)
 
     service.check_all(
         now=datetime(
@@ -184,6 +187,7 @@ def test_completed_task_records_completion_time(
         role=UserRole.REVIEWER,
         email=f"sla-complete-{uuid4()}@example.com",
     )
+    db_session.info["tenant_id"] = user.tenant_id
 
     service = TaskService(
         db_session,
@@ -235,6 +239,7 @@ def test_sla_notification_is_only_created_on_status_transition(
         role=UserRole.REVIEWER,
         email=f"sla-transition-{uuid4()}@example.com",
     )
+    db_session.info["tenant_id"] = user.tenant_id
 
     created_at = datetime(
         2026,

@@ -32,10 +32,8 @@ router = APIRouter(
 def get_customer_audit_history(
     customer_id: UUID,
     db: Session = Depends(get_db),
-    service: CustomerService = Depends(
-        get_customer_service,
-    ),
-    _: dict[str, Any] = Depends(
+    service: CustomerService = Depends(get_customer_service),
+    current_user: dict[str, Any] = Depends(
         require_roles(
             UserRole.ADMINISTRATOR,
             UserRole.COMPLIANCE_OFFICER,
@@ -43,11 +41,11 @@ def get_customer_audit_history(
         ),
     ),
 ) -> APIResponse[CustomerAuditLogListResponse]:
-
+    # Verify the requested customer through the tenant-scoped service before
+    # looking up its child audit history.
     service.get_customer(customer_id)
 
     audit_service = CustomerAuditLogService(db)
-
     audit_logs = audit_service.get_customer_history(customer_id)
 
     response = CustomerAuditLogListResponse(

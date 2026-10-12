@@ -79,7 +79,10 @@ class WorkflowService:
             tenant_id,
         )
         self.audit_service = AuditService(db)
-        self.workflow_audit_repository = WorkflowAuditLogRepository(db)
+        self.workflow_audit_repository = WorkflowAuditLogRepository(
+            db,
+            self.tenant_id,
+        )
 
     # ------------------------------------------------------------------
     # Workflow definitions
@@ -1075,7 +1078,7 @@ class WorkflowService:
         comments: str | None = None,
     ) -> None:
         audit_log = WorkflowAuditLog(
-            workflow_id=workflow_id,
+            workflow_execution_id=workflow_id,
             step_name=step_name,
             action=action.value,
             old_status=old_status,

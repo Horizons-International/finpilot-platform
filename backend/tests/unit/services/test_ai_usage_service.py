@@ -4,6 +4,7 @@ from app.utils.enums import UserRole
 
 def test_record_creates_usage_log(
     create_test_user,
+    default_tenant_id,
     cleanup_ai_data,
     db_session,
 ):
@@ -12,7 +13,10 @@ def test_record_creates_usage_log(
         role=UserRole.ADMINISTRATOR,
     )
 
-    service = AIUsageService(db_session)
+    service = AIUsageService(
+        db_session,
+        default_tenant_id,
+    )
 
     usage_log = service.record(
         user_id=admin.id,
@@ -36,6 +40,7 @@ def test_record_creates_usage_log(
 
 def test_record_creates_failed_usage_log(
     create_test_user,
+    default_tenant_id,
     cleanup_ai_data,
     db_session,
 ):
@@ -44,7 +49,10 @@ def test_record_creates_failed_usage_log(
         role=UserRole.ADMINISTRATOR,
     )
 
-    service = AIUsageService(db_session)
+    service = AIUsageService(
+        db_session,
+        default_tenant_id,
+    )
 
     usage_log = service.record(
         user_id=admin.id,
@@ -68,6 +76,7 @@ def test_record_creates_failed_usage_log(
 
 def test_record_can_defer_commit(
     create_test_user,
+    default_tenant_id,
     cleanup_ai_data,
     db_session,
 ):
@@ -76,7 +85,10 @@ def test_record_can_defer_commit(
         role=UserRole.ADMINISTRATOR,
     )
 
-    service = AIUsageService(db_session)
+    service = AIUsageService(
+        db_session,
+        default_tenant_id,
+    )
 
     usage_log = service.record(
         user_id=admin.id,

@@ -8,6 +8,7 @@ from app.analytics.metrics.measure_provider import MetricMeasureProvider
 from app.analytics.models.metric_definition import MetricDefinition
 from app.analytics.models.metric_result import MetricResult
 from app.analytics.repositories.metric_repository import MetricRepository
+from app.analytics.tenant_context import resolve_tenant_id
 from app.schemas.metrics import (
     MetricCalculationRequest,
     MetricDefinitionCreate,
@@ -15,53 +16,38 @@ from app.schemas.metrics import (
     MetricResultResponse,
 )
 from app.utils.date_time import utc_now
-from app.utils.enums import (
-    MetricCategory,
-    MetricStatus,
-)
+from app.utils.enums import MetricCategory, MetricStatus
 from app.utils.errors import bad_request, not_found
 
 
 class MetricService:
-    def __init__(self, db: Session) -> None:
-        self.db = db
-        self.repository = MetricRepository(db)
+    """Tenant-scoped orchestration for configurable metrics."""
 
+    def __init__(self, db: Session, tenant_id: UUID | None = None) -> None:
+        self.db = db
+        self.tenant_id = resolve_tenant_id(db, tenant_id)
+        self.repository = MetricRepository(db, tenant_id=self.tenant_id)
         self.engine = MetricEngine(
-            MetricMeasureProvider(db),
+            MetricMeasureProvider(db, tenant_id=self.tenant_id),
         )
 
-    def create_definition(
-        self,
-        *,
-        data: MetricDefinitionCreate,
-    ) -> MetricDefinition:
-        if (
-            self.repository.get_definition_by_key(
-                data.key,
-            )
-            is not None
-        ):
-            raise bad_request(
-                "A metric with this key already exists.",
-            )
+    def create_definition(self, *, data: MetricDefinitionCreate) -> MetricDefinition:
+        if self.repository.get_definition_by_key(data.key) is not None:
+            raise bad_request("A metric with this key already exists.")
 
         metric = MetricDefinition(
+            tenant_id=self.tenant_id,
             key=data.key,
             name=data.name,
             description=data.description,
             category=data.category,
             value_type=data.value_type,
-            definition=data.definition.model_dump(
-                mode="json",
-            ),
+            definition=data.definition.model_dump(mode="json"),
             status=data.status,
         )
-
         self.repository.create_definition(metric)
         self.db.commit()
         self.db.refresh(metric)
-
         return metric
 
     def list_definitions(
@@ -70,22 +56,12 @@ class MetricService:
         category: MetricCategory | None = None,
         status: MetricStatus | None = None,
     ) -> list[MetricDefinition]:
-        return self.repository.list_definitions(
-            category=category,
-            status=status,
-        )
+        return self.repository.list_definitions(category=category, status=status)
 
-    def get_definition(
-        self,
-        definition_id: UUID,
-    ) -> MetricDefinition:
-        metric = self.repository.get_definition_by_id(
-            definition_id,
-        )
-
+    def get_definition(self, definition_id: UUID) -> MetricDefinition:
+        metric = self.repository.get_definition_by_id(definition_id)
         if metric is None:
             raise not_found("Metric definition")
-
         return metric
 
     def update_definition(
@@ -94,58 +70,41 @@ class MetricService:
         definition_id: UUID,
         data: MetricDefinitionUpdate,
     ) -> MetricDefinition:
-        metric = self.repository.get_definition_by_id(
-            definition_id,
-            for_update=True,
-        )
-
+        metric = self.repository.get_definition_by_id(definition_id, for_update=True)
         if metric is None:
             raise not_found("Metric definition")
 
         if data.name is not None:
             metric.name = data.name
-
         if data.description is not None:
             metric.description = data.description
-
         if data.category is not None:
             metric.category = data.category
-
         if data.value_type is not None:
             metric.value_type = data.value_type
-
         if data.definition is not None:
-            metric.definition = data.definition.model_dump(
-                mode="json",
-            )
-
+            metric.definition = data.definition.model_dump(mode="json")
         if data.status is not None:
             metric.status = data.status
 
         self.repository.update_definition(metric)
-
         self.db.commit()
         self.db.refresh(metric)
-
         return metric
 
     def calculate(
-        self,
-        *,
-        request: MetricCalculationRequest,
+        self, *, request: MetricCalculationRequest
     ) -> list[MetricResultResponse]:
+        if request.start_date > request.end_date:
+            raise bad_request("start_date cannot be after end_date.")
+
         metrics = self.repository.get_active_definitions(
             metric_keys=request.metric_keys,
             category=request.category,
         )
-
         if request.metric_keys:
             found_keys = {metric.key for metric in metrics}
-
-            missing_keys = sorted(
-                set(request.metric_keys) - found_keys,
-            )
-
+            missing_keys = sorted(set(request.metric_keys) - found_keys)
             if missing_keys:
                 raise bad_request(
                     "The following metrics are unavailable or inactive: "
@@ -154,14 +113,15 @@ class MetricService:
 
         calculated_at = utc_now()
         results: list[MetricResultResponse] = []
-
         for metric in metrics:
+            # Repository selection proves the definition belongs to this tenant.
+            if metric.tenant_id != self.tenant_id:
+                raise ValueError("Metric definition tenant mismatch.")
             value = self.engine.calculate(
                 metric=metric,
                 start_date=request.start_date,
                 end_date=request.end_date,
             )
-
             result = self.repository.save_result(
                 metric_definition_id=metric.id,
                 period_start=request.start_date,
@@ -169,16 +129,9 @@ class MetricService:
                 value=value,
                 calculated_at=calculated_at,
             )
-
-            results.append(
-                self._result_response(
-                    result=result,
-                    metric=metric,
-                )
-            )
+            results.append(self._result_response(result=result, metric=metric))
 
         self.db.commit()
-
         return results
 
     def get_results(
@@ -189,26 +142,22 @@ class MetricService:
         category: MetricCategory | None = None,
         metric_key: str | None = None,
     ) -> list[MetricResultResponse]:
+        if start_date > end_date:
+            raise bad_request("start_date cannot be after end_date.")
         rows = self.repository.list_results(
             period_start=start_date,
             period_end=end_date,
             category=category,
             metric_key=metric_key,
         )
-
         return [
-            self._result_response(
-                result=result,
-                metric=metric,
-            )
+            self._result_response(result=result, metric=metric)
             for result, metric in rows
         ]
 
     @staticmethod
     def _result_response(
-        *,
-        result: MetricResult,
-        metric: MetricDefinition,
+        *, result: MetricResult, metric: MetricDefinition
     ) -> MetricResultResponse:
         return MetricResultResponse(
             id=result.id,
@@ -218,6 +167,6 @@ class MetricService:
             value_type=metric.value_type,
             period_start=result.period_start,
             period_end=result.period_end,
-            value=(None if result.value is None else float(result.value)),
+            value=None if result.value is None else float(result.value),
             calculated_at=result.calculated_at,
         )

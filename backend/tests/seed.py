@@ -16,7 +16,6 @@ from app.utils.enums import (
 
 AI_SYSTEM_USER_EMAIL = "aisystem@example.com"
 
-
 AI_PROMPTS = (
     {
         "name": "case-summary",
@@ -96,17 +95,17 @@ AI_PROMPTS = (
 
 
 def get_or_create_ai_system_user(db: Session) -> User:
-    user = db.query(User).filter(User.email == AI_SYSTEM_USER_EMAIL).first()
-
-    if user is not None:
-        return user
-
     tenant = db.query(Tenant).filter(Tenant.code == "DEFAULT").first()
-
     if tenant is None:
         raise RuntimeError(
-            "Default tenant is required before seeding the AI system user.",
+            "Default tenant is required before seeding the AI system user."
         )
+
+    user = db.query(User).filter(User.email == AI_SYSTEM_USER_EMAIL).first()
+    if user is not None:
+        if user.tenant_id != tenant.id:
+            raise RuntimeError("AI system user belongs to an unexpected tenant.")
+        return user
 
     user = User(
         id=UUID("00000000-0000-0000-0000-000000000010"),
@@ -120,26 +119,29 @@ def get_or_create_ai_system_user(db: Session) -> User:
         is_deleted=False,
         is_platform_admin=False,
     )
-
     db.add(user)
     db.flush()
-
     return user
 
 
 def seed_ai_prompts(db: Session) -> None:
     system_user = get_or_create_ai_system_user(db)
+    tenant_id = system_user.tenant_id
 
     for prompt_data in AI_PROMPTS:
         prompt = (
             db.query(AIPrompt)
-            .filter(AIPrompt.name == prompt_data["name"])
+            .filter(
+                AIPrompt.tenant_id == tenant_id,
+                AIPrompt.name == prompt_data["name"],
+            )
             .order_by(AIPrompt.version.desc())
             .first()
         )
 
         if prompt is None:
             prompt = AIPrompt(
+                tenant_id=tenant_id,
                 name=prompt_data["name"],
                 purpose=prompt_data["purpose"],
                 prompt_text=prompt_data["prompt_text"],
@@ -147,19 +149,22 @@ def seed_ai_prompts(db: Session) -> None:
                 status=AIPromptStatus.ACTIVE,
                 created_by=system_user.id,
             )
-
             db.add(prompt)
             db.flush()
 
         assignment = (
             db.query(AIPromptAssignment)
-            .filter(AIPromptAssignment.ai_function == prompt_data["ai_function"])
+            .filter(
+                AIPromptAssignment.tenant_id == tenant_id,
+                AIPromptAssignment.ai_function == prompt_data["ai_function"],
+            )
             .first()
         )
 
         if assignment is None:
             db.add(
                 AIPromptAssignment(
+                    tenant_id=tenant_id,
                     ai_function=prompt_data["ai_function"],
                     prompt_id=prompt.id,
                 )
@@ -174,7 +179,6 @@ if __name__ == "__main__":
     from app.core.database import SessionLocal
 
     db = SessionLocal()
-
     try:
         seed_ai_prompts(db)
     finally:

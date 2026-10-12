@@ -66,7 +66,10 @@ class VerificationService:
             db=db,
             tenant_id=tenant_id,
         )
-        self.customer_audit_log_service = CustomerAuditLogService(db)
+        self.customer_audit_log_service = CustomerAuditLogService(
+            db,
+            self.tenant_id,
+        )
         self.provider = provider or get_verification_provider()
         self.workflow_validation_service = WorkflowValidationService(
             VERIFICATION_STATUS_TRANSITIONS

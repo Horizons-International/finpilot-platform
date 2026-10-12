@@ -311,7 +311,8 @@ async def test_indexing_missing_document_returns_404(
         db=db_session,
         file_service=file_service,
         embedding_service=embedding_service,
-        tenant_id=user.id,
+        # Use the tenant UUID, not the user's UUID.
+        tenant_id=user.tenant_id,
     )
 
     with pytest.raises(HTTPException) as exc_info:

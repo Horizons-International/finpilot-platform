@@ -4,28 +4,25 @@ from uuid import UUID
 from sqlalchemy.orm import Session
 
 from app.services.audit_service import AuditService
-from app.utils.enums import AuditEventType
 from app.utils.errors import not_found
 
 
 def deny_tenant_access(
     db: Session,
     *,
-    user_id: UUID | None,
-    email: str | None,
-    ip_address: str | None,
-    user_agent: str | None,
     resource_type: str,
     resource_id: UUID,
     resource_name: str,
+    user_id: UUID | None = None,
+    email: str | None = None,
+    ip_address: str | None = None,
+    user_agent: str | None = None,
 ) -> NoReturn:
-    """Audit an inaccessible resource, then return a generic not-found error."""
+    """Audit denied resource access, then return a generic 404."""
 
-    # Clear any read transaction before persisting the security event.
     db.rollback()
 
-    AuditService(db).log_event(
-        event_type=AuditEventType.ACCESS_DENIED,
+    AuditService(db).log_access_denied(
         user_id=user_id,
         email=email,
         ip_address=ip_address,
@@ -34,7 +31,6 @@ def deny_tenant_access(
         resource_id=resource_id,
     )
 
-    # AuditService.log_event() flushes but does not commit.
     db.commit()
 
     raise not_found(resource_name)

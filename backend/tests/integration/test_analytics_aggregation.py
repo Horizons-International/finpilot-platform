@@ -9,17 +9,13 @@ from app.analytics.models.customer_daily import CustomerAnalyticsDaily
 from app.analytics.models.customer_monthly import CustomerAnalyticsMonthly
 from app.analytics.models.operations_daily import OperationsAnalyticsDaily
 from app.analytics.models.operations_monthly import OperationsAnalyticsMonthly
-from app.analytics.services.aggregation_service import (
-    AnalyticsAggregationService,
-)
+from app.analytics.services.aggregation_service import AnalyticsAggregationService
 from app.models.aml_rule import AMLRule
 from app.models.compliance_case import ComplianceCase
 from app.models.customer import Customer
 from app.models.customer_risk_profile import CustomerRiskProfile
 from app.models.task import Task
-from app.models.transaction_monitoring_result import (
-    TransactionMonitoringResult,
-)
+from app.models.transaction_monitoring_result import TransactionMonitoringResult
 from app.models.verification_case import IdentityVerificationCase
 from app.models.workflow import Workflow, WorkflowExecution
 from app.utils.enums import (
@@ -44,55 +40,35 @@ from app.utils.enums import (
 @pytest.fixture
 def cleanup_analytics_aggregations(db_session):
     existing_customer_daily = {
-        row.snapshot_date for row in db_session.query(CustomerAnalyticsDaily).all()
+        r.id for r in db_session.query(CustomerAnalyticsDaily).all()
     }
-
     existing_customer_monthly = {
-        row.month_start for row in db_session.query(CustomerAnalyticsMonthly).all()
+        r.id for r in db_session.query(CustomerAnalyticsMonthly).all()
     }
-
     existing_compliance_daily = {
-        row.snapshot_date for row in db_session.query(ComplianceAnalyticsDaily).all()
+        r.id for r in db_session.query(ComplianceAnalyticsDaily).all()
     }
-
     existing_compliance_monthly = {
-        row.month_start for row in db_session.query(ComplianceAnalyticsMonthly).all()
+        r.id for r in db_session.query(ComplianceAnalyticsMonthly).all()
     }
-
     existing_operations_daily = {
-        row.snapshot_date for row in db_session.query(OperationsAnalyticsDaily).all()
+        r.id for r in db_session.query(OperationsAnalyticsDaily).all()
     }
-
     existing_operations_monthly = {
-        row.month_start for row in db_session.query(OperationsAnalyticsMonthly).all()
+        r.id for r in db_session.query(OperationsAnalyticsMonthly).all()
     }
-
     yield
-
-    for row in db_session.query(CustomerAnalyticsDaily).all():
-        if row.snapshot_date not in existing_customer_daily:
-            db_session.delete(row)
-
-    for row in db_session.query(CustomerAnalyticsMonthly).all():
-        if row.month_start not in existing_customer_monthly:
-            db_session.delete(row)
-
-    for row in db_session.query(ComplianceAnalyticsDaily).all():
-        if row.snapshot_date not in existing_compliance_daily:
-            db_session.delete(row)
-
-    for row in db_session.query(ComplianceAnalyticsMonthly).all():
-        if row.month_start not in existing_compliance_monthly:
-            db_session.delete(row)
-
-    for row in db_session.query(OperationsAnalyticsDaily).all():
-        if row.snapshot_date not in existing_operations_daily:
-            db_session.delete(row)
-
-    for row in db_session.query(OperationsAnalyticsMonthly).all():
-        if row.month_start not in existing_operations_monthly:
-            db_session.delete(row)
-
+    for model, existing_ids in (
+        (CustomerAnalyticsDaily, existing_customer_daily),
+        (CustomerAnalyticsMonthly, existing_customer_monthly),
+        (ComplianceAnalyticsDaily, existing_compliance_daily),
+        (ComplianceAnalyticsMonthly, existing_compliance_monthly),
+        (OperationsAnalyticsDaily, existing_operations_daily),
+        (OperationsAnalyticsMonthly, existing_operations_monthly),
+    ):
+        for row in db_session.query(model).all():
+            if row.id not in existing_ids:
+                db_session.delete(row)
     db_session.commit()
 
 
@@ -107,20 +83,10 @@ def test_daily_aggregation_stores_event_metrics(
     cleanup_aml_rules,
     cleanup_transaction_monitoring_results,
 ):
-    event_time = datetime(
-        2030,
-        1,
-        15,
-        12,
-        0,
-        tzinfo=timezone.utc,
-    )
-
+    event_time = datetime(2030, 1, 15, 12, 0, tzinfo=timezone.utc)
     tenant = create_test_tenant(
-        name="Tenant B",
-        code=f"TENANT-B-{uuid4().hex[:6].upper()}",
+        name="Tenant B", code=f"TENANT-B-{uuid4().hex[:6].upper()}"
     )
-
     customer = Customer(
         tenant_id=tenant.id,
         first_name="Analytics",
@@ -130,10 +96,8 @@ def test_daily_aggregation_stores_event_metrics(
         status=CustomerStatus.VERIFIED,
         created_at=event_time,
     )
-
     db_session.add(customer)
     db_session.flush()
-
     db_session.add(
         IdentityVerificationCase(
             customer_id=customer.id,
@@ -144,7 +108,6 @@ def test_daily_aggregation_stores_event_metrics(
             tenant_id=tenant.id,
         )
     )
-
     db_session.add(
         ComplianceCase(
             customer_id=customer.id,
@@ -155,9 +118,9 @@ def test_daily_aggregation_stores_event_metrics(
             tenant_id=tenant.id,
         )
     )
-
     db_session.add(
         CustomerRiskProfile(
+            tenant_id=tenant.id,
             customer_id=customer.id,
             risk_level=CustomerRiskLevel.HIGH,
             risk_score=85,
@@ -166,24 +129,19 @@ def test_daily_aggregation_stores_event_metrics(
             assessment_source="TEST",
         )
     )
-
     aml_rule = AMLRule(
+        tenant_id=tenant.id,
         name=f"Analytics AML Rule {uuid4()}",
         rule_type=AMLRuleType.TRANSACTION,
-        condition={
-            "amount": {
-                "greater_than": 10000,
-            }
-        },
+        condition={"amount": {"greater_than": 10000}},
         severity=AMLRuleSeverity.HIGH,
         status=AMLRuleStatus.ACTIVE,
     )
-
     db_session.add(aml_rule)
     db_session.flush()
-
     db_session.add(
         TransactionMonitoringResult(
+            tenant_id=tenant.id,
             transaction_id=uuid4(),
             customer_id=customer.id,
             rule_id=aml_rule.id,
@@ -192,18 +150,16 @@ def test_daily_aggregation_stores_event_metrics(
             created_at=event_time,
         )
     )
-
     workflow = Workflow(
         tenant_id=tenant.id,
         name=f"Analytics Workflow {uuid4()}",
         description="Analytics aggregation test workflow.",
         status=WorkflowStatus.ACTIVE,
     )
-
     db_session.add(workflow)
     db_session.flush()
-
     workflow_completed = WorkflowExecution(
+        tenant_id=tenant.id,
         workflow_id=workflow.id,
         entity_type="CUSTOMER",
         entity_id=customer.id,
@@ -213,38 +169,23 @@ def test_daily_aggregation_stores_event_metrics(
         due_date=event_time + timedelta(hours=2),
         sla_status=SLAStatus.COMPLETED,
     )
-
     db_session.add(workflow_completed)
     db_session.flush()
-
-    task = Task(
-        title="Analytics aggregation test task",
-        status=TaskStatus.COMPLETED,
-        workflow_execution_id=workflow_completed.id,
-        created_at=event_time - timedelta(hours=1),
-        completed_at=event_time,
-        due_date=event_time + timedelta(hours=1),
-        sla_status=SLAStatus.COMPLETED,
-        tenant_id=tenant.id,
+    db_session.add(
+        Task(
+            tenant_id=tenant.id,
+            title="Analytics aggregation test task",
+            status=TaskStatus.COMPLETED,
+            workflow_execution_id=workflow_completed.id,
+            created_at=event_time - timedelta(hours=1),
+            completed_at=event_time,
+            due_date=event_time + timedelta(hours=1),
+            sla_status=SLAStatus.COMPLETED,
+        )
     )
-
-    db_session.add(task)
-
     db_session.commit()
-
-    service = AnalyticsAggregationService(
-        db_session,
-        tenant_id=tenant.id,
-    )
-
-    service.aggregate_daily(
-        aggregation_date=date(
-            2030,
-            1,
-            15,
-        ),
-    )
-
+    service = AnalyticsAggregationService(db_session, tenant_id=tenant.id)
+    service.aggregate_daily(aggregation_date=date(2030, 1, 15))
     customer_snapshot = (
         db_session.query(CustomerAnalyticsDaily)
         .filter(
@@ -253,7 +194,6 @@ def test_daily_aggregation_stores_event_metrics(
         )
         .one_or_none()
     )
-
     compliance_snapshot = (
         db_session.query(ComplianceAnalyticsDaily)
         .filter(
@@ -262,7 +202,6 @@ def test_daily_aggregation_stores_event_metrics(
         )
         .one_or_none()
     )
-
     operations_snapshot = (
         db_session.query(OperationsAnalyticsDaily)
         .filter(
@@ -271,21 +210,16 @@ def test_daily_aggregation_stores_event_metrics(
         )
         .one_or_none()
     )
-
     assert customer_snapshot is not None
     assert compliance_snapshot is not None
     assert operations_snapshot is not None
-
     assert customer_snapshot.customers_registered_during_day == 1
     assert customer_snapshot.verification_approvals_during_day == 1
-
     assert compliance_snapshot.cases_created_during_day == 1
     assert compliance_snapshot.alerts_created_during_day == 1
-
     assert operations_snapshot.tasks_created_during_day == 1
     assert operations_snapshot.tasks_completed_during_day == 1
     assert operations_snapshot.tasks_completed_within_sla_during_day == 1
-
     assert operations_snapshot.workflows_started_during_day == 1
     assert operations_snapshot.workflows_completed_during_day == 1
     assert operations_snapshot.workflows_completed_within_sla_during_day == 1
@@ -296,41 +230,26 @@ def test_monthly_aggregation_uses_ending_state_and_monthly_activity(
     cleanup_analytics_aggregations,
     default_tenant_id,
 ):
-    month_start = date(
-        2030,
-        1,
-        1,
+    month_start = date(2030, 1, 1)
+    db_session.add(
+        CustomerAnalyticsDaily(
+            tenant_id=default_tenant_id,
+            snapshot_date=date(2029, 12, 31),
+            ending_total_customers=100,
+            customers_registered_during_day=0,
+            verification_approvals_during_day=0,
+            ending_pending_verification_customers=10,
+            ending_verified_customers=90,
+            ending_suspended_customers=0,
+            ending_rejected_customers=0,
+        )
     )
-
-    previous_customer = CustomerAnalyticsDaily(
-        tenant_id=default_tenant_id,
-        snapshot_date=date(
-            2029,
-            12,
-            31,
-        ),
-        ending_total_customers=100,
-        customers_registered_during_day=0,
-        verification_approvals_during_day=0,
-        ending_pending_verification_customers=10,
-        ending_verified_customers=90,
-        ending_suspended_customers=0,
-        ending_rejected_customers=0,
-    )
-
-    db_session.add(previous_customer)
-
     for day_number in range(1, 32):
         ending_total_customers = 103 if day_number == 1 else 108
-
         db_session.add(
             CustomerAnalyticsDaily(
                 tenant_id=default_tenant_id,
-                snapshot_date=date(
-                    2030,
-                    1,
-                    day_number,
-                ),
+                snapshot_date=date(2030, 1, day_number),
                 ending_total_customers=ending_total_customers,
                 customers_registered_during_day=(
                     3 if day_number == 1 else 5 if day_number == 2 else 0
@@ -344,15 +263,10 @@ def test_monthly_aggregation_uses_ending_state_and_monthly_activity(
                 ending_rejected_customers=0,
             )
         )
-
         db_session.add(
             ComplianceAnalyticsDaily(
                 tenant_id=default_tenant_id,
-                snapshot_date=date(
-                    2030,
-                    1,
-                    day_number,
-                ),
+                snapshot_date=date(2030, 1, day_number),
                 ending_total_cases=10,
                 cases_created_during_day=1,
                 ending_open_cases=4,
@@ -370,15 +284,10 @@ def test_monthly_aggregation_uses_ending_state_and_monthly_activity(
                 ending_critical_risk_customers=5,
             )
         )
-
         db_session.add(
             OperationsAnalyticsDaily(
                 tenant_id=default_tenant_id,
-                snapshot_date=date(
-                    2030,
-                    1,
-                    day_number,
-                ),
+                snapshot_date=date(2030, 1, day_number),
                 ending_total_tasks=100,
                 tasks_created_during_day=3,
                 ending_open_tasks=20,
@@ -406,18 +315,9 @@ def test_monthly_aggregation_uses_ending_state_and_monthly_activity(
                 workflows_completed_breached_sla_during_day=0,
             )
         )
-
     db_session.commit()
-
-    service = AnalyticsAggregationService(
-        db_session,
-        tenant_id=default_tenant_id,
-    )
-
-    service.aggregate_monthly(
-        month_start=month_start,
-    )
-
+    service = AnalyticsAggregationService(db_session, tenant_id=default_tenant_id)
+    service.aggregate_monthly(month_start=month_start)
     customer_month = (
         db_session.query(CustomerAnalyticsMonthly)
         .filter(
@@ -426,7 +326,6 @@ def test_monthly_aggregation_uses_ending_state_and_monthly_activity(
         )
         .one_or_none()
     )
-
     compliance_month = (
         db_session.query(ComplianceAnalyticsMonthly)
         .filter(
@@ -435,7 +334,6 @@ def test_monthly_aggregation_uses_ending_state_and_monthly_activity(
         )
         .one_or_none()
     )
-
     operations_month = (
         db_session.query(OperationsAnalyticsMonthly)
         .filter(
@@ -444,27 +342,22 @@ def test_monthly_aggregation_uses_ending_state_and_monthly_activity(
         )
         .one_or_none()
     )
-
     assert customer_month is not None
     assert compliance_month is not None
     assert operations_month is not None
-
     assert customer_month.ending_total_customers == 108
     assert customer_month.customers_registered_during_month == 8
     assert customer_month.verification_approvals_during_month == 6
     assert customer_month.customer_growth == 8
-
     assert compliance_month.cases_created_during_month == 31
     assert compliance_month.alerts_created_during_month == 62
     assert compliance_month.ending_open_cases == 4
     assert compliance_month.ending_high_risk_customers == 15
     assert compliance_month.ending_critical_risk_customers == 5
-
     assert operations_month.tasks_created_during_month == 93
     assert operations_month.tasks_completed_during_month == 62
     assert operations_month.tasks_completed_within_sla_during_month == 31
     assert operations_month.tasks_completed_breached_sla_during_month == 31
-
     assert operations_month.workflows_started_during_month == 62
     assert operations_month.workflows_completed_during_month == 31
     assert operations_month.workflows_failed_during_month == 0
@@ -472,78 +365,50 @@ def test_monthly_aggregation_uses_ending_state_and_monthly_activity(
 
 
 def test_daily_aggregation_is_idempotent(
-    db_session,
-    default_tenant_id,
-    cleanup_analytics_aggregations,
+    db_session, default_tenant_id, cleanup_analytics_aggregations
 ):
-    target_date = date(
-        2030,
-        2,
-        1,
-    )
-
-    service = AnalyticsAggregationService(
-        db_session,
-        tenant_id=default_tenant_id,
-    )
-
-    service.aggregate_daily(
-        aggregation_date=target_date,
-    )
-
-    service.aggregate_daily(
-        aggregation_date=target_date,
-    )
-
+    target_date = date(2030, 2, 1)
+    service = AnalyticsAggregationService(db_session, tenant_id=default_tenant_id)
+    service.aggregate_daily(aggregation_date=target_date)
+    service.aggregate_daily(aggregation_date=target_date)
     customer_rows = (
         db_session.query(CustomerAnalyticsDaily)
         .filter(
+            CustomerAnalyticsDaily.tenant_id == default_tenant_id,
             CustomerAnalyticsDaily.snapshot_date == target_date,
         )
         .all()
     )
-
     compliance_rows = (
         db_session.query(ComplianceAnalyticsDaily)
         .filter(
+            ComplianceAnalyticsDaily.tenant_id == default_tenant_id,
             ComplianceAnalyticsDaily.snapshot_date == target_date,
         )
         .all()
     )
-
     operations_rows = (
         db_session.query(OperationsAnalyticsDaily)
         .filter(
+            OperationsAnalyticsDaily.tenant_id == default_tenant_id,
             OperationsAnalyticsDaily.snapshot_date == target_date,
         )
         .all()
     )
-
     assert len(customer_rows) == 1
     assert len(compliance_rows) == 1
     assert len(operations_rows) == 1
 
 
 def test_monthly_aggregation_is_idempotent(
-    db_session,
-    default_tenant_id,
-    cleanup_analytics_aggregations,
+    db_session, default_tenant_id, cleanup_analytics_aggregations
 ):
-    month_start = date(
-        2030,
-        3,
-        1,
-    )
-
+    month_start = date(2030, 3, 1)
     for day_number in range(1, 32):
         db_session.add(
             CustomerAnalyticsDaily(
                 tenant_id=default_tenant_id,
-                snapshot_date=date(
-                    2030,
-                    3,
-                    day_number,
-                ),
+                snapshot_date=date(2030, 3, day_number),
                 ending_total_customers=10,
                 customers_registered_during_day=1,
                 verification_approvals_during_day=0,
@@ -553,15 +418,10 @@ def test_monthly_aggregation_is_idempotent(
                 ending_rejected_customers=0,
             )
         )
-
         db_session.add(
             ComplianceAnalyticsDaily(
                 tenant_id=default_tenant_id,
-                snapshot_date=date(
-                    2030,
-                    3,
-                    day_number,
-                ),
+                snapshot_date=date(2030, 3, day_number),
                 ending_total_cases=1,
                 cases_created_during_day=1,
                 ending_open_cases=1,
@@ -579,15 +439,10 @@ def test_monthly_aggregation_is_idempotent(
                 ending_critical_risk_customers=0,
             )
         )
-
         db_session.add(
             OperationsAnalyticsDaily(
                 tenant_id=default_tenant_id,
-                snapshot_date=date(
-                    2030,
-                    3,
-                    day_number,
-                ),
+                snapshot_date=date(2030, 3, day_number),
                 ending_total_tasks=1,
                 tasks_created_during_day=1,
                 ending_open_tasks=1,
@@ -615,46 +470,34 @@ def test_monthly_aggregation_is_idempotent(
                 workflows_completed_breached_sla_during_day=0,
             )
         )
-
     db_session.commit()
-
-    service = AnalyticsAggregationService(
-        db_session,
-        tenant_id=default_tenant_id,
-    )
-
-    service.aggregate_monthly(
-        month_start=month_start,
-    )
-
-    service.aggregate_monthly(
-        month_start=month_start,
-    )
-
+    service = AnalyticsAggregationService(db_session, tenant_id=default_tenant_id)
+    service.aggregate_monthly(month_start=month_start)
+    service.aggregate_monthly(month_start=month_start)
     customer_rows = (
         db_session.query(CustomerAnalyticsMonthly)
         .filter(
+            CustomerAnalyticsMonthly.tenant_id == default_tenant_id,
             CustomerAnalyticsMonthly.month_start == month_start,
         )
         .all()
     )
-
     compliance_rows = (
         db_session.query(ComplianceAnalyticsMonthly)
         .filter(
+            ComplianceAnalyticsMonthly.tenant_id == default_tenant_id,
             ComplianceAnalyticsMonthly.month_start == month_start,
         )
         .all()
     )
-
     operations_rows = (
         db_session.query(OperationsAnalyticsMonthly)
         .filter(
+            OperationsAnalyticsMonthly.tenant_id == default_tenant_id,
             OperationsAnalyticsMonthly.month_start == month_start,
         )
         .all()
     )
-
     assert len(customer_rows) == 1
     assert len(compliance_rows) == 1
     assert len(operations_rows) == 1

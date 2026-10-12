@@ -123,6 +123,13 @@ class WorkflowStep(Base):
         default=uuid.uuid4,
     )
 
+    tenant_id: Mapped[UUID] = mapped_column(
+        PostgreSQLUUID(as_uuid=True),
+        ForeignKey("tenants.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+
     workflow_id: Mapped[UUID] = mapped_column(
         PostgreSQLUUID(as_uuid=True),
         ForeignKey(
@@ -171,6 +178,8 @@ class WorkflowStep(Base):
         back_populates="workflow_step",
     )
 
+    tenant = relationship("Tenant")
+
 
 class WorkflowExecution(Base):
     __tablename__ = "workflow_executions"
@@ -179,6 +188,13 @@ class WorkflowExecution(Base):
         PostgreSQLUUID(as_uuid=True),
         primary_key=True,
         default=uuid.uuid4,
+    )
+
+    tenant_id: Mapped[UUID] = mapped_column(
+        PostgreSQLUUID(as_uuid=True),
+        ForeignKey("tenants.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
     )
 
     workflow_id: Mapped[UUID] = mapped_column(
@@ -300,6 +316,8 @@ class WorkflowExecution(Base):
         order_by="WorkflowAuditLog.created_at",
     )
 
+    tenant = relationship("Tenant")
+
 
 class WorkflowStepExecution(Base):
     __tablename__ = "workflow_step_executions"
@@ -316,6 +334,13 @@ class WorkflowStepExecution(Base):
         PostgreSQLUUID(as_uuid=True),
         primary_key=True,
         default=uuid.uuid4,
+    )
+
+    tenant_id: Mapped[UUID] = mapped_column(
+        PostgreSQLUUID(as_uuid=True),
+        ForeignKey("tenants.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
     )
 
     workflow_execution_id: Mapped[UUID] = mapped_column(
@@ -394,3 +419,5 @@ class WorkflowStepExecution(Base):
         "WorkflowStep",
         back_populates="executions",
     )
+
+    tenant = relationship("Tenant")

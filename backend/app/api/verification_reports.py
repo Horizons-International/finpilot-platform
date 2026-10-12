@@ -6,7 +6,8 @@ from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.core.responses import APIResponse
-from app.core.security import require_roles
+from app.core.security import get_current_user, require_roles
+from app.models.user import User
 from app.schemas.report import (
     DocumentSummaryResponse,
     VerificationSummaryResponse,
@@ -22,8 +23,10 @@ router = APIRouter(
 
 def get_report_service(
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ) -> ReportService:
-    return ReportService(db)
+    """Build a report service scoped to the authenticated user's tenant."""
+    return ReportService(db, tenant_id=current_user.tenant_id)
 
 
 @router.get(
@@ -31,7 +34,7 @@ def get_report_service(
     response_model=APIResponse[VerificationSummaryResponse],
     status_code=status.HTTP_200_OK,
     summary="Get verification summary",
-    description="Retreive verification summary.",
+    description="Retrieve verification summary.",
 )
 def get_verification_summary(
     date_from: date | None = Query(default=None),

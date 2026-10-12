@@ -34,7 +34,10 @@ class KnowledgeIndexingService:
             db=db,
             tenant_id=tenant_id,
         )
-        self.chunk_repository = KnowledgeDocumentChunkRepository(db)
+        self.chunk_repository = KnowledgeDocumentChunkRepository(
+            db,
+            self.tenant_id,
+        )
 
     async def index_document(
         self,

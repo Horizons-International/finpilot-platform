@@ -8,7 +8,7 @@ from app.utils.enums import (
     AuditEventType,
     UserRole,
 )
-from tests.helpers import authenticate_client
+from tests.helpers import authenticate_client, create_customer_with_data
 
 
 def create_transaction_aml_rule(
@@ -32,11 +32,22 @@ def create_transaction_aml_rule(
     )
 
 
+def create_transaction_customer(client):
+    """Create a real customer in the authenticated tenant for evaluation."""
+    response = create_customer_with_data(
+        client,
+        email=f"transaction-monitoring-customer-{uuid.uuid4()}@example.com",
+    )
+    assert response.status_code == 201
+    return uuid.UUID(response.json()["data"]["id"])
+
+
 def test_matching_transaction_rule_generates_alert_and_stores_result(
     client,
     create_test_user,
     cleanup_transaction_monitoring_results,
     cleanup_aml_rules,
+    cleanup_test_customers,
     db_session,
 ):
     admin = create_test_user(
@@ -45,6 +56,7 @@ def test_matching_transaction_rule_generates_alert_and_stores_result(
     )
 
     authenticate_client(client, admin)
+    db_session.info["tenant_id"] = admin.tenant_id
 
     rule_response = create_transaction_aml_rule(
         client,
@@ -62,7 +74,7 @@ def test_matching_transaction_rule_generates_alert_and_stores_result(
     rule_id = rule_response.json()["data"]["id"]
 
     transaction_id = uuid.uuid4()
-    customer_id = uuid.uuid4()
+    customer_id = create_transaction_customer(client)
 
     response = client.post(
         "/api/v1/transaction-monitoring/evaluate",
@@ -93,6 +105,7 @@ def test_matching_transaction_rule_generates_alert_and_stores_result(
     assert result["result"] == "MATCHED"
     assert result["alert_required"] is True
 
+    db_session.info["tenant_id"] = admin.tenant_id
     stored_result = (
         db_session.query(TransactionMonitoringResult)
         .filter(
@@ -128,6 +141,7 @@ def test_non_matching_transaction_rule_stores_not_matched_result(
     create_test_user,
     cleanup_transaction_monitoring_results,
     cleanup_aml_rules,
+    cleanup_test_customers,
     db_session,
 ):
     admin = create_test_user(
@@ -136,6 +150,7 @@ def test_non_matching_transaction_rule_stores_not_matched_result(
     )
 
     authenticate_client(client, admin)
+    db_session.info["tenant_id"] = admin.tenant_id
 
     rule_response = create_transaction_aml_rule(
         client,
@@ -151,7 +166,7 @@ def test_non_matching_transaction_rule_stores_not_matched_result(
     assert rule_response.status_code == 201
 
     transaction_id = uuid.uuid4()
-    customer_id = uuid.uuid4()
+    customer_id = create_transaction_customer(client)
 
     response = client.post(
         "/api/v1/transaction-monitoring/evaluate",
@@ -179,6 +194,7 @@ def test_non_matching_transaction_rule_stores_not_matched_result(
     assert result["result"] == "NOT_MATCHED"
     assert result["alert_required"] is False
 
+    db_session.info["tenant_id"] = admin.tenant_id
     stored_result = (
         db_session.query(TransactionMonitoringResult)
         .filter(
@@ -196,6 +212,7 @@ def test_inactive_transaction_rule_is_not_evaluated(
     create_test_user,
     cleanup_transaction_monitoring_results,
     cleanup_aml_rules,
+    cleanup_test_customers,
 ):
     admin = create_test_user(
         email=(f"transaction-monitoring-inactive-{uuid.uuid4()}@example.com"),
@@ -231,7 +248,7 @@ def test_inactive_transaction_rule_is_not_evaluated(
     response = client.post(
         "/api/v1/transaction-monitoring/evaluate",
         json={
-            "customer_id": str(uuid.uuid4()),
+            "customer_id": str(create_transaction_customer(client)),
             "transaction_id": str(uuid.uuid4()),
             "amount": "15000.00",
             "currency": "USD",
@@ -256,6 +273,7 @@ def test_multiple_transaction_rules_store_multiple_results(
     create_test_user,
     cleanup_transaction_monitoring_results,
     cleanup_aml_rules,
+    cleanup_test_customers,
     db_session,
 ):
     admin = create_test_user(
@@ -292,7 +310,7 @@ def test_multiple_transaction_rules_store_multiple_results(
     assert high_risk_country_rule.status_code == 201
 
     transaction_id = uuid.uuid4()
-    customer_id = uuid.uuid4()
+    customer_id = create_transaction_customer(client)
 
     response = client.post(
         "/api/v1/transaction-monitoring/evaluate",
@@ -323,6 +341,7 @@ def test_multiple_transaction_rules_store_multiple_results(
 
     assert len(matched_results) == 2
 
+    db_session.info["tenant_id"] = admin.tenant_id
     stored_results = (
         db_session.query(TransactionMonitoringResult)
         .filter(
@@ -339,6 +358,7 @@ def test_compliance_officer_can_evaluate_transaction(
     create_test_user,
     cleanup_transaction_monitoring_results,
     cleanup_aml_rules,
+    cleanup_test_customers,
 ):
     admin = create_test_user(
         email=(f"transaction-monitoring-rbac-admin-{uuid.uuid4()}@example.com"),
@@ -365,12 +385,13 @@ def test_compliance_officer_can_evaluate_transaction(
         role=UserRole.COMPLIANCE_OFFICER,
     )
 
+    customer_id = create_transaction_customer(client)
     authenticate_client(client, compliance_officer)
 
     response = client.post(
         "/api/v1/transaction-monitoring/evaluate",
         json={
-            "customer_id": str(uuid.uuid4()),
+            "customer_id": str(customer_id),
             "transaction_id": str(uuid.uuid4()),
             "amount": "1500.00",
             "currency": "USD",
@@ -388,6 +409,7 @@ def test_auditor_cannot_evaluate_transaction(
     create_test_user,
     cleanup_transaction_monitoring_results,
     cleanup_aml_rules,
+    cleanup_test_customers,
 ):
     auditor = create_test_user(
         email=(f"transaction-monitoring-auditor-{uuid.uuid4()}@example.com"),

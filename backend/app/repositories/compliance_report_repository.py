@@ -2,18 +2,14 @@ from dataclasses import dataclass
 from datetime import date, datetime, time, timedelta, timezone
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import and_, select
 from sqlalchemy.orm import Session
 
 from app.models.aml_rule import AMLRule
 from app.models.customer import Customer
-from app.models.customer_risk_assessment_history import (
-    CustomerRiskAssessmentHistory,
-)
+from app.models.customer_risk_assessment_history import CustomerRiskAssessmentHistory
 from app.models.customer_risk_profile import CustomerRiskProfile
-from app.models.transaction_monitoring_result import (
-    TransactionMonitoringResult,
-)
+from app.models.transaction_monitoring_result import TransactionMonitoringResult
 from app.models.verification_case import IdentityVerificationCase
 from app.schemas.compliance_reports import ComplianceReportFilters
 from app.utils.enums import (
@@ -61,98 +57,67 @@ class ComplianceReportRepository:
         self.tenant_id = tenant_id
 
     @staticmethod
-    def _start_datetime(
-        value: date | None,
-    ) -> datetime | None:
+    def _start_datetime(value: date | None) -> datetime | None:
         if value is None:
             return None
-
-        return datetime.combine(
-            value,
-            time.min,
-            tzinfo=timezone.utc,
-        )
+        return datetime.combine(value, time.min, tzinfo=timezone.utc)
 
     @staticmethod
-    def _end_datetime_exclusive(
-        value: date | None,
-    ) -> datetime | None:
+    def _end_datetime_exclusive(value: date | None) -> datetime | None:
         if value is None:
             return None
-
-        next_day = value + timedelta(days=1)
-
         return datetime.combine(
-            next_day,
-            time.min,
-            tzinfo=timezone.utc,
+            value + timedelta(days=1), time.min, tzinfo=timezone.utc
         )
 
-    def get_case_rows(
-        self,
-        filters: ComplianceReportFilters,
-    ) -> list[CaseReportRow]:
+    def get_case_rows(self, filters: ComplianceReportFilters) -> list[CaseReportRow]:
         statement = (
             select(
                 IdentityVerificationCase.created_at,
                 IdentityVerificationCase.completed_at,
             )
-            .join(
-                Customer,
-                IdentityVerificationCase.customer_id == Customer.id,
-            )
+            .join(Customer, IdentityVerificationCase.customer_id == Customer.id)
             .outerjoin(
                 CustomerRiskProfile,
-                CustomerRiskProfile.customer_id == Customer.id,
+                and_(
+                    CustomerRiskProfile.customer_id == Customer.id,
+                    CustomerRiskProfile.tenant_id == self.tenant_id,
+                ),
+            )
+            .where(
+                IdentityVerificationCase.tenant_id == self.tenant_id,
+                Customer.tenant_id == self.tenant_id,
             )
         )
 
-        statement = statement.where(
-            IdentityVerificationCase.tenant_id == self.tenant_id,
-            Customer.tenant_id == self.tenant_id,
-        )
-
-        start_datetime = self._start_datetime(
-            filters.start_date,
-        )
-
-        end_datetime = self._end_datetime_exclusive(
-            filters.end_date,
-        )
+        start_datetime = self._start_datetime(filters.start_date)
+        end_datetime = self._end_datetime_exclusive(filters.end_date)
 
         if start_datetime is not None:
             statement = statement.where(
-                IdentityVerificationCase.created_at >= start_datetime,
+                IdentityVerificationCase.created_at >= start_datetime
             )
-
         if end_datetime is not None:
             statement = statement.where(
-                IdentityVerificationCase.created_at < end_datetime,
+                IdentityVerificationCase.created_at < end_datetime
             )
-
         if filters.country is not None:
             statement = statement.where(
-                Customer.country_of_residence == filters.country,
+                Customer.country_of_residence == filters.country
             )
-
         if filters.risk_level is not None:
             statement = statement.where(
-                CustomerRiskProfile.risk_level == filters.risk_level,
+                CustomerRiskProfile.risk_level == filters.risk_level
             )
 
         rows = self.db.execute(statement).all()
-
         return [
-            CaseReportRow(
-                created_at=row.created_at,
-                completed_at=row.completed_at,
-            )
+            CaseReportRow(created_at=row.created_at, completed_at=row.completed_at)
             for row in rows
         ]
 
     def get_alert_rows(
-        self,
-        filters: ComplianceReportFilters,
+        self, filters: ComplianceReportFilters
     ) -> list[AMLAlertReportRow]:
         statement = (
             select(
@@ -163,59 +128,47 @@ class ComplianceReportRepository:
                 TransactionMonitoringResult.country,
                 CustomerRiskProfile.risk_level,
             )
-            .join(
-                AMLRule,
-                TransactionMonitoringResult.rule_id == AMLRule.id,
-            )
-            .join(
-                Customer,
-                TransactionMonitoringResult.customer_id == Customer.id,
-            )
+            .join(AMLRule, TransactionMonitoringResult.rule_id == AMLRule.id)
+            .join(Customer, TransactionMonitoringResult.customer_id == Customer.id)
             .outerjoin(
                 CustomerRiskProfile,
-                CustomerRiskProfile.customer_id == Customer.id,
+                and_(
+                    CustomerRiskProfile.customer_id == Customer.id,
+                    CustomerRiskProfile.tenant_id == self.tenant_id,
+                ),
             )
             .where(
                 TransactionMonitoringResult.result
                 == TransactionMonitoringOutcome.MATCHED,
+                TransactionMonitoringResult.tenant_id == self.tenant_id,
+                AMLRule.tenant_id == self.tenant_id,
                 Customer.tenant_id == self.tenant_id,
             )
         )
 
-        start_datetime = self._start_datetime(
-            filters.start_date,
-        )
-
-        end_datetime = self._end_datetime_exclusive(
-            filters.end_date,
-        )
+        start_datetime = self._start_datetime(filters.start_date)
+        end_datetime = self._end_datetime_exclusive(filters.end_date)
 
         if start_datetime is not None:
             statement = statement.where(
-                TransactionMonitoringResult.created_at >= start_datetime,
+                TransactionMonitoringResult.created_at >= start_datetime
             )
-
         if end_datetime is not None:
             statement = statement.where(
-                TransactionMonitoringResult.created_at < end_datetime,
+                TransactionMonitoringResult.created_at < end_datetime
             )
-
         if filters.country is not None:
             statement = statement.where(
-                TransactionMonitoringResult.country == filters.country,
+                TransactionMonitoringResult.country == filters.country
             )
-
         if filters.risk_level is not None:
             statement = statement.where(
-                CustomerRiskProfile.risk_level == filters.risk_level,
+                CustomerRiskProfile.risk_level == filters.risk_level
             )
 
-        statement = statement.order_by(
-            TransactionMonitoringResult.created_at.desc(),
-        )
-
-        rows = self.db.execute(statement).all()
-
+        rows = self.db.execute(
+            statement.order_by(TransactionMonitoringResult.created_at.desc())
+        ).all()
         return [
             AMLAlertReportRow(
                 rule_id=row.rule_id,
@@ -229,53 +182,41 @@ class ComplianceReportRepository:
         ]
 
     def get_current_risk_rows(
-        self,
-        filters: ComplianceReportFilters,
+        self, filters: ComplianceReportFilters
     ) -> list[CurrentRiskReportRow]:
-        statement = select(
-            CustomerRiskProfile.customer_id,
-            CustomerRiskProfile.risk_level,
-            CustomerRiskProfile.assessed_at,
-            Customer.country_of_residence,
-        ).join(
-            Customer,
-            CustomerRiskProfile.customer_id == Customer.id,
+        statement = (
+            select(
+                CustomerRiskProfile.customer_id,
+                CustomerRiskProfile.risk_level,
+                CustomerRiskProfile.assessed_at,
+                Customer.country_of_residence,
+            )
+            .join(Customer, CustomerRiskProfile.customer_id == Customer.id)
+            .where(
+                CustomerRiskProfile.tenant_id == self.tenant_id,
+                Customer.tenant_id == self.tenant_id,
+            )
         )
 
-        statement = statement.where(
-            Customer.tenant_id == self.tenant_id,
-        )
-
-        start_datetime = self._start_datetime(
-            filters.start_date,
-        )
-
-        end_datetime = self._end_datetime_exclusive(
-            filters.end_date,
-        )
+        start_datetime = self._start_datetime(filters.start_date)
+        end_datetime = self._end_datetime_exclusive(filters.end_date)
 
         if start_datetime is not None:
             statement = statement.where(
-                CustomerRiskProfile.assessed_at >= start_datetime,
+                CustomerRiskProfile.assessed_at >= start_datetime
             )
-
         if end_datetime is not None:
-            statement = statement.where(
-                CustomerRiskProfile.assessed_at < end_datetime,
-            )
-
+            statement = statement.where(CustomerRiskProfile.assessed_at < end_datetime)
         if filters.country is not None:
             statement = statement.where(
-                Customer.country_of_residence == filters.country,
+                Customer.country_of_residence == filters.country
             )
-
         if filters.risk_level is not None:
             statement = statement.where(
-                CustomerRiskProfile.risk_level == filters.risk_level,
+                CustomerRiskProfile.risk_level == filters.risk_level
             )
 
         rows = self.db.execute(statement).all()
-
         return [
             CurrentRiskReportRow(
                 customer_id=row.customer_id,
@@ -287,8 +228,7 @@ class ComplianceReportRepository:
         ]
 
     def get_risk_history_rows(
-        self,
-        filters: ComplianceReportFilters,
+        self, filters: ComplianceReportFilters
     ) -> list[RiskHistoryReportRow]:
         statement = (
             select(
@@ -297,9 +237,10 @@ class ComplianceReportRepository:
                 CustomerRiskAssessmentHistory.assessed_at,
                 Customer.country_of_residence,
             )
-            .join(
-                Customer,
-                CustomerRiskAssessmentHistory.customer_id == Customer.id,
+            .join(Customer, CustomerRiskAssessmentHistory.customer_id == Customer.id)
+            .where(
+                CustomerRiskAssessmentHistory.tenant_id == self.tenant_id,
+                Customer.tenant_id == self.tenant_id,
             )
             .order_by(
                 CustomerRiskAssessmentHistory.customer_id.asc(),
@@ -307,18 +248,13 @@ class ComplianceReportRepository:
             )
         )
 
-        statement = statement.where(
-            Customer.tenant_id == self.tenant_id,
-        )
-
         if filters.country is not None:
             statement = statement.where(
-                Customer.country_of_residence == filters.country,
+                Customer.country_of_residence == filters.country
             )
 
         rows = self.db.execute(statement).all()
-
-        result = [
+        results = [
             RiskHistoryReportRow(
                 customer_id=row.customer_id,
                 risk_level=row.risk_level,
@@ -327,8 +263,6 @@ class ComplianceReportRepository:
             )
             for row in rows
         ]
-
         if filters.risk_level is not None:
-            result = [row for row in result if row.risk_level == filters.risk_level]
-
-        return result
+            results = [row for row in results if row.risk_level == filters.risk_level]
+        return results

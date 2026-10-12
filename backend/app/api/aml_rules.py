@@ -26,30 +26,17 @@ router = APIRouter(
 )
 
 
-def _get_authenticated_user(
-    current_user: dict[str, Any],
-) -> tuple[UUID, str]:
-    user_id = UUID(
-        current_user["sub"],
-    )
-
+def _get_authenticated_user(current_user: dict[str, Any]) -> tuple[UUID, str]:
+    user_id = UUID(current_user["sub"])
     email = current_user["email"]
-
     if not isinstance(email, str) or not email:
         raise unauthorized("Authenticated user email is missing.")
-
     return user_id, email
 
 
-def _request_metadata(
-    request: Request,
-) -> tuple[str | None, str | None]:
+def _request_metadata(request: Request) -> tuple[str | None, str | None]:
     ip_address = request.client.host if request.client else None
-
-    user_agent = request.headers.get(
-        "user-agent",
-    )
-
+    user_agent = request.headers.get("user-agent")
     return ip_address, user_agent
 
 
@@ -68,22 +55,12 @@ def create_aml_rule(
     request: Request,
     db: Session = Depends(get_db),
     current_user: dict[str, Any] = Depends(
-        require_roles(
-            UserRole.ADMINISTRATOR,
-            resource_type="aml_rule",
-        )
+        require_roles(UserRole.ADMINISTRATOR, resource_type="aml_rule")
     ),
 ) -> APIResponse[AMLRuleResponse]:
-    user_id, email = _get_authenticated_user(
-        current_user,
-    )
-
-    ip_address, user_agent = _request_metadata(
-        request,
-    )
-
-    service = AMLRuleService(db)
-
+    user_id, email = _get_authenticated_user(current_user)
+    ip_address, user_agent = _request_metadata(request)
+    service = AMLRuleService(db, tenant_id=UUID(current_user["tenant_id"]))
     rule = service.create(
         data=payload,
         user_id=user_id,
@@ -91,7 +68,6 @@ def create_aml_rule(
         ip_address=ip_address,
         user_agent=user_agent,
     )
-
     return APIResponse(
         success=True,
         message="AML rule created successfully.",
@@ -111,7 +87,7 @@ def create_aml_rule(
 )
 def list_aml_rules(
     db: Session = Depends(get_db),
-    _: dict[str, Any] = Depends(
+    current_user: dict[str, Any] = Depends(
         require_roles(
             UserRole.ADMINISTRATOR,
             UserRole.COMPLIANCE_OFFICER,
@@ -119,10 +95,8 @@ def list_aml_rules(
         )
     ),
 ) -> APIResponse[list[AMLRuleResponse]]:
-    service = AMLRuleService(db)
-
+    service = AMLRuleService(db, tenant_id=UUID(current_user["tenant_id"]))
     rules = service.list_all()
-
     return APIResponse(
         success=True,
         message="AML rules retrieved successfully.",
@@ -136,9 +110,8 @@ def list_aml_rules(
     status_code=status.HTTP_200_OK,
     summary="Evaluate AML rules",
     description=(
-        "Evaluate active AML rules against customer, "
-        "transaction, or verification data. "
-        "Administrators and compliance officers can execute rules."
+        "Evaluate active AML rules against customer, transaction, or verification "
+        "data. Administrators and compliance officers can execute rules."
     ),
 )
 def evaluate_aml_rules(
@@ -153,16 +126,9 @@ def evaluate_aml_rules(
         )
     ),
 ) -> APIResponse[AMLRuleEvaluationResponse]:
-    user_id, email = _get_authenticated_user(
-        current_user,
-    )
-
-    ip_address, user_agent = _request_metadata(
-        request,
-    )
-
-    service = AMLRuleService(db)
-
+    user_id, email = _get_authenticated_user(current_user)
+    ip_address, user_agent = _request_metadata(request)
+    service = AMLRuleService(db, tenant_id=UUID(current_user["tenant_id"]))
     result = service.evaluate(
         rule_type=payload.rule_type,
         data=payload.data,
@@ -171,20 +137,19 @@ def evaluate_aml_rules(
         ip_address=ip_address,
         user_agent=user_agent,
     )
-
     response = AMLRuleEvaluationResponse(
         rule_type=result.rule_type,
-        evaluated_rule_count=(result.evaluated_rule_count),
-        matched_rule_count=(result.matched_rule_count),
+        evaluated_rule_count=result.evaluated_rule_count,
+        matched_rule_count=result.matched_rule_count,
         evaluations=[
             AMLRuleEvaluationItemResponse(
-                rule_id=evaluation.rule_id,
-                rule_name=evaluation.rule_name,
-                rule_type=evaluation.rule_type,
-                severity=evaluation.severity,
-                matched=evaluation.matched,
+                rule_id=item.rule_id,
+                rule_name=item.rule_name,
+                rule_type=item.rule_type,
+                severity=item.severity,
+                matched=item.matched,
             )
-            for evaluation in result.evaluations
+            for item in result.evaluations
         ],
         matches=[
             AMLRuleMatchResponse(
@@ -198,7 +163,6 @@ def evaluate_aml_rules(
             for match in result.matches
         ],
     )
-
     return APIResponse(
         success=True,
         message="AML rules evaluated successfully.",
@@ -219,7 +183,7 @@ def evaluate_aml_rules(
 def get_aml_rule(
     rule_id: UUID,
     db: Session = Depends(get_db),
-    _: dict[str, Any] = Depends(
+    current_user: dict[str, Any] = Depends(
         require_roles(
             UserRole.ADMINISTRATOR,
             UserRole.COMPLIANCE_OFFICER,
@@ -227,12 +191,8 @@ def get_aml_rule(
         )
     ),
 ) -> APIResponse[AMLRuleResponse]:
-    service = AMLRuleService(db)
-
-    rule = service.get_by_id(
-        rule_id,
-    )
-
+    service = AMLRuleService(db, tenant_id=UUID(current_user["tenant_id"]))
+    rule = service.get_by_id(rule_id)
     return APIResponse(
         success=True,
         message="AML rule retrieved successfully.",
@@ -245,10 +205,8 @@ def get_aml_rule(
     response_model=APIResponse[AMLRuleResponse],
     status_code=status.HTTP_200_OK,
     summary="Activate or deactivate AML rule",
-    description=(
-        "Activate or deactivate an AML monitoring rule. "
-        "Only administrators can change AML rule status."
-    ),
+    description="Activate or deactivate an AML monitoring "
+    "rule. Only administrators can change rule status.",
 )
 def update_aml_rule_status(
     rule_id: UUID,
@@ -259,16 +217,9 @@ def update_aml_rule_status(
         require_roles(UserRole.ADMINISTRATOR, resource_type="aml_rule")
     ),
 ) -> APIResponse[AMLRuleResponse]:
-    user_id, email = _get_authenticated_user(
-        current_user,
-    )
-
-    ip_address, user_agent = _request_metadata(
-        request,
-    )
-
-    service = AMLRuleService(db)
-
+    user_id, email = _get_authenticated_user(current_user)
+    ip_address, user_agent = _request_metadata(request)
+    service = AMLRuleService(db, tenant_id=UUID(current_user["tenant_id"]))
     rule = service.update_status(
         rule_id=rule_id,
         new_status=payload.status,
@@ -277,7 +228,6 @@ def update_aml_rule_status(
         ip_address=ip_address,
         user_agent=user_agent,
     )
-
     return APIResponse(
         success=True,
         message="AML rule status updated successfully.",

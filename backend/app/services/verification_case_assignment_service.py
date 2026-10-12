@@ -12,6 +12,7 @@ from app.repositories.verification_case_assignment_repository import (
 )
 from app.services.audit_service import AuditService
 from app.services.notification_service import NotificationService
+from app.services.tenant_context import resolve_tenant_context
 from app.utils.enums import (
     AuditEventType,
     NotificationChannel,
@@ -19,18 +20,20 @@ from app.utils.enums import (
     UserRole,
     UserStatus,
 )
-from app.utils.errors import (
-    bad_request,
-    not_found,
-)
+from app.utils.errors import bad_request, not_found
 
 
 class VerificationCaseAssignmentService:
-    def __init__(self, db: Session) -> None:
+    def __init__(self, db: Session, tenant_id: UUID | None = None) -> None:
         self.db = db
-        self.repository = VerificationCaseAssignmentRepository(db)
+        self.tenant_id = resolve_tenant_context(
+            db, tenant_id, resource_name="verification case assignments"
+        )
+        self.repository = VerificationCaseAssignmentRepository(
+            db, tenant_id=self.tenant_id
+        )
         self.audit_service = AuditService(db)
-        self.notification_service = NotificationService(db)
+        self.notification_service = NotificationService(db, tenant_id=self.tenant_id)
 
     def assign_case(
         self,
@@ -44,60 +47,40 @@ class VerificationCaseAssignmentService:
         user_agent: str | None = None,
     ) -> VerificationCaseAssignmentHistory:
         case = self.repository.get_case_for_update(
-            customer_id=customer_id,
-            verification_case_id=verification_case_id,
+            customer_id=customer_id, verification_case_id=verification_case_id
         )
-
         if case is None:
             raise not_found("Verification case")
-
-        reviewer = self.repository.get_reviewer(
-            reviewer_id,
-        )
-
+        reviewer = self.repository.get_reviewer(reviewer_id)
         if reviewer is None:
             raise not_found("Reviewer")
-
         if reviewer.role != UserRole.REVIEWER:
-            raise bad_request(
-                "The selected user is not a reviewer.",
-            )
-
+            raise bad_request("The selected user is not a reviewer.")
         if reviewer.status != UserStatus.ACTIVE:
-            raise bad_request(
-                "The selected reviewer is not active.",
-            )
-
+            raise bad_request("The selected reviewer is not active.")
         if reviewer.is_deleted:
-            raise bad_request(
-                "The selected reviewer has been deleted.",
-            )
+            raise bad_request("The selected reviewer has been deleted.")
 
         previous_reviewer = case.assigned_to
-
         if previous_reviewer == reviewer_id:
             raise bad_request(
-                "The verification case is already assigned to this reviewer.",
+                "The verification case is already assigned to this reviewer."
             )
-
         assigned_at = datetime.now(timezone.utc)
-
         case.assigned_to = reviewer_id
         case.assigned_at = assigned_at
         case.assigned_by = assigned_by
-
         self.repository.assign_case(case)
 
         history = VerificationCaseAssignmentHistory(
+            tenant_id=self.tenant_id,
             verification_case_id=case.id,
             assigned_to=reviewer_id,
             previous_reviewer=previous_reviewer,
             assigned_by=assigned_by,
             assigned_at=assigned_at,
         )
-
         history = self.repository.create_history(history)
-
         self.audit_service.log_event(
             user_id=assigned_by,
             email=assigned_by_email,
@@ -107,48 +90,30 @@ class VerificationCaseAssignmentService:
             ip_address=ip_address,
             user_agent=user_agent,
         )
-
         self.notification_service.create_notification(
             user_id=case.assigned_to,
             title="Verification case assigned",
-            message=(f"Verification case {case.id} has been assigned."),
+            message=f"Verification case {case.id} has been assigned.",
             event_type=NotificationEventType.VERIFICATION_CASE_ASSIGNED,
             resource_type="verification_case",
             resource_id=case.id,
             channels=(NotificationChannel.IN_APP,),
         )
-
         self.db.commit()
-
         return history
 
     def get_assignment_history(
-        self,
-        *,
-        customer_id: UUID,
-        verification_case_id: UUID,
+        self, *, customer_id: UUID, verification_case_id: UUID
     ) -> list[VerificationCaseAssignmentHistory]:
         case = self.repository.get_case(
-            customer_id=customer_id,
-            verification_case_id=verification_case_id,
+            customer_id=customer_id, verification_case_id=verification_case_id
         )
-
         if case is None:
             raise not_found("Verification case")
+        return self.repository.get_history(verification_case_id=verification_case_id)
 
-        return self.repository.get_history(
-            verification_case_id=verification_case_id,
-        )
+    def get_assigned_cases(self, reviewer_id: UUID) -> list[IdentityVerificationCase]:
+        return self.repository.get_assigned_cases(reviewer_id)
 
-    def get_assigned_cases(
-        self,
-        reviewer_id: UUID,
-    ):
-        return self.repository.get_assigned_cases(
-            reviewer_id,
-        )
-
-    def get_all_assigned_cases(
-        self,
-    ) -> list[IdentityVerificationCase]:
+    def get_all_assigned_cases(self) -> list[IdentityVerificationCase]:
         return self.repository.get_all_assigned_cases()

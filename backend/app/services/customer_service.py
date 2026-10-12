@@ -53,7 +53,10 @@ class CustomerService:
             tenant_id=tenant_id,
         )
         self.audit_service = AuditService(db)
-        self.customer_audit_service = CustomerAuditLogService(db)
+        self.customer_audit_service = CustomerAuditLogService(
+            db,
+            tenant_id=tenant_id,
+        )
 
     def create_customer(
         self,
@@ -84,10 +87,8 @@ class CustomerService:
         )
 
         customer = self.repository.create(customer)
-
         self.db.flush()
 
-        # General audit event
         self.audit_service.log_event(
             event_type=AuditEventType.CUSTOMER_CREATED,
             user_id=created_by,
@@ -98,7 +99,6 @@ class CustomerService:
             resource_id=customer.id,
         )
 
-        # Detailed customer audit history
         self.customer_audit_service.create_audit_log(
             customer_id=customer.id,
             user_id=created_by,
@@ -123,20 +123,15 @@ class CustomerService:
 
         self.db.commit()
         self.db.refresh(customer)
-
         return customer
 
     def get_customer(
         self,
         customer_id: UUID,
     ) -> Customer:
-        customer = self.repository.get_by_id(
-            customer_id,
-        )
-
+        customer = self.repository.get_by_id(customer_id)
         if not customer:
             raise not_found("Customer")
-
         return customer
 
     def update_customer(
@@ -151,38 +146,23 @@ class CustomerService:
         commit: bool = True,
     ) -> Customer:
         customer = self.get_customer(customer_id)
-
         update_data = customer_data.model_dump(exclude_unset=True)
 
         if not update_data:
             raise bad_request("No customer fields were provided for update.")
 
         changed_fields: list[tuple[str, object | None, object | None]] = []
-
         for field, new_value in update_data.items():
             old_value = getattr(customer, field)
-
-            if old_value == new_value:
-                continue
-
-            changed_fields.append(
-                (
-                    field,
-                    old_value,
-                    new_value,
-                )
-            )
+            if old_value != new_value:
+                changed_fields.append((field, old_value, new_value))
 
         if not changed_fields:
             raise bad_request("No customer fields were changed.")
 
         changed_field_names = {field for field, _, _ in changed_fields}
-
         if "email" in changed_field_names:
-            existing_customer = self.repository.get_by_email(
-                update_data["email"],
-            )
-
+            existing_customer = self.repository.get_by_email(update_data["email"])
             if existing_customer and existing_customer.id != customer_id:
                 raise bad_request("Email is already registered.")
 
@@ -190,7 +170,6 @@ class CustomerService:
             setattr(customer, field, new_value)
 
         customer = self.repository.update(customer)
-
         for field, old_value, new_value in changed_fields:
             self.customer_audit_service.create_audit_log(
                 customer_id=customer.id,
@@ -214,9 +193,7 @@ class CustomerService:
 
         if commit:
             self.db.commit()
-
         self.db.refresh(customer)
-
         return customer
 
     def update_status(
@@ -229,7 +206,6 @@ class CustomerService:
         user_agent: str | None = None,
     ) -> Customer:
         customer = self.get_customer(customer_id)
-
         old_status = customer.status
 
         if old_status == new_status:
@@ -241,17 +217,18 @@ class CustomerService:
             )
 
         customer.status = new_status
-
         customer = self.repository.update(customer)
 
+        # customer_status_history.tenant_id is NOT NULL in the tenant-ownership
+        # migration, so the write must explicitly use this service's trusted tenant.
         history = CustomerStatusHistory(
+            tenant_id=self.tenant_id,
             customer_id=customer.id,
             old_status=old_status,
             new_status=new_status,
             changed_by=changed_by,
             changed_at=datetime.now(timezone.utc),
         )
-
         self.db.add(history)
 
         self.audit_service.log_event(
@@ -266,7 +243,6 @@ class CustomerService:
 
         self.db.commit()
         self.db.refresh(customer)
-
         return customer
 
     def search_customers(
@@ -281,10 +257,7 @@ class CustomerService:
         sort_by: str = "created_at",
         sort_order: str = "desc",
     ) -> CustomerListResponse:
-        validate_pagination(
-            page,
-            page_size,
-        )
+        validate_pagination(page, page_size)
 
         try:
             customers, total = self.repository.search(
@@ -298,14 +271,12 @@ class CustomerService:
                 sort_by=sort_by,
                 sort_order=sort_order,
             )
-
         except ValueError as exc:
             raise bad_request(str(exc)) from exc
 
         customer_responses = [
             CustomerResponse.model_validate(customer) for customer in customers
         ]
-
         total_pages = (total + page_size - 1) // page_size if total > 0 else 0
 
         return CustomerListResponse(

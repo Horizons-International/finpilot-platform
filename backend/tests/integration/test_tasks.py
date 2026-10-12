@@ -78,6 +78,7 @@ def test_task_can_be_created_assigned(
 
     task_id = data["id"]
 
+    db_session.info["tenant_id"] = admin.tenant_id
     notification = (
         db_session.query(Notification)
         .filter(
@@ -138,6 +139,7 @@ def test_task_can_be_assigned(
 
     assert response.status_code == 200
 
+    db_session.info["tenant_id"] = admin.tenant_id
     notification = (
         db_session.query(Notification)
         .filter(

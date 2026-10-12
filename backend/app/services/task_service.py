@@ -230,6 +230,7 @@ class TaskService:
         changed_by: UUID,
     ) -> None:
         history = TaskStatusHistory(
+            tenant_id=self.tenant_id,
             task_id=task.id,
             changed_by=changed_by,
             from_status=from_status,

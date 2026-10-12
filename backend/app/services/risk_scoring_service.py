@@ -4,9 +4,7 @@ from uuid import UUID
 
 from sqlalchemy.orm import Session
 
-from app.models.customer_risk_assessment_history import (
-    CustomerRiskAssessmentHistory,
-)
+from app.models.customer_risk_assessment_history import CustomerRiskAssessmentHistory
 from app.models.customer_risk_profile import CustomerRiskProfile
 from app.repositories.customer_repository import CustomerRepository
 from app.repositories.customer_risk_assessment_history_repository import (
@@ -18,45 +16,31 @@ from app.repositories.customer_risk_profile_repository import (
 from app.repositories.risk_score_threshold_repository import (
     RiskScoreThresholdRepository,
 )
-from app.repositories.risk_scoring_rule_repository import (
-    RiskScoringRuleRepository,
-)
+from app.repositories.risk_scoring_rule_repository import RiskScoringRuleRepository
 from app.services.audit_service import AuditService
 from app.services.risk_scoring_engine import RiskScoringEngine
+from app.services.tenant_context import resolve_tenant_context
 from app.utils.enums import AuditEventType
 from app.utils.errors import not_found
 
 
 class RiskScoringService:
-    def __init__(
-        self,
-        db: Session,
-        tenant_id: UUID,
-    ) -> None:
+    def __init__(self, db: Session, tenant_id: UUID) -> None:
         self.db = db
-        self.tenant_id = tenant_id
-
-        self.customer_repository = CustomerRepository(
-            db,
-            tenant_id=tenant_id,
+        self.tenant_id = resolve_tenant_context(
+            db, tenant_id, resource_name="risk scoring"
         )
-
+        self.customer_repository = CustomerRepository(db, tenant_id=self.tenant_id)
         self.profile_repository = CustomerRiskProfileRepository(
-            db,
-            tenant_id=tenant_id,
+            db, tenant_id=self.tenant_id
         )
-
-        self.rule_repository = RiskScoringRuleRepository(db)
-
+        self.rule_repository = RiskScoringRuleRepository(db, tenant_id=self.tenant_id)
+        # Risk thresholds are intentionally platform-wide shared reference data.
         self.threshold_repository = RiskScoreThresholdRepository(db)
-
         self.audit_service = AuditService(db)
-
         self.engine = RiskScoringEngine()
-
         self.history_repository = CustomerRiskAssessmentHistoryRepository(
-            db,
-            tenant_id=tenant_id,
+            db, tenant_id=self.tenant_id
         )
 
     def calculate_and_store(
@@ -72,26 +56,15 @@ class RiskScoringService:
         user_agent: str | None = None,
     ) -> CustomerRiskProfile:
         customer = self.customer_repository.get_by_id(customer_id)
-
         if customer is None:
             raise not_found("Customer")
-
         rules = self.rule_repository.get_active_rules()
-
         thresholds = self.threshold_repository.get_active_thresholds()
-
         result = self.engine.calculate(
-            factors=factors,
-            rules=rules,
-            thresholds=thresholds,
+            factors=factors, rules=rules, thresholds=thresholds
         )
-
         now = datetime.now(timezone.utc)
-
-        profile = self.profile_repository.get_by_customer_id(
-            customer_id,
-        )
-
+        profile = self.profile_repository.get_by_customer_id(customer_id)
         calculation_details = {
             "factors": factors,
             "applied_rules": [
@@ -103,9 +76,9 @@ class RiskScoringService:
                 for rule in result.applied_rules
             ],
         }
-
         if profile is None:
             profile = CustomerRiskProfile(
+                tenant_id=self.tenant_id,
                 customer_id=customer_id,
                 risk_level=result.risk_level,
                 risk_score=result.score,
@@ -114,12 +87,8 @@ class RiskScoringService:
                 assessment_source=assessment_source,
                 calculation_details=calculation_details,
             )
-
-            self.db.add(profile)
-            self.db.flush()
-
+            profile = self.profile_repository.create(profile)
             event_type = AuditEventType.CUSTOMER_RISK_PROFILE_CREATED
-
         else:
             profile.risk_level = result.risk_level
             profile.risk_score = result.score
@@ -127,12 +96,11 @@ class RiskScoringService:
             profile.assessed_at = now
             profile.assessment_source = assessment_source
             profile.calculation_details = calculation_details
-
-            self.db.flush()
-
+            profile = self.profile_repository.update(profile)
             event_type = AuditEventType.CUSTOMER_RISK_PROFILE_UPDATED
 
         history = CustomerRiskAssessmentHistory(
+            tenant_id=self.tenant_id,
             customer_id=profile.customer_id,
             risk_level=profile.risk_level,
             risk_score=profile.risk_score,
@@ -141,9 +109,7 @@ class RiskScoringService:
             assessment_source=profile.assessment_source,
             calculation_details=profile.calculation_details,
         )
-
         self.history_repository.create(history)
-
         self.audit_service.log_event(
             event_type=event_type,
             user_id=user_id,
@@ -153,7 +119,6 @@ class RiskScoringService:
             resource_type="customer_risk_profile",
             resource_id=profile.id,
         )
-
         self.audit_service.log_event(
             event_type=AuditEventType.CUSTOMER_RISK_SCORE_CALCULATED,
             user_id=user_id,
@@ -163,8 +128,6 @@ class RiskScoringService:
             resource_type="customer_risk_profile",
             resource_id=profile.id,
         )
-
         self.db.commit()
         self.db.refresh(profile)
-
         return profile

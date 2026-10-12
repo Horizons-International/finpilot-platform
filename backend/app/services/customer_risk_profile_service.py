@@ -9,29 +9,19 @@ from app.repositories.customer_risk_profile_repository import (
     CustomerRiskProfileRepository,
 )
 from app.services.audit_service import AuditService
+from app.services.tenant_context import resolve_tenant_context
 from app.utils.enums import AuditEventType
 from app.utils.errors import bad_request, not_found
 
 
 class CustomerRiskProfileService:
-    def __init__(
-        self,
-        db: Session,
-        tenant_id: UUID,
-    ) -> None:
+    def __init__(self, db: Session, tenant_id: UUID | None = None) -> None:
         self.db = db
-        self.tenant_id = tenant_id
-
-        self.repository = CustomerRiskProfileRepository(
-            db,
-            tenant_id=tenant_id,
+        self.tenant_id = resolve_tenant_context(
+            db, tenant_id, resource_name="customer risk profiles"
         )
-
-        self.customer_repository = CustomerRepository(
-            db,
-            tenant_id=tenant_id,
-        )
-
+        self.repository = CustomerRiskProfileRepository(db, tenant_id=self.tenant_id)
+        self.customer_repository = CustomerRepository(db, tenant_id=self.tenant_id)
         self.audit_service = AuditService(db)
 
     def create_profile(
@@ -49,16 +39,14 @@ class CustomerRiskProfileService:
         user_agent: str | None = None,
     ) -> CustomerRiskProfile:
         customer = self.customer_repository.get_by_id(customer_id)
-
         if customer is None:
             raise not_found("Customer")
-
         existing_profile = self.repository.get_by_customer_id(customer_id)
-
         if existing_profile is not None:
             raise bad_request("A risk profile already exists for this customer.")
 
         profile = CustomerRiskProfile(
+            tenant_id=self.tenant_id,
             customer_id=customer_id,
             risk_level=risk_level,
             risk_score=risk_score,
@@ -66,14 +54,14 @@ class CustomerRiskProfileService:
             assessed_at=assessed_at,
             assessment_source=assessment_source,
         )
-
-        self.db.add(profile)
-
         try:
-            self.db.flush()
-        except IntegrityError:
+            # Repository create validates ownership and assigns tenant_id.
+            profile = self.repository.create(profile)
+        except IntegrityError as exc:
             self.db.rollback()
-            raise bad_request("A risk profile already exists for this customer.")
+            raise bad_request(
+                "A risk profile already exists for this customer."
+            ) from exc
 
         self.audit_service.log_event(
             event_type=AuditEventType.CUSTOMER_RISK_PROFILE_CREATED,
@@ -84,32 +72,20 @@ class CustomerRiskProfileService:
             ip_address=ip_address,
             user_agent=user_agent,
         )
-
         self.db.commit()
         self.db.refresh(profile)
-
         return profile
 
-    def get_by_id(
-        self,
-        profile_id: UUID,
-    ) -> CustomerRiskProfile:
+    def get_by_id(self, profile_id: UUID) -> CustomerRiskProfile:
         profile = self.repository.get_by_id(profile_id)
-
         if profile is None:
             raise not_found("Customer risk profile")
-
         return profile
 
-    def get_by_customer_id(
-        self,
-        customer_id: UUID,
-    ) -> CustomerRiskProfile:
+    def get_by_customer_id(self, customer_id: UUID) -> CustomerRiskProfile:
         profile = self.repository.get_by_customer_id(customer_id)
-
         if profile is None:
             raise not_found("Customer risk profile")
-
         return profile
 
     def get_all(self) -> list[CustomerRiskProfile]:

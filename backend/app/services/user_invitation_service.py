@@ -8,80 +8,62 @@ from app.models.user_invitation import UserInvitation
 from app.services.audit_service import AuditService
 from app.utils.date_time import utc_now
 from app.utils.enums import AuditEventType, UserRole, UserStatus
-from app.utils.errors import (
-    bad_request,
-    conflict,
-    not_found,
-)
+from app.utils.errors import bad_request, conflict, not_found
 
 
 class UserInvitationService:
-    def __init__(
-        self,
-        db: Session,
-    ) -> None:
+    """
+    Accept public invitations while binding
+    subsequent work to the invitation tenant.
+    """
+
+    def __init__(self, db: Session) -> None:
         self.db = db
         self.audit_service = AuditService(db)
 
     @staticmethod
-    def _hash_token(
-        token: str,
-    ) -> str:
-        return hashlib.sha256(
-            token.encode("utf-8"),
-        ).hexdigest()
+    def _hash_token(token: str) -> str:
+        return hashlib.sha256(token.encode("utf-8")).hexdigest()
 
-    def accept(
-        self,
-        *,
-        token: str,
-        password: str,
-    ) -> User:
+    def accept(self, *, token: str, password: str) -> User:
         try:
             validate_password(password)
         except ValueError as exc:
             raise bad_request(str(exc)) from exc
 
         token_hash = self._hash_token(token)
-
         invitation = (
             self.db.query(UserInvitation)
-            .filter(
-                UserInvitation.token_hash == token_hash,
-            )
+            .filter(UserInvitation.token_hash == token_hash)
             .first()
         )
-
         if invitation is None:
             raise not_found("User invitation")
 
+        # Public invitation acceptance may start without an authenticated tenant.
+        # Once the unique token identifies its tenant, lock this session to it.
+        session_tenant_id = self.db.info.get("tenant_id")
+        if session_tenant_id is not None and session_tenant_id != invitation.tenant_id:
+            raise not_found("User invitation")
+        self.db.info["tenant_id"] = invitation.tenant_id
+
         if invitation.accepted_at is not None:
-            raise bad_request(
-                "This invitation has already been accepted.",
-            )
-
+            raise bad_request("This invitation has already been accepted.")
         if invitation.revoked_at is not None:
-            raise bad_request(
-                "This invitation has been revoked.",
-            )
-
+            raise bad_request("This invitation has been revoked.")
         if invitation.expires_at <= utc_now():
-            raise bad_request(
-                "This invitation has expired.",
-            )
+            raise bad_request("This invitation has expired.")
 
+        # Email is globally unique in the current schema. Skip tenant filtering
+        # for this one uniqueness check so an account in another tenant is seen.
         existing_user = (
             self.db.query(User)
-            .filter(
-                User.email == invitation.email,
-            )
+            .filter(User.email == invitation.email)
+            .execution_options(skip_tenant_filter=True)
             .first()
         )
-
         if existing_user is not None:
-            raise conflict(
-                "A user with this email already exists.",
-            )
+            raise conflict("A user with this email already exists.")
 
         user = User(
             tenant_id=invitation.tenant_id,
@@ -95,12 +77,9 @@ class UserInvitationService:
             is_platform_admin=False,
             is_deleted=False,
         )
-
         self.db.add(user)
         self.db.flush()
-
         invitation.accepted_at = utc_now()
-
         self.audit_service.log_event(
             event_type=AuditEventType.USER_INVITATION_ACCEPTED,
             user_id=user.id,
@@ -108,7 +87,6 @@ class UserInvitationService:
             resource_type="user",
             resource_id=user.id,
         )
-
         self.audit_service.log_event(
             event_type=AuditEventType.USER_CREATED,
             user_id=user.id,
@@ -116,8 +94,6 @@ class UserInvitationService:
             resource_type="user",
             resource_id=user.id,
         )
-
         self.db.commit()
         self.db.refresh(user)
-
         return user

@@ -3,23 +3,22 @@ from uuid import UUID
 from sqlalchemy.orm import Session
 
 from app.models.risk_scoring_rule import RiskScoringRule
-from app.repositories.risk_scoring_rule_repository import (
-    RiskScoringRuleRepository,
-)
-from app.schemas.risk_scoring import (
-    RiskScoringRuleCreate,
-    RiskScoringRuleUpdate,
-)
+from app.repositories.risk_scoring_rule_repository import RiskScoringRuleRepository
+from app.schemas.risk_scoring import RiskScoringRuleCreate, RiskScoringRuleUpdate
 from app.services.audit_service import AuditService
+from app.services.tenant_context import resolve_tenant_context
 from app.utils.enums import AuditEventType
 from app.utils.errors import bad_request, not_found
 
 
 class RiskScoringRuleService:
-    def __init__(self, db: Session) -> None:
-        self.repository = RiskScoringRuleRepository(db)
-        self.audit_service = AuditService(db)
+    def __init__(self, db: Session, tenant_id: UUID | None = None) -> None:
         self.db = db
+        self.tenant_id = resolve_tenant_context(
+            db, tenant_id, resource_name="risk-scoring rules"
+        )
+        self.repository = RiskScoringRuleRepository(db, tenant_id=self.tenant_id)
+        self.audit_service = AuditService(db)
 
     def create(
         self,
@@ -31,6 +30,7 @@ class RiskScoringRuleService:
         user_agent: str | None,
     ) -> RiskScoringRule:
         rule = RiskScoringRule(
+            tenant_id=self.tenant_id,
             factor_key=data.factor_key,
             operator=data.operator,
             expected_value=data.expected_value,
@@ -39,9 +39,7 @@ class RiskScoringRuleService:
             priority=data.priority,
             is_active=data.is_active,
         )
-
         rule = self.repository.create(rule)
-
         self.audit_service.log_event(
             user_id=user_id,
             email=email,
@@ -51,26 +49,17 @@ class RiskScoringRuleService:
             ip_address=ip_address,
             user_agent=user_agent,
         )
-
         self.db.commit()
         self.db.refresh(rule)
-
         return rule
 
-    def list_all(
-        self,
-    ) -> list[RiskScoringRule]:
+    def list_all(self) -> list[RiskScoringRule]:
         return self.repository.get_all()
 
-    def get_by_id(
-        self,
-        rule_id: UUID,
-    ) -> RiskScoringRule:
+    def get_by_id(self, rule_id: UUID) -> RiskScoringRule:
         rule = self.repository.get_by_id(rule_id)
-
         if rule is None:
             raise not_found("Risk scoring rule")
-
         return rule
 
     def update(
@@ -84,17 +73,14 @@ class RiskScoringRuleService:
         user_agent: str | None,
     ) -> RiskScoringRule:
         rule = self.get_by_id(rule_id)
-
         update_data = data.model_dump(exclude_unset=True)
-
         if not update_data:
             raise bad_request("At least one field must be provided for update.")
-
         for field, value in update_data.items():
+            if field in {"tenant_id", "id"}:
+                continue
             setattr(rule, field, value)
-
         rule = self.repository.update(rule)
-
         self.audit_service.log_event(
             user_id=user_id,
             email=email,
@@ -104,10 +90,8 @@ class RiskScoringRuleService:
             ip_address=ip_address,
             user_agent=user_agent,
         )
-
         self.db.commit()
         self.db.refresh(rule)
-
         return rule
 
     def update_status(
@@ -121,14 +105,10 @@ class RiskScoringRuleService:
         user_agent: str | None,
     ) -> RiskScoringRule:
         rule = self.get_by_id(rule_id)
-
         if rule.is_active == is_active:
             raise bad_request("Risk scoring rule is already in this status.")
-
         rule.is_active = is_active
-
         rule = self.repository.update(rule)
-
         self.audit_service.log_event(
             user_id=user_id,
             email=email,
@@ -138,10 +118,8 @@ class RiskScoringRuleService:
             ip_address=ip_address,
             user_agent=user_agent,
         )
-
         self.db.commit()
         self.db.refresh(rule)
-
         return rule
 
     def delete(
@@ -154,9 +132,7 @@ class RiskScoringRuleService:
         user_agent: str | None,
     ) -> None:
         rule = self.get_by_id(rule_id)
-
         self.repository.delete(rule)
-
         self.audit_service.log_event(
             user_id=user_id,
             email=email,
@@ -166,5 +142,4 @@ class RiskScoringRuleService:
             ip_address=ip_address,
             user_agent=user_agent,
         )
-
         self.db.commit()

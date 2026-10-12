@@ -1,9 +1,9 @@
 from datetime import datetime
 from uuid import UUID, uuid4
 
-from sqlalchemy import DateTime, Enum, String, func
+from sqlalchemy import DateTime, Enum, ForeignKey, String, func
 from sqlalchemy.dialects.postgresql import UUID as PostgreSQLUUID
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
 from app.utils.enums import TransactionMonitoringOutcome
@@ -16,6 +16,13 @@ class TransactionMonitoringResult(Base):
         PostgreSQLUUID(as_uuid=True),
         primary_key=True,
         default=uuid4,
+    )
+
+    tenant_id: Mapped[UUID] = mapped_column(
+        PostgreSQLUUID(as_uuid=True),
+        ForeignKey("tenants.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
     )
 
     transaction_id: Mapped[UUID] = mapped_column(
@@ -57,3 +64,5 @@ class TransactionMonitoringResult(Base):
         nullable=False,
         index=True,
     )
+
+    tenant = relationship("Tenant")

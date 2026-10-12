@@ -60,6 +60,7 @@ class AIAnalyticsAssistantService:
         )
         self.usage_service = AIUsageService(
             db,
+            self.tenant_id,
         )
 
         self.ai_service = (

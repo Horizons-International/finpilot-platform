@@ -3,37 +3,54 @@ from uuid import UUID
 from sqlalchemy.orm import Session
 
 from app.models.compliance_case import ComplianceCase
-from app.repositories.tenant_scoped_repository import (
-    TenantScopedRepository,
-)
-from app.utils.enums import (
-    ComplianceCaseStatus,
-    ComplianceCaseType,
-)
+from app.models.customer import Customer
+from app.models.user import User
+from app.repositories.tenant_scoped_repository import TenantScopedRepository
+from app.utils.enums import ComplianceCaseStatus, ComplianceCaseType
 
 
 class ComplianceCaseRepository(TenantScopedRepository[ComplianceCase]):
-    def __init__(
-        self,
-        db: Session,
-        tenant_id: UUID,
-    ) -> None:
-        super().__init__(
-            db=db,
-            model=ComplianceCase,
-            tenant_id=tenant_id,
-        )
+    def __init__(self, db: Session, tenant_id: UUID) -> None:
+        super().__init__(db=db, model=ComplianceCase, tenant_id=tenant_id)
 
-    def get_by_id(
-        self,
-        case_id: UUID,
-    ) -> ComplianceCase | None:
+    def _validate_related_ownership(self, case: ComplianceCase) -> None:
+        customer_exists = (
+            self.db.query(Customer.id)
+            .filter(
+                Customer.id == case.customer_id,
+                Customer.tenant_id == self.tenant_id,
+            )
+            .first()
+        )
+        if customer_exists is None:
+            raise ValueError("The customer does not belong to the current tenant.")
+
+        if case.assigned_to is not None:
+            user_exists = (
+                self.db.query(User.id)
+                .filter(
+                    User.id == case.assigned_to,
+                    User.tenant_id == self.tenant_id,
+                )
+                .first()
+            )
+            if user_exists is None:
+                raise ValueError(
+                    "The assigned user does not belong to the current tenant."
+                )
+
+    def create(self, case: ComplianceCase) -> ComplianceCase:
+        self._validate_related_ownership(case)
+        return super().create(case)
+
+    def update(self, case: ComplianceCase) -> ComplianceCase:
+        self._validate_related_ownership(case)
+        return super().update(case)
+
+    def get_by_id(self, case_id: UUID) -> ComplianceCase | None:
         return self.query().filter(ComplianceCase.id == case_id).first()
 
-    def get_by_customer_id(
-        self,
-        customer_id: UUID,
-    ) -> list[ComplianceCase]:
+    def get_by_customer_id(self, customer_id: UUID) -> list[ComplianceCase]:
         return (
             self.query()
             .filter(ComplianceCase.customer_id == customer_id)
@@ -52,10 +69,8 @@ class ComplianceCaseRepository(TenantScopedRepository[ComplianceCase]):
 
         if status is not None:
             query = query.filter(ComplianceCase.status == status)
-
         if case_type is not None:
             query = query.filter(ComplianceCase.case_type == case_type)
-
         if assigned_to is not None:
             query = query.filter(ComplianceCase.assigned_to == assigned_to)
 

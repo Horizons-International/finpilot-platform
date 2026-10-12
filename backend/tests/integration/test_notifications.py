@@ -23,7 +23,14 @@ def create_notification(
     resource_id=None,
     channels=(NotificationChannel.IN_APP,),
 ):
-    service = NotificationService(db_session)
+    # Resolve the recipient first so direct service tests operate in the
+    # recipient's tenant, matching the context established by authenticated
+    # API requests.
+    from app.models.user import User
+
+    user = db_session.query(User).filter(User.id == user_id).first()
+    tenant_id = user.tenant_id if user is not None else db_session.info.get("tenant_id")
+    service = NotificationService(db_session, tenant_id=tenant_id)
 
     return service.create_notification(
         user_id=user_id,
@@ -182,9 +189,10 @@ def test_duplicate_notification_channels_create_one_delivery_per_channel(
 
 def test_notification_cannot_be_created_for_nonexistent_user(
     db_session,
+    default_tenant_id,
     cleanup_notifications,
 ):
-    service = NotificationService(db_session)
+    service = NotificationService(db_session, tenant_id=default_tenant_id)
 
     nonexistent_user_id = uuid.uuid4()
 
@@ -217,7 +225,7 @@ def test_notification_cannot_be_created_for_deleted_user(
     db_session.add(user)
     db_session.commit()
 
-    service = NotificationService(db_session)
+    service = NotificationService(db_session, tenant_id=user.tenant_id)
 
     try:
         service.create_notification(
@@ -244,7 +252,7 @@ def test_notification_requires_title(
         role=UserRole.REVIEWER,
     )
 
-    service = NotificationService(db_session)
+    service = NotificationService(db_session, tenant_id=user.tenant_id)
 
     try:
         service.create_notification(
@@ -271,7 +279,7 @@ def test_notification_requires_message(
         role=UserRole.REVIEWER,
     )
 
-    service = NotificationService(db_session)
+    service = NotificationService(db_session, tenant_id=user.tenant_id)
 
     try:
         service.create_notification(
@@ -529,7 +537,7 @@ def test_user_can_filter_notifications_by_unread_status(
 
     db_session.commit()
 
-    service = NotificationService(db_session)
+    service = NotificationService(db_session, tenant_id=user.tenant_id)
 
     service.mark_as_read(
         notification_id=read_notification.id,
@@ -702,7 +710,7 @@ def test_notification_delivery_can_be_marked_delivered(
     assert delivery.status == NotificationDeliveryStatus.PENDING
     assert delivery.delivered_at is None
 
-    service = NotificationService(db_session)
+    service = NotificationService(db_session, tenant_id=user.tenant_id)
 
     updated_delivery = service.update_delivery_status(
         delivery_id=delivery.id,
@@ -743,7 +751,7 @@ def test_notification_delivery_can_be_marked_failed(
 
     assert delivery is not None
 
-    service = NotificationService(db_session)
+    service = NotificationService(db_session, tenant_id=user.tenant_id)
 
     updated_delivery = service.update_delivery_status(
         delivery_id=delivery.id,
@@ -784,7 +792,7 @@ def test_notification_delivery_failure_uses_default_reason(
 
     assert delivery is not None
 
-    service = NotificationService(db_session)
+    service = NotificationService(db_session, tenant_id=user.tenant_id)
 
     updated_delivery = service.update_delivery_status(
         delivery_id=delivery.id,
@@ -822,7 +830,7 @@ def test_notification_delivery_can_return_to_pending(
 
     assert delivery is not None
 
-    service = NotificationService(db_session)
+    service = NotificationService(db_session, tenant_id=user.tenant_id)
 
     service.update_delivery_status(
         delivery_id=delivery.id,
@@ -1048,7 +1056,7 @@ def test_read_notification_is_persisted(
 
     db_session.commit()
 
-    service = NotificationService(db_session)
+    service = NotificationService(db_session, tenant_id=user.tenant_id)
 
     service.mark_as_read(
         notification_id=notification.id,

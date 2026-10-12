@@ -45,7 +45,10 @@ class DocumentReviewService:
         self.ip_address = ip_address
         self.user_agent = user_agent
         self.audit_service = AuditService(db)
-        self.review_log_service = DocumentExtractionReviewLogService(db)
+        self.review_log_service = DocumentExtractionReviewLogService(
+            db,
+            self.tenant_id,
+        )
         self.customer_service = CustomerService(
             db,
             tenant_id,

@@ -18,9 +18,10 @@ from tests.helpers import (
 
 
 @pytest.fixture
-def configured_risk_rules(db_session):
+def configured_risk_rules(db_session, default_tenant_id):
     rules = [
         RiskScoringRule(
+            tenant_id=default_tenant_id,
             factor_key="country",
             operator=RiskRuleOperator.EQUALS,
             expected_value="HIGH_RISK",
@@ -30,6 +31,7 @@ def configured_risk_rules(db_session):
             is_active=True,
         ),
         RiskScoringRule(
+            tenant_id=default_tenant_id,
             factor_key="verification_status",
             operator=RiskRuleOperator.EQUALS,
             expected_value="PENDING",
@@ -39,6 +41,7 @@ def configured_risk_rules(db_session):
             is_active=True,
         ),
         RiskScoringRule(
+            tenant_id=default_tenant_id,
             factor_key="previous_compliance_cases",
             operator=RiskRuleOperator.GREATER_THAN_OR_EQUAL,
             expected_value=2,
@@ -105,6 +108,7 @@ def test_customer_risk_score_is_calculated(
 
 def test_low_risk_score_is_assigned_low(
     client,
+    default_tenant_id,
     create_test_user,
     cleanup_test_customers,
     cleanup_risk_scoring_configuration,
@@ -113,6 +117,7 @@ def test_low_risk_score_is_assigned_low(
 ):
     db_session.add(
         RiskScoringRule(
+            tenant_id=default_tenant_id,
             factor_key="country",
             operator=RiskRuleOperator.EQUALS,
             expected_value="LOW_RISK",
@@ -161,6 +166,7 @@ def test_low_risk_score_is_assigned_low(
 
 def test_medium_risk_score_is_assigned_medium(
     client,
+    default_tenant_id,
     create_test_user,
     cleanup_test_customers,
     cleanup_risk_scoring_configuration,
@@ -170,6 +176,7 @@ def test_medium_risk_score_is_assigned_medium(
     db_session.add_all(
         [
             RiskScoringRule(
+                tenant_id=default_tenant_id,
                 factor_key="country",
                 operator=RiskRuleOperator.EQUALS,
                 expected_value="MEDIUM_RISK",
@@ -179,6 +186,7 @@ def test_medium_risk_score_is_assigned_medium(
                 is_active=True,
             ),
             RiskScoringRule(
+                tenant_id=default_tenant_id,
                 factor_key="verification_status",
                 operator=RiskRuleOperator.EQUALS,
                 expected_value="PENDING",

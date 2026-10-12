@@ -4,12 +4,41 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.models.ai_usage_log import AIUsageLog
-from app.repositories.base_repository import BaseRepository
+from app.models.user import User
+from app.repositories.tenant_scoped_repository import TenantScopedRepository
 
 
-class AIUsageLogRepository(BaseRepository[AIUsageLog]):
-    def __init__(self, db: Session) -> None:
-        super().__init__(db, AIUsageLog)
+class AIUsageLogRepository(TenantScopedRepository[AIUsageLog]):
+    def __init__(
+        self,
+        db: Session,
+        tenant_id: UUID | None = None,
+    ) -> None:
+        resolved_tenant_id = tenant_id or db.info.get("tenant_id")
+        if not isinstance(resolved_tenant_id, UUID):
+            raise ValueError("A tenant context is required for AI usage logs.")
+
+        super().__init__(db, AIUsageLog, resolved_tenant_id)
+
+    def _ensure_user_belongs_to_tenant(self, user_id: UUID) -> None:
+        user_exists = (
+            self.db.query(User.id)
+            .filter(
+                User.id == user_id,
+                User.tenant_id == self.tenant_id,
+            )
+            .first()
+        )
+        if user_exists is None:
+            raise ValueError("The AI usage log user does not belong to this tenant.")
+
+    def create(self, log: AIUsageLog) -> AIUsageLog:
+        self._ensure_user_belongs_to_tenant(log.user_id)
+        return super().create(log)
+
+    def update(self, log: AIUsageLog) -> AIUsageLog:
+        self._ensure_user_belongs_to_tenant(log.user_id)
+        return super().update(log)
 
     def get_by_user(
         self,
@@ -18,7 +47,7 @@ class AIUsageLogRepository(BaseRepository[AIUsageLog]):
         limit: int = 100,
     ) -> list[AIUsageLog]:
         return (
-            self.db.query(AIUsageLog)
+            self.query()
             .filter(AIUsageLog.user_id == user_id)
             .order_by(AIUsageLog.created_at.desc())
             .limit(limit)
@@ -32,7 +61,7 @@ class AIUsageLogRepository(BaseRepository[AIUsageLog]):
         limit: int = 100,
     ) -> list[AIUsageLog]:
         return (
-            self.db.query(AIUsageLog)
+            self.query()
             .filter(AIUsageLog.feature == feature)
             .order_by(AIUsageLog.created_at.desc())
             .limit(limit)
@@ -46,18 +75,11 @@ class AIUsageLogRepository(BaseRepository[AIUsageLog]):
         user_id: UUID | None = None,
         feature: str | None = None,
     ) -> list[AIUsageLog]:
-        query = self.db.query(AIUsageLog)
-
+        query = self.query()
         if user_id is not None:
-            query = query.filter(
-                AIUsageLog.user_id == user_id,
-            )
-
+            query = query.filter(AIUsageLog.user_id == user_id)
         if feature is not None:
-            query = query.filter(
-                AIUsageLog.feature == feature,
-            )
-
+            query = query.filter(AIUsageLog.feature == feature)
         return query.order_by(AIUsageLog.created_at.desc()).limit(limit).all()
 
     def count(
@@ -66,20 +88,11 @@ class AIUsageLogRepository(BaseRepository[AIUsageLog]):
         user_id: UUID | None = None,
         feature: str | None = None,
     ) -> int:
-        query = self.db.query(
-            func.count(AIUsageLog.id),
-        )
-
+        query = self.query().with_entities(func.count(AIUsageLog.id))
         if user_id is not None:
-            query = query.filter(
-                AIUsageLog.user_id == user_id,
-            )
-
+            query = query.filter(AIUsageLog.user_id == user_id)
         if feature is not None:
-            query = query.filter(
-                AIUsageLog.feature == feature,
-            )
-
+            query = query.filter(AIUsageLog.feature == feature)
         return int(query.scalar() or 0)
 
     def total_input_tokens(
@@ -88,23 +101,13 @@ class AIUsageLogRepository(BaseRepository[AIUsageLog]):
         user_id: UUID | None = None,
         feature: str | None = None,
     ) -> int:
-        query = self.db.query(
-            func.coalesce(
-                func.sum(AIUsageLog.input_tokens),
-                0,
-            ),
+        query = self.query().with_entities(
+            func.coalesce(func.sum(AIUsageLog.input_tokens), 0)
         )
-
         if user_id is not None:
-            query = query.filter(
-                AIUsageLog.user_id == user_id,
-            )
-
+            query = query.filter(AIUsageLog.user_id == user_id)
         if feature is not None:
-            query = query.filter(
-                AIUsageLog.feature == feature,
-            )
-
+            query = query.filter(AIUsageLog.feature == feature)
         return int(query.scalar() or 0)
 
     def total_output_tokens(
@@ -113,23 +116,13 @@ class AIUsageLogRepository(BaseRepository[AIUsageLog]):
         user_id: UUID | None = None,
         feature: str | None = None,
     ) -> int:
-        query = self.db.query(
-            func.coalesce(
-                func.sum(AIUsageLog.output_tokens),
-                0,
-            ),
+        query = self.query().with_entities(
+            func.coalesce(func.sum(AIUsageLog.output_tokens), 0)
         )
-
         if user_id is not None:
-            query = query.filter(
-                AIUsageLog.user_id == user_id,
-            )
-
+            query = query.filter(AIUsageLog.user_id == user_id)
         if feature is not None:
-            query = query.filter(
-                AIUsageLog.feature == feature,
-            )
-
+            query = query.filter(AIUsageLog.feature == feature)
         return int(query.scalar() or 0)
 
     def average_response_time(
@@ -138,23 +131,12 @@ class AIUsageLogRepository(BaseRepository[AIUsageLog]):
         user_id: UUID | None = None,
         feature: str | None = None,
     ) -> float:
-        query = self.db.query(
-            func.avg(AIUsageLog.response_time),
-        )
-
+        query = self.query().with_entities(func.avg(AIUsageLog.response_time))
         if user_id is not None:
-            query = query.filter(
-                AIUsageLog.user_id == user_id,
-            )
-
+            query = query.filter(AIUsageLog.user_id == user_id)
         if feature is not None:
-            query = query.filter(
-                AIUsageLog.feature == feature,
-            )
-
-        value = query.scalar()
-
-        return float(value or 0)
+            query = query.filter(AIUsageLog.feature == feature)
+        return float(query.scalar() or 0)
 
     def error_count(
         self,
@@ -162,20 +144,13 @@ class AIUsageLogRepository(BaseRepository[AIUsageLog]):
         user_id: UUID | None = None,
         feature: str | None = None,
     ) -> int:
-        query = self.db.query(
-            func.count(AIUsageLog.id),
-        ).filter(
-            AIUsageLog.error_message.is_not(None),
+        query = (
+            self.query()
+            .with_entities(func.count(AIUsageLog.id))
+            .filter(AIUsageLog.error_message.is_not(None))
         )
-
         if user_id is not None:
-            query = query.filter(
-                AIUsageLog.user_id == user_id,
-            )
-
+            query = query.filter(AIUsageLog.user_id == user_id)
         if feature is not None:
-            query = query.filter(
-                AIUsageLog.feature == feature,
-            )
-
+            query = query.filter(AIUsageLog.feature == feature)
         return int(query.scalar() or 0)

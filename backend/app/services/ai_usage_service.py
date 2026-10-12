@@ -12,14 +12,24 @@ from app.schemas.ai_usage import (
     AIUsageLogResponse,
     AIUsageSummaryResponse,
 )
+from app.services.tenant_context import resolve_tenant_context
 
 logger = get_logger(__name__)
 
 
 class AIUsageService:
-    def __init__(self, db: Session) -> None:
+    def __init__(
+        self,
+        db: Session,
+        tenant_id: UUID,
+    ) -> None:
         self.db = db
-        self.repository = AIUsageLogRepository(db)
+        self.tenant_id = resolve_tenant_context(
+            db,
+            tenant_id,
+            resource_name="AI usage logs",
+        )
+        self.repository = AIUsageLogRepository(db, tenant_id=self.tenant_id)
 
     def record(
         self,
@@ -51,8 +61,7 @@ class AIUsageService:
 
         logger.info(
             "AI usage recorded: user_id=%s feature=%s model=%s "
-            "input_tokens=%s output_tokens=%s response_time_ms=%s "
-            "error=%s",
+            "input_tokens=%s output_tokens=%s response_time_ms=%s error=%s",
             user_id,
             feature,
             model,

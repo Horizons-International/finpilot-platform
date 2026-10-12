@@ -64,7 +64,7 @@ def create_customer_contact(
 def get_customer_contacts(
     customer_id: UUID,
     db: Session = Depends(get_db),
-    _: dict[str, Any] = Depends(
+    current_user: dict[str, Any] = Depends(
         require_roles(
             UserRole.ADMINISTRATOR,
             UserRole.COMPLIANCE_OFFICER,

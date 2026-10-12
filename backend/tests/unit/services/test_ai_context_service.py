@@ -14,6 +14,7 @@ from tests.helpers import (
 def test_ai_context_includes_rag_results(
     db_session,
     monkeypatch,
+    default_tenant_id,
 ):
     customer_id = uuid4()
 
@@ -26,6 +27,7 @@ def test_ai_context_includes_rag_results(
     service = AIContextService(
         db_session,
         retrieval_service=retrieval_service,
+        tenant_id=default_tenant_id,
     )
 
     def fake_platform_context(

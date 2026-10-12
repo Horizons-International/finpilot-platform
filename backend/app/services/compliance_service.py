@@ -45,9 +45,15 @@ class ComplianceService:
             tenant_id=tenant_id,
         )
 
-        self.history_repository = ComplianceCaseHistoryRepository(db)
+        self.history_repository = ComplianceCaseHistoryRepository(
+            db,
+            self.tenant_id,
+        )
         self.audit_service = AuditService(db)
-        self.notification_service = NotificationService(db)
+        self.notification_service = NotificationService(
+            db,
+            self.tenant_id,
+        )
 
     # ------------------------------------------------------------------
     # Existing CRUD operations

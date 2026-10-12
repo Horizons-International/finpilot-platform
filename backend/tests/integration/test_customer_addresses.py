@@ -343,12 +343,7 @@ def test_get_nonexistent_customer_address(
         f"/api/v1/customers/{customer_id}/addresses",
     )
 
-    assert response.status_code == 200
-
-    body = response.json()
-
-    assert body["success"] is True
-    assert body["data"] == []
+    assert response.status_code == 404
 
 
 def test_customer_address_create_requires_authorization(

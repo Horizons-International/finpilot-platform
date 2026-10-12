@@ -22,6 +22,24 @@ router = APIRouter(
 )
 
 
+def _service_for_tenant(
+    db: Session,
+    current_user: dict[str, Any],
+) -> RiskScoringRuleService:
+    """Create the service using only the authenticated tenant identity."""
+    return RiskScoringRuleService(
+        db,
+        tenant_id=UUID(current_user["tenant_id"]),
+    )
+
+
+def _request_metadata(request: Request) -> tuple[str | None, str | None]:
+    return (
+        request.client.host if request.client else None,
+        request.headers.get("user-agent"),
+    )
+
+
 @router.post(
     "",
     response_model=APIResponse[RiskScoringRuleResponse],
@@ -40,19 +58,15 @@ def create_risk_scoring_rule(
         require_roles(UserRole.ADMINISTRATOR, resource_type="risk_score_rule"),
     ),
 ) -> APIResponse[RiskScoringRuleResponse]:
-    service = RiskScoringRuleService(db)
-
-    user_id = UUID(current_user["sub"])
-    email = current_user["email"]
-
+    service = _service_for_tenant(db, current_user)
+    ip_address, user_agent = _request_metadata(request)
     rule = service.create(
         data=payload,
-        user_id=user_id,
-        email=email,
-        ip_address=request.client.host if request.client else None,
-        user_agent=request.headers.get("user-agent"),
+        user_id=UUID(current_user["sub"]),
+        email=current_user["email"],
+        ip_address=ip_address,
+        user_agent=user_agent,
     )
-
     return APIResponse(
         success=True,
         message="Risk scoring rule created successfully.",
@@ -66,14 +80,13 @@ def create_risk_scoring_rule(
     status_code=status.HTTP_200_OK,
     summary="List risk scoring rules",
     description=(
-        "Retrieve configured risk scoring rules. "
-        "Administrators and compliance officers can access "
-        "risk scoring rule configuration."
+        "Retrieve configured risk scoring rules. Administrators and "
+        "compliance officers can access risk scoring rule configuration."
     ),
 )
 def list_risk_scoring_rules(
     db: Session = Depends(get_db),
-    _: dict = Depends(
+    current_user: dict[str, Any] = Depends(
         require_roles(
             UserRole.ADMINISTRATOR,
             UserRole.COMPLIANCE_OFFICER,
@@ -81,10 +94,7 @@ def list_risk_scoring_rules(
         ),
     ),
 ) -> APIResponse[list[RiskScoringRuleResponse]]:
-    service = RiskScoringRuleService(db)
-
-    rules = service.list_all()
-
+    rules = _service_for_tenant(db, current_user).list_all()
     return APIResponse(
         success=True,
         message="Risk scoring rules retrieved successfully.",
@@ -97,14 +107,12 @@ def list_risk_scoring_rules(
     response_model=APIResponse[RiskScoringRuleResponse],
     status_code=status.HTTP_200_OK,
     summary="Get risk scoring rule",
-    description=(
-        "Retrieve a single configured risk scoring rule by its unique identifier."
-    ),
+    description="Retrieve a single configured risk scoring rule by ID.",
 )
 def get_risk_scoring_rule(
     rule_id: UUID,
     db: Session = Depends(get_db),
-    _: dict = Depends(
+    current_user: dict[str, Any] = Depends(
         require_roles(
             UserRole.ADMINISTRATOR,
             UserRole.COMPLIANCE_OFFICER,
@@ -112,10 +120,7 @@ def get_risk_scoring_rule(
         ),
     ),
 ) -> APIResponse[RiskScoringRuleResponse]:
-    service = RiskScoringRuleService(db)
-
-    rule = service.get_by_id(rule_id)
-
+    rule = _service_for_tenant(db, current_user).get_by_id(rule_id)
     return APIResponse(
         success=True,
         message="Risk scoring rule retrieved successfully.",
@@ -138,24 +143,20 @@ def update_risk_scoring_rule(
     payload: RiskScoringRuleUpdate,
     request: Request,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(
+    current_user: dict[str, Any] = Depends(
         require_roles(UserRole.ADMINISTRATOR, resource_type="risk_score_rule"),
     ),
 ) -> APIResponse[RiskScoringRuleResponse]:
-    service = RiskScoringRuleService(db)
-
-    user_id = UUID(current_user["sub"])
-    email = current_user["email"]
-
+    service = _service_for_tenant(db, current_user)
+    ip_address, user_agent = _request_metadata(request)
     rule = service.update(
         rule_id=rule_id,
         data=payload,
-        user_id=user_id,
-        email=email,
-        ip_address=request.client.host if request.client else None,
-        user_agent=request.headers.get("user-agent"),
+        user_id=UUID(current_user["sub"]),
+        email=current_user["email"],
+        ip_address=ip_address,
+        user_agent=user_agent,
     )
-
     return APIResponse(
         success=True,
         message="Risk scoring rule updated successfully.",
@@ -169,8 +170,8 @@ def update_risk_scoring_rule(
     status_code=status.HTTP_200_OK,
     summary="Update risk scoring rule status",
     description=(
-        "Activate or deactivate a configurable risk scoring "
-        "factor. Only administrators can change factor status."
+        "Activate or deactivate a configurable risk scoring factor. "
+        "Only administrators can change factor status."
     ),
 )
 def update_risk_scoring_rule_status(
@@ -178,24 +179,20 @@ def update_risk_scoring_rule_status(
     payload: RiskScoringRuleStatusUpdate,
     request: Request,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(
+    current_user: dict[str, Any] = Depends(
         require_roles(UserRole.ADMINISTRATOR, resource_type="risk_score_rule"),
     ),
 ) -> APIResponse[RiskScoringRuleResponse]:
-    service = RiskScoringRuleService(db)
-
-    user_id = UUID(current_user["sub"])
-    email = current_user["email"]
-
+    service = _service_for_tenant(db, current_user)
+    ip_address, user_agent = _request_metadata(request)
     rule = service.update_status(
         rule_id=rule_id,
         is_active=payload.is_active,
-        user_id=user_id,
-        email=email,
-        ip_address=request.client.host if request.client else None,
-        user_agent=request.headers.get("user-agent"),
+        user_id=UUID(current_user["sub"]),
+        email=current_user["email"],
+        ip_address=ip_address,
+        user_agent=user_agent,
     )
-
     return APIResponse(
         success=True,
         message="Risk scoring rule status updated successfully.",
@@ -209,31 +206,26 @@ def update_risk_scoring_rule_status(
     status_code=status.HTTP_200_OK,
     summary="Delete risk scoring rule",
     description=(
-        "Delete a configured risk scoring rule. "
-        "Only administrators can delete risk scoring rules."
+        "Delete a configured risk scoring rule. Only administrators can delete rules."
     ),
 )
 def delete_risk_scoring_rule(
     rule_id: UUID,
     request: Request,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(
+    current_user: dict[str, Any] = Depends(
         require_roles(UserRole.ADMINISTRATOR, resource_type="risk_score_rule"),
     ),
 ) -> APIResponse[None]:
-    service = RiskScoringRuleService(db)
-
-    user_id = UUID(current_user["sub"])
-    email = current_user["email"]
-
+    service = _service_for_tenant(db, current_user)
+    ip_address, user_agent = _request_metadata(request)
     service.delete(
         rule_id=rule_id,
-        user_id=user_id,
-        email=email,
-        ip_address=request.client.host if request.client else None,
-        user_agent=request.headers.get("user-agent"),
+        user_id=UUID(current_user["sub"]),
+        email=current_user["email"],
+        ip_address=ip_address,
+        user_agent=user_agent,
     )
-
     return APIResponse(
         success=True,
         message="Risk scoring rule deleted successfully.",

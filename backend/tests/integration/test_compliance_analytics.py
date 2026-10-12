@@ -18,21 +18,11 @@ from app.utils.enums import (
 def authenticate_client(client, user):
     response = client.post(
         "/api/v1/auth/login",
-        json={
-            "email": user.email,
-            "password": "Password123!",
-        },
+        json={"email": user.email, "password": "Password123!"},
     )
-
     assert response.status_code == 200
-
     token = response.json()["data"]["access_token"]
-
-    client.headers.update(
-        {
-            "Authorization": f"Bearer {token}",
-        }
-    )
+    client.headers.update({"Authorization": f"Bearer {token}"})
 
 
 def test_compliance_analytics_returns_metrics_and_trends(
@@ -46,19 +36,12 @@ def test_compliance_analytics_returns_metrics_and_trends(
     cleanup_analytics_snapshots,
 ):
     admin = create_test_user(
-        UserRole.ADMINISTRATOR,
-        "compliance-analytics-admin@example.com",
+        UserRole.ADMINISTRATOR, "compliance-analytics-admin@example.com"
     )
-
     reviewer = create_test_user(
-        UserRole.REVIEWER,
-        "compliance-analytics-reviewer@example.com",
+        UserRole.REVIEWER, "compliance-analytics-reviewer@example.com"
     )
-
-    authenticate_client(
-        client,
-        admin,
-    )
+    authenticate_client(client, admin)
 
     db_session.add_all(
         [
@@ -102,27 +85,9 @@ def test_compliance_analytics_returns_metrics_and_trends(
             ),
         ]
     )
-
     customer = create_test_customer()
-
-    created_at_1 = datetime(
-        2030,
-        1,
-        1,
-        9,
-        0,
-        tzinfo=timezone.utc,
-    )
-
-    created_at_2 = datetime(
-        2030,
-        1,
-        2,
-        10,
-        0,
-        tzinfo=timezone.utc,
-    )
-
+    created_at_1 = datetime(2030, 1, 1, 9, 0, tzinfo=timezone.utc)
+    created_at_2 = datetime(2030, 1, 2, 10, 0, tzinfo=timezone.utc)
     db_session.add_all(
         [
             ComplianceCase(
@@ -147,7 +112,6 @@ def test_compliance_analytics_returns_metrics_and_trends(
             ),
         ]
     )
-
     verification_case = IdentityVerificationCase(
         customer_id=customer.id,
         verification_type=VerificationType.IDENTITY,
@@ -157,13 +121,12 @@ def test_compliance_analytics_returns_metrics_and_trends(
         completed_at=created_at_2 + timedelta(hours=1),
         tenant_id=admin.tenant_id,
     )
-
     db_session.add(verification_case)
     db_session.flush()
-
     db_session.add_all(
         [
             VerificationReview(
+                tenant_id=admin.tenant_id,
                 verification_case_id=verification_case.id,
                 reviewer_id=reviewer.id,
                 decision=ReviewDecision.REJECT,
@@ -171,6 +134,7 @@ def test_compliance_analytics_returns_metrics_and_trends(
                 created_at=created_at_2,
             ),
             VerificationReview(
+                tenant_id=admin.tenant_id,
                 verification_case_id=verification_case.id,
                 reviewer_id=reviewer.id,
                 decision=ReviewDecision.REJECT,
@@ -178,6 +142,7 @@ def test_compliance_analytics_returns_metrics_and_trends(
                 created_at=created_at_2,
             ),
             VerificationReview(
+                tenant_id=admin.tenant_id,
                 verification_case_id=verification_case.id,
                 reviewer_id=reviewer.id,
                 decision=ReviewDecision.REJECT,
@@ -186,7 +151,6 @@ def test_compliance_analytics_returns_metrics_and_trends(
             ),
         ]
     )
-
     db_session.commit()
 
     response = client.get(
@@ -196,41 +160,25 @@ def test_compliance_analytics_returns_metrics_and_trends(
             "end_date": "2030-01-02",
         },
     )
-
     assert response.status_code == 200
-
     body = response.json()
-
     assert body["success"] is True
-
     data = body["data"]
-
     assert data["filters"]["start_date"] == "2030-01-01"
     assert data["filters"]["end_date"] == "2030-01-02"
-
     assert data["risk_distribution"]["ending_high_risk_customers"] == 12
-
     assert len(data["risk_distribution"]["trend"]) == 2
-
     assert data["aml_alert_trends"]["total_alerts_created_during_period"] == 5
-
     assert data["aml_alert_trends"]["ending_total_alerts"] == 8
-
     assert data["case_resolution_performance"]["total_cases_created_during_period"] == 2
-
     assert data["case_resolution_performance"]["total_cases_closed_during_period"] == 2
-
     assert data["case_resolution_performance"]["average_resolution_time_hours"] == 3.0
-
     rejection_reasons = data["verification_rejection_reasons"]
-
     assert rejection_reasons["total_rejections"] == 3
-
     assert rejection_reasons["rejection_reasons"][0] == {
         "reason": "Invalid identity document",
         "count": 2,
     }
-
     assert rejection_reasons["rejection_reasons"][1] == {
         "reason": "Unspecified",
         "count": 1,
@@ -245,15 +193,9 @@ def test_compliance_analytics_filters_by_date(
     cleanup_analytics_snapshots,
 ):
     admin = create_test_user(
-        UserRole.ADMINISTRATOR,
-        "compliance-analytics-date-admin@example.com",
+        UserRole.ADMINISTRATOR, "compliance-analytics-date-admin@example.com"
     )
-
-    authenticate_client(
-        client,
-        admin,
-    )
-
+    authenticate_client(client, admin)
     db_session.add_all(
         [
             ComplianceAnalyticsDaily(
@@ -296,9 +238,7 @@ def test_compliance_analytics_filters_by_date(
             ),
         ]
     )
-
     db_session.commit()
-
     response = client.get(
         "/api/v1/analytics/compliance",
         params={
@@ -306,33 +246,19 @@ def test_compliance_analytics_filters_by_date(
             "end_date": "2030-02-02",
         },
     )
-
     assert response.status_code == 200
-
     data = response.json()["data"]
-
     assert len(data["risk_distribution"]["trend"]) == 1
     assert len(data["aml_alert_trends"]["trend"]) == 1
-
     assert data["aml_alert_trends"]["trend"][0]["alerts_created_during_day"] == 3
-
     assert data["risk_distribution"]["trend"][0]["ending_high_risk_customers"] == 4
 
 
-def test_compliance_analytics_rejects_invalid_date_range(
-    client,
-    create_test_user,
-):
+def test_compliance_analytics_rejects_invalid_date_range(client, create_test_user):
     admin = create_test_user(
-        UserRole.ADMINISTRATOR,
-        "compliance-analytics-invalid-date@example.com",
+        UserRole.ADMINISTRATOR, "compliance-analytics-invalid-date@example.com"
     )
-
-    authenticate_client(
-        client,
-        admin,
-    )
-
+    authenticate_client(client, admin)
     response = client.get(
         "/api/v1/analytics/compliance",
         params={
@@ -340,47 +266,23 @@ def test_compliance_analytics_rejects_invalid_date_range(
             "end_date": "2030-03-01",
         },
     )
-
     assert response.status_code == 400
 
 
-def test_reviewer_cannot_access_compliance_analytics(
-    client,
-    create_test_user,
-):
+def test_reviewer_cannot_access_compliance_analytics(client, create_test_user):
     reviewer = create_test_user(
-        UserRole.REVIEWER,
-        "compliance-analytics-forbidden@example.com",
+        UserRole.REVIEWER, "compliance-analytics-forbidden@example.com"
     )
-
-    authenticate_client(
-        client,
-        reviewer,
-    )
-
-    response = client.get(
-        "/api/v1/analytics/compliance",
-    )
-
+    authenticate_client(client, reviewer)
+    response = client.get("/api/v1/analytics/compliance")
     assert response.status_code == 403
 
 
-def test_compliance_officer_can_access_compliance_analytics(
-    client,
-    create_test_user,
-):
+def test_compliance_officer_can_access_compliance_analytics(client, create_test_user):
     compliance_officer = create_test_user(
         UserRole.COMPLIANCE_OFFICER,
         "compliance-analytics-officer@example.com",
     )
-
-    authenticate_client(
-        client,
-        compliance_officer,
-    )
-
-    response = client.get(
-        "/api/v1/analytics/compliance",
-    )
-
+    authenticate_client(client, compliance_officer)
+    response = client.get("/api/v1/analytics/compliance")
     assert response.status_code == 200

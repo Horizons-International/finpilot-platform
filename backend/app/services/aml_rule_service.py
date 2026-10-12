@@ -6,22 +6,20 @@ from sqlalchemy.orm import Session
 from app.models.aml_rule import AMLRule
 from app.repositories.aml_rule_repository import AMLRuleRepository
 from app.schemas.aml_rule import AMLRuleCreate
-from app.services.aml_rule_engine import (
-    AMLRuleEngine,
-    AMLRuleEvaluationResult,
-)
+from app.services.aml_rule_engine import AMLRuleEngine, AMLRuleEvaluationResult
 from app.services.audit_service import AuditService
+from app.services.tenant_context import resolve_tenant_context
 from app.utils.enums import AMLRuleStatus, AMLRuleType, AuditEventType
 from app.utils.errors import bad_request, not_found
 
 
 class AMLRuleService:
-    def __init__(
-        self,
-        db: Session,
-    ) -> None:
+    def __init__(self, db: Session, tenant_id: UUID | None = None) -> None:
         self.db = db
-        self.repository = AMLRuleRepository(db)
+        self.tenant_id = resolve_tenant_context(
+            db, tenant_id, resource_name="AML rules"
+        )
+        self.repository = AMLRuleRepository(db, tenant_id=self.tenant_id)
         self.engine = AMLRuleEngine()
         self.audit_service = AuditService(db)
 
@@ -35,13 +33,12 @@ class AMLRuleService:
         user_agent: str | None,
     ) -> AMLRule:
         try:
-            self.engine.validate_condition(
-                data.condition,
-            )
+            self.engine.validate_condition(data.condition)
         except ValueError as exc:
-            raise bad_request(str(exc))
+            raise bad_request(str(exc)) from exc
 
         rule = AMLRule(
+            tenant_id=self.tenant_id,
             name=data.name,
             description=data.description,
             rule_type=data.rule_type,
@@ -49,9 +46,7 @@ class AMLRuleService:
             severity=data.severity,
             status=data.status,
         )
-
         rule = self.repository.create(rule)
-
         self.audit_service.log_event(
             user_id=user_id,
             email=email,
@@ -61,28 +56,17 @@ class AMLRuleService:
             ip_address=ip_address,
             user_agent=user_agent,
         )
-
         self.db.commit()
         self.db.refresh(rule)
-
         return rule
 
-    def list_all(
-        self,
-    ) -> list[AMLRule]:
+    def list_all(self) -> list[AMLRule]:
         return self.repository.get_all()
 
-    def get_by_id(
-        self,
-        rule_id: UUID,
-    ) -> AMLRule:
-        rule = self.repository.get_by_id(
-            rule_id,
-        )
-
+    def get_by_id(self, rule_id: UUID) -> AMLRule:
+        rule = self.repository.get_by_id(rule_id)
         if rule is None:
             raise not_found("AML rule")
-
         return rule
 
     def update_status(
@@ -96,14 +80,10 @@ class AMLRuleService:
         user_agent: str | None,
     ) -> AMLRule:
         rule = self.get_by_id(rule_id)
-
         if rule.status == new_status:
             raise bad_request("AML rule is already in the requested status.")
-
         rule.status = new_status
-
         rule = self.repository.update(rule)
-
         self.audit_service.log_event(
             user_id=user_id,
             email=email,
@@ -113,10 +93,8 @@ class AMLRuleService:
             ip_address=ip_address,
             user_agent=user_agent,
         )
-
         self.db.commit()
         self.db.refresh(rule)
-
         return rule
 
     def evaluate(
@@ -129,16 +107,8 @@ class AMLRuleService:
         ip_address: str | None = None,
         user_agent: str | None = None,
     ) -> AMLRuleEvaluationResult:
-        rules = self.repository.get_active_by_type(
-            rule_type,
-        )
-
-        result = self.engine.evaluate(
-            rule_type=rule_type,
-            rules=rules,
-            data=data,
-        )
-
+        rules = self.repository.get_active_by_type(rule_type)
+        result = self.engine.evaluate(rule_type=rule_type, rules=rules, data=data)
         if user_id is not None and email is not None:
             for evaluation in result.evaluations:
                 self.audit_service.log_event(
@@ -150,7 +120,5 @@ class AMLRuleService:
                     ip_address=ip_address,
                     user_agent=user_agent,
                 )
-
         self.db.commit()
-
         return result

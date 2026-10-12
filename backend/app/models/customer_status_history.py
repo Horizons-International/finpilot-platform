@@ -3,7 +3,7 @@ from datetime import datetime
 
 from sqlalchemy import DateTime, Enum, ForeignKey
 from sqlalchemy.dialects.postgresql import UUID
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
 from app.utils.enums import CustomerStatus
@@ -18,10 +18,18 @@ class CustomerStatusHistory(Base):
         default=uuid.uuid4,
     )
 
+    tenant_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("tenants.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+
     customer_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
         ForeignKey("customers.id"),
         nullable=False,
+        index=True,
     )
 
     old_status: Mapped[CustomerStatus | None] = mapped_column(
@@ -50,3 +58,5 @@ class CustomerStatusHistory(Base):
         DateTime(timezone=True),
         nullable=False,
     )
+
+    tenant = relationship("Tenant")
