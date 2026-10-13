@@ -11,6 +11,7 @@ from app.api.ai_usage import router as ai_usage_router
 from app.api.aml_rules import (
     router as aml_rules_router,
 )
+from app.api.api_keys import router as api_keys_router
 from app.api.auth import router as auth_router
 from app.api.compliance_analytics import (
     router as compliance_analytics_router,
@@ -38,6 +39,7 @@ from app.api.executive_dashboard import (
 from app.api.extraction import router as extraction_router
 from app.api.files import router as files_router
 from app.api.health import router as health_router
+from app.api.integrations import router as integrations_router
 from app.api.investigation_notes import (
     router as investigation_notes_router,
 )
@@ -105,6 +107,7 @@ from app.core.logger import get_logger, setup_logging
 from app.core.responses import APIResponse
 from app.core.security import get_current_user
 from app.core.tenant_filter import install_tenant_filter
+from app.middleware.api_key_usage import APIKeyUsageMiddleware
 from app.middleware.request_id import RequestIDMiddleware
 from app.models.user import User
 from app.schemas.auth import MeResponse
@@ -140,8 +143,11 @@ app = FastAPI(
 )
 
 app.add_middleware(RequestIDMiddleware)
+app.add_middleware(APIKeyUsageMiddleware)
 
 app.include_router(auth_router)
+app.include_router(api_keys_router)
+app.include_router(integrations_router)
 app.include_router(health_router)
 app.include_router(profile_router)
 app.include_router(users_router)

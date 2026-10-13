@@ -142,6 +142,14 @@ class AuditEventType(str, Enum):
     USER_INVITATION_ACCEPTED = "USER_INVITATION_ACCEPTED"
     USER_ROLE_CHANGED = "USER_ROLE_CHANGED"
 
+    API_KEY_CREATED = "API_KEY_CREATED"
+    API_KEY_REVOKED = "API_KEY_REVOKED"
+
+
+class APIKeyStatus(str, Enum):
+    ACTIVE = "ACTIVE"
+    REVOKED = "REVOKED"
+
 
 class UserStatus(str, Enum):
     ACTIVE = "active"
