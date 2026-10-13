@@ -294,6 +294,7 @@ class ReportingDataService:
             )
 
         statement = statement.where(
+            IdentityVerificationCase.tenant_id == self.tenant_id,
             Customer.tenant_id == self.tenant_id,
         )
 
@@ -425,6 +426,7 @@ class ReportingDataService:
             )
 
         statement = statement.where(
+            ComplianceCase.tenant_id == self.tenant_id,
             Customer.tenant_id == self.tenant_id,
         )
 
@@ -518,6 +520,10 @@ class ReportingDataService:
                 Task.status == filters.task_status,
             )
 
+        # Explicitly scope rows and counts even when the global
+        # SQLAlchemy listener is not installed in this process.
+        statement = statement.where(Task.tenant_id == self.tenant_id)
+
         return statement
 
     def _count_task_rows(
@@ -580,6 +586,7 @@ class ReportingDataService:
             )
 
         statement = statement.where(
+            WorkflowExecution.tenant_id == self.tenant_id,
             Workflow.tenant_id == self.tenant_id,
         )
 

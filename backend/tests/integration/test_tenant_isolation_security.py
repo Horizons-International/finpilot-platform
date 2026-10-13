@@ -20,9 +20,11 @@ from app.models.task import Task
 from app.models.user import UserRole
 from app.models.verification_case import IdentityVerificationCase
 from app.models.verification_document_type import VerificationDocumentType
+from app.reporting.data_service import ReportingDataService
 from app.repositories.compliance_case_repository import ComplianceCaseRepository
 from app.repositories.document_repository import CustomerDocumentRepository
 from app.repositories.task_repository import TaskRepository
+from app.schemas.report_exports import ReportFilters
 from app.schemas.verification_case import VerificationCaseStatusUpdate
 from app.services.compliance_service import ComplianceService
 from app.services.customer_service import CustomerService
@@ -600,6 +602,19 @@ def test_report_export_worker_binds_tenant_before_processing(
     create_test_tenant,
     create_test_user,
 ):
+    original_install_tenant_filter = report_export_worker.install_tenant_filter
+    install_calls = []
+
+    def track_filter_installation():
+        install_calls.append(True)
+        original_install_tenant_filter()
+
+    monkeypatch.setattr(
+        report_export_worker,
+        "install_tenant_filter",
+        track_filter_installation,
+    )
+
     tenant = create_test_tenant(code=f"WORKER-{uuid4().hex[:8].upper()}")
     user = create_test_user(
         role=UserRole.ADMINISTRATOR,
@@ -640,6 +655,7 @@ def test_report_export_worker_binds_tenant_before_processing(
     monkeypatch.setattr(ReportExportService, "process_export", fake_process_export)
 
     assert report_export_worker.run_report_export_worker_once() == 1
+    assert install_calls, "the standalone worker must install tenant enforcement"
     assert processed["tenant_id"] == tenant.id
     assert processed["status"] == ReportExportStatus.PROCESSING
 
@@ -828,3 +844,48 @@ def test_tenant_api_lists_and_mutations_do_not_expose_other_tenant_resources(
             )
             is not None
         )
+
+
+def test_operational_report_task_rows_are_tenant_scoped(
+    db_session,
+    create_test_tenant,
+):
+    """Report rows/counts must be safe even without the global ORM listener."""
+    tenant_a = create_test_tenant(code=f"REPORT-A-{uuid4().hex[:8].upper()}")
+    tenant_b = create_test_tenant(code=f"REPORT-B-{uuid4().hex[:8].upper()}")
+
+    task_a = Task(
+        tenant_id=tenant_a.id,
+        title="tenant-a-operational-task",
+        priority=TaskPriority.MEDIUM,
+        status=TaskStatus.NEW,
+    )
+    task_b = Task(
+        tenant_id=tenant_b.id,
+        title="tenant-b-private-operational-task",
+        priority=TaskPriority.MEDIUM,
+        status=TaskStatus.NEW,
+    )
+    db_session.add_all([task_a, task_b])
+    db_session.commit()
+    db_session.refresh(task_a)
+    db_session.refresh(task_b)
+
+    # This direct session has allow_unscoped_tenant_operations enabled and no
+    # active tenant_id. It therefore proves the report service's own predicates
+    # are sufficient; it cannot pass merely because app.main installed a hook.
+    reporting = ReportingDataService(db_session, tenant_id=tenant_a.id)
+    filters = ReportFilters()
+    assert reporting._count_task_rows(filters) == 1
+
+    report = reporting.build_report(
+        report_type=ReportType.OPERATIONAL_PERFORMANCE,
+        filters=filters,
+    )
+    task_ids = {row[1] for row in report.rows if row[0] == "TASK"}
+    task_titles = {row[2] for row in report.rows if row[0] == "TASK"}
+
+    assert task_a.id in task_ids
+    assert task_b.id not in task_ids
+    assert "tenant-a-operational-task" in task_titles
+    assert "tenant-b-private-operational-task" not in task_titles

@@ -6,6 +6,7 @@ import app.models  # noqa: F401
 from app.core.config import settings
 from app.core.database import SessionLocal
 from app.core.logger import get_logger, setup_logging
+from app.core.tenant_filter import install_tenant_filter
 from app.models.report_export import ReportExport
 from app.repositories.report_export_repository import (
     ReportExportRepository,
@@ -62,6 +63,9 @@ def _claim_next_export_for_any_tenant(
 
 
 def run_report_export_worker_once() -> int:
+    # A background worker may run in a separate process from app.main.
+    # Install the SQLAlchemy listeners before this session executes any query.
+    install_tenant_filter()
     db = SessionLocal()
 
     try:
