@@ -54,6 +54,7 @@ from app.api.operations_analytics import (
     router as operations_analytics_router,
 )
 from app.api.organizations import router as organizations_router
+from app.api.partner_onboarding import router as partner_onboarding_router
 from app.api.profile import router as profile_router
 from app.api.rag import router as rag_router
 from app.api.report_exports import (
@@ -205,6 +206,7 @@ app.include_router(
 )
 app.include_router(rag_router)
 app.include_router(integration_management_router)
+app.include_router(partner_onboarding_router)
 
 app.add_exception_handler(
     HTTPException,
