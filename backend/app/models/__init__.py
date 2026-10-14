@@ -30,6 +30,10 @@ from app.models.notification import (
 )
 from app.models.ocr_result import OCRResult  # noqa: F401
 from app.models.organization import Organization  # noqa: F401
+from app.models.partner_onboarding import (
+    PartnerOnboarding,  # noqa: F401
+    PartnerOnboardingHistory,  # noqa: F401
+)
 from app.models.report_export import ReportExport  # noqa: F401
 from app.models.risk_score_threshold import RiskScoreThreshold  # noqa: F401
 from app.models.risk_scoring_rule import RiskScoringRule  # noqa: F401
