@@ -39,6 +39,7 @@ from app.api.executive_dashboard import (
 from app.api.extraction import router as extraction_router
 from app.api.files import router as files_router
 from app.api.health import router as health_router
+from app.api.integration_management import router as integration_management_router
 from app.api.integrations import router as integrations_router
 from app.api.investigation_notes import (
     router as investigation_notes_router,
@@ -201,6 +202,7 @@ app.include_router(
     investigation_notes_router,
 )
 app.include_router(rag_router)
+app.include_router(integration_management_router)
 
 app.add_exception_handler(
     HTTPException,

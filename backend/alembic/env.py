@@ -27,6 +27,7 @@ from app.models.document_extraction_review_log import (
     DocumentExtractionReviewLog,  # noqa: F401
 )
 from app.models.file import File  # noqa: F401
+from app.models.integration import Integration  # noqa: F401
 from app.models.knowledge_document import KnowledgeDocument  # noqa: F401
 from app.models.ocr_result import OCRResult  # noqa: F401
 from app.models.risk_prediction import RiskPrediction  # noqa: F401
