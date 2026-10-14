@@ -22,6 +22,7 @@ from app.schemas.verification_case import (
 from app.services.audit_service import AuditService
 from app.services.customer_audit_log_service import CustomerAuditLogService
 from app.services.notification_service import NotificationService
+from app.services.subscription_service import record_subscription_usage
 from app.services.tenant_access_audit import deny_tenant_access
 from app.services.workflow_validation_service import WorkflowValidationService
 from app.utils.date_time import utc_now
@@ -103,6 +104,8 @@ class VerificationService:
                 resource_id=customer_id,
                 resource_name="Customer",
             )
+
+        record_subscription_usage(self.db, self.tenant_id, "verification_checks")
 
         case = IdentityVerificationCase(
             tenant_id=self.tenant_id,

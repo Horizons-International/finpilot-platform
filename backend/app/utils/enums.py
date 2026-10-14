@@ -586,3 +586,12 @@ class WebhookDeliveryStatus(str, Enum):
     DELIVERED = "DELIVERED"
     RETRYING = "RETRYING"
     FAILED = "FAILED"
+
+
+class SubscriptionStatus(StrEnum):
+    TRIAL = "trial"
+    ACTIVE = "active"
+    PAST_DUE = "past_due"
+    SUSPENDED = "suspended"
+    CANCELLED = "cancelled"
+    EXPIRED = "expired"

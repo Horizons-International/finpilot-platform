@@ -38,6 +38,10 @@ from app.models.report_export import ReportExport  # noqa: F401
 from app.models.risk_score_threshold import RiskScoreThreshold  # noqa: F401
 from app.models.risk_scoring_rule import RiskScoringRule  # noqa: F401
 from app.models.security_event import SecurityEvent  # noqa: F401
+from app.models.subscription import (
+    Subscription,  # noqa: F401
+    SubscriptionUsageCounter,  # noqa: F401
+)
 from app.models.system_configuration import SystemConfiguration  # noqa: F401
 from app.models.task import (
     Task,  # noqa: F401

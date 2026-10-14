@@ -279,6 +279,15 @@ def get_current_user(
     request.state.current_user_email = user.email
     request.state.tenant_id = user.tenant_id
 
+    # Bill authenticated API calls before dispatch, so exhausted plans fail closed.
+    from app.services.subscription_service import (
+        is_billing_exempt_path,
+        record_subscription_usage,
+    )
+
+    if not is_billing_exempt_path(request.url.path):
+        record_subscription_usage(db, user.tenant_id, "api_calls")
+
     return user
 
 

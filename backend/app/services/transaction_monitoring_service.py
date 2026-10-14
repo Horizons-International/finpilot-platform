@@ -13,6 +13,7 @@ from app.repositories.transaction_monitoring_result_repository import (
 from app.schemas.transaction_monitoring import TransactionMonitoringRequest
 from app.services.aml_rule_engine import AMLRuleEngine
 from app.services.audit_service import AuditService
+from app.services.subscription_service import record_subscription_usage
 from app.services.tenant_context import resolve_tenant_context
 from app.utils.enums import AMLRuleType, AuditEventType, TransactionMonitoringOutcome
 from app.utils.errors import not_found
@@ -48,6 +49,8 @@ class TransactionMonitoringService:
         )
         if customer is None:
             raise not_found("Customer")
+
+        record_subscription_usage(self.db, self.tenant_id, "transactions")
 
         rules = self.aml_rule_repository.get_active_by_type(AMLRuleType.TRANSACTION)
         evaluation_data: dict[str, Any] = {
