@@ -89,6 +89,14 @@ def require_api_key_permission(
                 detail="The API key does not have the required permission.",
             )
 
+        from app.services.subscription_service import (
+            is_billing_exempt_path,
+            record_subscription_usage,
+        )
+
+        if not is_billing_exempt_path(request.url.path):
+            record_subscription_usage(db, api_key.tenant_id, "api_calls")
+
         yield APIKeyPrincipal(
             api_key_id=api_key.id,
             tenant_id=api_key.tenant_id,

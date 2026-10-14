@@ -67,6 +67,7 @@ from app.api.risk_predictions import (
 from app.api.risk_scoring import router as risk_scoring_router
 from app.api.risk_scoring_rules import router as risk_scoring_rules_router
 from app.api.security import router as security_router
+from app.api.subscriptions import router as subscriptions_router
 from app.api.system_configurations import (
     router as system_configurations_router,
 )
@@ -153,6 +154,7 @@ app.add_middleware(SecurityMonitoringMiddleware)
 
 app.include_router(auth_router)
 app.include_router(api_keys_router)
+app.include_router(subscriptions_router)
 app.include_router(webhooks_router)
 app.include_router(integrations_router)
 app.include_router(health_router)

@@ -15,6 +15,7 @@ from app.schemas.user import (
     UserUpdate,
 )
 from app.services.audit_service import AuditService
+from app.services.subscription_service import ensure_subscription_capacity
 from app.utils.enums import AuditEventType, UserStatus
 from app.utils.errors import bad_request, forbidden, not_found
 from app.utils.pagination import Pagination, validate_pagination
@@ -75,6 +76,10 @@ class UserService:
         if cross_tenant_admin_action:
             self.db.info["tenant_id"] = target_tenant_id
             self.repository = UserRepository(self.db, tenant_id=target_tenant_id)
+
+        ensure_subscription_capacity(
+            self.db, target_tenant_id, metric="active_users", additional=1
+        )
 
         user = User(
             first_name=user_data.first_name,
@@ -203,6 +208,15 @@ class UserService:
         # Requested status is already the current status.
         if old_status == new_status:
             raise bad_request("User already has this status.")
+
+        if (
+            new_status == UserStatus.ACTIVE
+            and old_status != UserStatus.ACTIVE
+            and not user.is_deleted
+        ):
+            ensure_subscription_capacity(
+                self.db, user.tenant_id, metric="active_users", additional=1
+            )
 
         user.status = new_status
 

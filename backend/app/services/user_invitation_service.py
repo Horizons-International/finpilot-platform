@@ -6,6 +6,7 @@ from app.core.security import hash_password, validate_password
 from app.models.user import User
 from app.models.user_invitation import UserInvitation
 from app.services.audit_service import AuditService
+from app.services.subscription_service import ensure_subscription_capacity
 from app.utils.date_time import utc_now
 from app.utils.enums import AuditEventType, UserRole, UserStatus
 from app.utils.errors import bad_request, conflict, not_found
@@ -71,6 +72,10 @@ class UserInvitationService:
         )
         if existing_user is not None:
             raise conflict("A user with this email already exists.")
+
+        ensure_subscription_capacity(
+            self.db, invitation.tenant_id, metric="active_users", additional=1
+        )
 
         user = User(
             tenant_id=invitation.tenant_id,
