@@ -2,7 +2,7 @@ from uuid import UUID
 
 from sqlalchemy.orm import Session
 
-from app.core.security import hash_password
+from app.core.security import hash_password, validate_password
 from app.models.tenant import Tenant
 from app.models.user import User
 from app.repositories.user_repository import UserRepository
@@ -35,6 +35,11 @@ class UserService:
         ip_address: str | None = None,
         user_agent: str | None = None,
     ) -> User:
+        try:
+            validate_password(user_data.password)
+        except ValueError as exc:
+            raise bad_request(str(exc)) from exc
+
         existing_user = self.repository.get_by_email(
             user_data.email,
         )
@@ -165,7 +170,11 @@ class UserService:
         user = self.repository.update(user)
 
         self.audit_service.log_event(
-            event_type=AuditEventType.USER_UPDATED,
+            event_type=(
+                AuditEventType.USER_ROLE_CHANGED
+                if "role" in changed_field_names
+                else AuditEventType.USER_UPDATED
+            ),
             user_id=user.id,
             email=user.email,
             ip_address=ip_address,

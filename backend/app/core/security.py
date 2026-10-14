@@ -14,6 +14,7 @@ from app.core.config import settings
 from app.core.database import get_db
 from app.models.tenant import Tenant
 from app.models.user import User
+from app.models.user_session import UserSession
 from app.services.audit_service import AuditService
 from app.utils.date_time import utc_now
 from app.utils.enums import AuditEventType, TenantStatus, UserRole, UserStatus
@@ -217,8 +218,42 @@ def get_current_user(
     if not user:
         raise unauthorized("User not found")
 
-    if user.status != UserStatus.ACTIVE:
+    if user.status != UserStatus.ACTIVE or user.is_deleted:
         raise unauthorized("User account is not active")
+
+    raw_session_id = payload.get("sid")
+    request.state.session_id = None
+    if raw_session_id is None:
+        # Development/test tokens created directly by unit tests are legacy-compatible.
+        # Production bearer tokens are always tied to a revocable server-side session.
+        if settings.ENVIRONMENT == "production":
+            raise unauthorized("Token is not associated with an active session")
+    else:
+        try:
+            session_id = UUID(str(raw_session_id))
+        except (TypeError, ValueError) as exc:
+            raise unauthorized("Invalid authentication session") from exc
+        user_session = (
+            db.query(UserSession)
+            .filter(UserSession.id == session_id)
+            .execution_options(
+                skip_tenant_filter=True,
+                tenant_scope_reason=(
+                    "validate session referenced by signed access token"
+                ),
+            )
+            .first()
+        )
+        if (
+            user_session is None
+            or user_session.user_id != user.id
+            or user_session.tenant_id != user.tenant_id
+            or user_session.revoked_at is not None
+            or user_session.expires_at <= utc_now()
+            or payload.get("tenant_id") != str(user.tenant_id)
+        ):
+            raise unauthorized("Session is invalid, expired, or revoked")
+        request.state.session_id = str(user_session.id)
 
     tenant = (
         db.query(Tenant)
@@ -336,8 +371,10 @@ def require_roles(
 
 
 def validate_password(password: str) -> None:
-    if len(password) < 8:
-        raise ValueError("Password must be at least 8 characters long")
+    if len(password) < settings.PASSWORD_MIN_LENGTH:
+        raise ValueError(
+            f"Password must be at least {settings.PASSWORD_MIN_LENGTH} characters long"
+        )
 
     if not re.search(r"[A-Z]", password):
         raise ValueError("Password must contain at least one uppercase letter")

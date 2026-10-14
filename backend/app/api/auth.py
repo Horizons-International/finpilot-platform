@@ -50,6 +50,7 @@ def login(
         password=login_data.password,
         ip_address=(request.client.host if request.client else None),
         user_agent=request.headers.get("user-agent"),
+        mfa_code=login_data.mfa_code,
     )
 
     return APIResponse(success=True, message="Login successful.", data=result)

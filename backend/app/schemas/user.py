@@ -27,7 +27,7 @@ class UserCreate(NameFieldValidatorMixin, EmailFieldValidatorMixin, BaseModel):
     )
     email: EmailStr
     password: str = Field(
-        min_length=8,
+        min_length=12,
         max_length=128,
     )
     role: UserRole

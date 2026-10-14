@@ -51,6 +51,7 @@ from app.models.report_export import ReportExport
 from app.models.risk_prediction import RiskPrediction
 from app.models.risk_score_threshold import RiskScoreThreshold
 from app.models.risk_scoring_rule import RiskScoringRule
+from app.models.security_event import SecurityEvent
 from app.models.system_configuration import SystemConfiguration
 from app.models.task import (
     Task,
@@ -96,6 +97,35 @@ TestSessionLocal = sessionmaker(
     expire_on_commit=False,
     info={"allow_unscoped_tenant_operations": True},
 )
+
+
+@pytest.fixture(autouse=True)
+def cleanup_security_events():
+    """Keep security-monitoring events isolated between database tests."""
+    setup_db = TestSessionLocal()
+    try:
+        existing_ids = {
+            event_id for (event_id,) in setup_db.query(SecurityEvent.id).all()
+        }
+    finally:
+        setup_db.close()
+
+    yield
+
+    db = TestSessionLocal()
+    try:
+        created_ids = [
+            event.id
+            for event in db.query(SecurityEvent).all()
+            if event.id not in existing_ids
+        ]
+        if created_ids:
+            db.query(SecurityEvent).filter(SecurityEvent.id.in_(created_ids)).delete(
+                synchronize_session=False
+            )
+            db.commit()
+    finally:
+        db.close()
 
 
 @pytest.fixture
