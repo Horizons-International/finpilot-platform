@@ -37,6 +37,7 @@ from app.models.partner_onboarding import (
 from app.models.report_export import ReportExport  # noqa: F401
 from app.models.risk_score_threshold import RiskScoreThreshold  # noqa: F401
 from app.models.risk_scoring_rule import RiskScoringRule  # noqa: F401
+from app.models.security_event import SecurityEvent  # noqa: F401
 from app.models.system_configuration import SystemConfiguration  # noqa: F401
 from app.models.task import (
     Task,  # noqa: F401
@@ -51,6 +52,7 @@ from app.models.transaction_monitoring_result import (
     TransactionMonitoringResult,  # noqa: F401
 )
 from app.models.user_invitation import UserInvitation  # noqa: F401
+from app.models.user_session import UserSession  # noqa: F401
 from app.models.verification_case import IdentityVerificationCase  # noqa: F401
 from app.models.verification_case_assignment_history import (
     VerificationCaseAssignmentHistory,  # noqa: F401

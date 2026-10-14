@@ -10,6 +10,12 @@ class LoginRequest(EmailFieldValidatorMixin, BaseModel):
         min_length=8,
         max_length=128,
     )
+    mfa_code: str | None = Field(
+        default=None,
+        min_length=6,
+        max_length=6,
+        pattern=r"^\d{6}$",
+    )
 
     model_config = ConfigDict(
         json_schema_extra={
@@ -54,7 +60,7 @@ class ChangePasswordRequest(BaseModel):
         max_length=128,
     )
     new_password: str = Field(
-        min_length=8,
+        min_length=12,
         max_length=128,
     )
 
@@ -73,6 +79,6 @@ class AcceptInvitationRequest(BaseModel):
     )
 
     password: str = Field(
-        min_length=8,
+        min_length=12,
         max_length=128,
     )

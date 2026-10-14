@@ -66,6 +66,7 @@ from app.api.risk_predictions import (
 )
 from app.api.risk_scoring import router as risk_scoring_router
 from app.api.risk_scoring_rules import router as risk_scoring_rules_router
+from app.api.security import router as security_router
 from app.api.system_configurations import (
     router as system_configurations_router,
 )
@@ -112,6 +113,7 @@ from app.core.security import get_current_user
 from app.core.tenant_filter import install_tenant_filter
 from app.middleware.api_key_usage import APIKeyUsageMiddleware
 from app.middleware.request_id import RequestIDMiddleware
+from app.middleware.security_monitoring import SecurityMonitoringMiddleware
 from app.models.user import User
 from app.schemas.auth import MeResponse
 
@@ -147,6 +149,7 @@ app = FastAPI(
 
 app.add_middleware(RequestIDMiddleware)
 app.add_middleware(APIKeyUsageMiddleware)
+app.add_middleware(SecurityMonitoringMiddleware)
 
 app.include_router(auth_router)
 app.include_router(api_keys_router)
@@ -207,6 +210,7 @@ app.include_router(
 app.include_router(rag_router)
 app.include_router(integration_management_router)
 app.include_router(partner_onboarding_router)
+app.include_router(security_router)
 
 app.add_exception_handler(
     HTTPException,

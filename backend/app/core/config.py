@@ -114,5 +114,10 @@ class Settings(BaseSettings):
     WEBHOOK_MAX_DELIVERY_ATTEMPTS: int = Field(default=8, gt=0, le=20)
     WEBHOOK_RETRY_BASE_SECONDS: int = Field(default=30, gt=0)
 
+    # Enterprise security policy and login monitoring
+    PASSWORD_MIN_LENGTH: int = Field(default=12, ge=12, le=128)
+    LOGIN_FAILURE_THRESHOLD: int = Field(default=5, ge=3, le=20)
+    LOGIN_FAILURE_WINDOW_MINUTES: int = Field(default=15, ge=1, le=120)
+
 
 settings = Settings()  # type: ignore[call-arg]

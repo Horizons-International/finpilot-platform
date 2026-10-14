@@ -1,6 +1,6 @@
 from app.core.config import settings
 from app.core.database import SessionLocal
-from app.core.security import hash_password
+from app.core.security import hash_password, validate_password
 from app.models.tenant import Tenant
 from app.models.user import User
 from app.repositories.user_repository import UserRepository
@@ -12,6 +12,10 @@ def seed_admin() -> None:
     admin_password = settings.ADMIN_PASSWORD
     if admin_password is None:
         raise RuntimeError("ADMIN_PASSWORD environment variable is required")
+    try:
+        validate_password(admin_password)
+    except ValueError as exc:
+        raise RuntimeError(f"ADMIN_PASSWORD does not meet policy: {exc}") from exc
 
     db = SessionLocal()
 
