@@ -32,6 +32,7 @@ from app.models.knowledge_document import KnowledgeDocument  # noqa: F401
 from app.models.ocr_result import OCRResult  # noqa: F401
 from app.models.risk_prediction import RiskPrediction  # noqa: F401
 from app.models.user import User  # noqa: F401
+from app.models.webhook import Webhook, WebhookEvent  # noqa: F401
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.

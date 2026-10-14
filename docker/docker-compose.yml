@@ -97,6 +97,19 @@ services:
       - postgres
     restart: unless-stopped
 
+  webhook-delivery-worker:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    container_name: webhook-delivery-worker
+    env_file:
+      - .env
+    command:
+      ["uv", "run", "python", "-m", "app.jobs.webhook_delivery_worker"]
+    depends_on:
+      - postgres
+    restart: unless-stopped
+
 volumes:
   postgres_data:
   finpilot_storage:

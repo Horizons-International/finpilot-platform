@@ -20,6 +20,7 @@ from app.utils.constants import DEFAULT_PAGE, DEFAULT_PAGE_SIZE
 from app.utils.enums import AuditEventType, CustomerStatus
 from app.utils.errors import bad_request
 from app.utils.pagination import validate_pagination
+from app.webhooks.events import enqueue_webhook_event
 
 ALLOWED_STATUS_TRANSITIONS = {
     CustomerStatus.NEW: {
@@ -122,6 +123,12 @@ class CustomerService:
             },
         )
 
+        enqueue_webhook_event(
+            self.db,
+            tenant_id=self.tenant_id,
+            event_type="customer.created",
+            data={"customer_id": str(customer.id), "status": customer.status.value},
+        )
         self.db.commit()
         self.db.refresh(customer)
         return customer
@@ -197,6 +204,16 @@ class CustomerService:
             resource_id=customer.id,
         )
 
+        enqueue_webhook_event(
+            self.db,
+            tenant_id=self.tenant_id,
+            event_type="customer.updated",
+            data={
+                "customer_id": str(customer.id),
+                "status": customer.status.value,
+                "changed_fields": sorted(changed_field_names),
+            },
+        )
         if commit:
             self.db.commit()
         self.db.refresh(customer)
@@ -247,6 +264,16 @@ class CustomerService:
             resource_id=customer.id,
         )
 
+        enqueue_webhook_event(
+            self.db,
+            tenant_id=self.tenant_id,
+            event_type="customer.updated",
+            data={
+                "customer_id": str(customer.id),
+                "status": customer.status.value,
+                "changed_fields": ["status"],
+            },
+        )
         self.db.commit()
         self.db.refresh(customer)
         return customer
