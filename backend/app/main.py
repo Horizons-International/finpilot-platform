@@ -95,6 +95,7 @@ from app.api.verification_reports import (
 from app.api.verification_reviews import (
     router as verification_reviews_router,
 )
+from app.api.webhooks import router as webhooks_router
 from app.api.workflows import router as workflows_router
 from app.core.config import settings
 from app.core.exceptions import (
@@ -148,6 +149,7 @@ app.add_middleware(APIKeyUsageMiddleware)
 
 app.include_router(auth_router)
 app.include_router(api_keys_router)
+app.include_router(webhooks_router)
 app.include_router(integrations_router)
 app.include_router(health_router)
 app.include_router(profile_router)

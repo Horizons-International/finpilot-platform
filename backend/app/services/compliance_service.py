@@ -30,6 +30,7 @@ from app.utils.enums import (
     UserRole,
 )
 from app.utils.errors import bad_request, not_found
+from app.webhooks.events import enqueue_webhook_event
 
 
 class ComplianceService:
@@ -138,6 +139,12 @@ class ComplianceService:
             resource_id=case.id,
         )
 
+        enqueue_webhook_event(
+            self.db,
+            tenant_id=self.tenant_id,
+            event_type="case.created",
+            data={"case_id": str(case.id), "status": case.status.value},
+        )
         self.db.commit()
         self.db.refresh(case)
 
@@ -373,6 +380,12 @@ class ComplianceService:
 
         if new_status == ComplianceCaseStatus.CLOSED:
             case.closed_at = utc_now()
+            enqueue_webhook_event(
+                self.db,
+                tenant_id=self.tenant_id,
+                event_type="case.closed",
+                data={"case_id": str(case.id), "status": new_status.value},
+            )
 
         history_reason = None
 

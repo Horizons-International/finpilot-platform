@@ -32,6 +32,7 @@ from app.utils.enums import (
     VerificationStatus,
 )
 from app.utils.errors import bad_request
+from app.webhooks.events import enqueue_webhook_event
 
 VERIFICATION_STATUS_TRANSITIONS: dict[
     VerificationStatus,
@@ -241,6 +242,29 @@ class VerificationService:
                 )
 
         case = self.repository.update(case)
+
+        if new_status == VerificationStatus.APPROVED:
+            enqueue_webhook_event(
+                self.db,
+                tenant_id=self.tenant_id,
+                event_type="verification.completed",
+                data={
+                    "verification_case_id": str(case.id),
+                    "customer_id": str(customer_id),
+                    "status": new_status.value,
+                },
+            )
+        elif new_status == VerificationStatus.REJECTED:
+            enqueue_webhook_event(
+                self.db,
+                tenant_id=self.tenant_id,
+                event_type="verification.failed",
+                data={
+                    "verification_case_id": str(case.id),
+                    "customer_id": str(customer_id),
+                    "status": new_status.value,
+                },
+            )
 
         self.audit_service.log_event(
             event_type=AuditEventType.VERIFICATION_CASE_STATUS_CHANGED,

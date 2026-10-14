@@ -107,5 +107,12 @@ class Settings(BaseSettings):
         le=168,
     )
 
+    # Webhook delivery/retry configuration
+    WEBHOOK_ENCRYPTION_KEY: str = ""
+    WEBHOOK_DELIVERY_INTERVAL_SECONDS: int = Field(default=5, gt=0)
+    WEBHOOK_DELIVERY_TIMEOUT_SECONDS: int = Field(default=10, gt=0, le=60)
+    WEBHOOK_MAX_DELIVERY_ATTEMPTS: int = Field(default=8, gt=0, le=20)
+    WEBHOOK_RETRY_BASE_SECONDS: int = Field(default=30, gt=0)
+
 
 settings = Settings()  # type: ignore[call-arg]

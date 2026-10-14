@@ -150,6 +150,10 @@ class AuditEventType(str, Enum):
 
     API_KEY_CREATED = "API_KEY_CREATED"
     API_KEY_REVOKED = "API_KEY_REVOKED"
+    WEBHOOK_CREATED = "WEBHOOK_CREATED"
+    WEBHOOK_UPDATED = "WEBHOOK_UPDATED"
+    WEBHOOK_ENABLED = "WEBHOOK_ENABLED"
+    WEBHOOK_DISABLED = "WEBHOOK_DISABLED"
 
 
 class APIKeyStatus(str, Enum):
@@ -553,3 +557,16 @@ class IntegrationStatus(str, Enum):
     HEALTHY = "HEALTHY"
     DEGRADED = "DEGRADED"
     ERROR = "ERROR"
+
+
+class WebhookStatus(str, Enum):
+    ACTIVE = "ACTIVE"
+    DISABLED = "DISABLED"
+
+
+class WebhookDeliveryStatus(str, Enum):
+    PENDING = "PENDING"
+    DELIVERING = "DELIVERING"
+    DELIVERED = "DELIVERED"
+    RETRYING = "RETRYING"
+    FAILED = "FAILED"
