@@ -76,6 +76,9 @@ from app.api.task_assignment_rules import (
 )
 from app.api.tasks import router as tasks_router
 from app.api.tenants import router as tenants_router
+from app.api.transaction_anomalies import (
+    router as transaction_anomalies_router,
+)
 from app.api.transaction_monitoring import (
     router as transaction_monitoring_router,
 )
@@ -194,6 +197,7 @@ app.include_router(risk_scoring_rules_router)
 app.include_router(aml_rules_router)
 app.include_router(transaction_monitoring_router)
 app.include_router(transaction_risk_analysis_router)
+app.include_router(transaction_anomalies_router)
 app.include_router(verification_router)
 app.include_router(verification_cases_router)
 app.include_router(
