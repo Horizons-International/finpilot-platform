@@ -52,6 +52,10 @@ from app.models.task_assignment_rule import (
     TaskAssignmentRule,  # noqa: F401
 )
 from app.models.tenant import Tenant  # noqa: F401
+from app.models.transaction_anomaly import (
+    TransactionAnomaly,  # noqa: F401
+    TransactionAnomalyActivity,  # noqa: F401
+)
 from app.models.transaction_monitoring_result import (
     TransactionMonitoringResult,  # noqa: F401
 )

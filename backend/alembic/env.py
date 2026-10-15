@@ -40,6 +40,10 @@ from app.models.subscription import (
     Subscription,  # noqa: F401
     SubscriptionUsageCounter,  # noqa: F401
 )
+from app.models.transaction_anomaly import (
+    TransactionAnomaly,  # noqa: F401
+    TransactionAnomalyActivity,  # noqa: F401
+)
 from app.models.transaction_risk_analysis import (
     TransactionRiskAnalysis,  # noqa: F401
     TransactionRiskTransaction,  # noqa: F401
