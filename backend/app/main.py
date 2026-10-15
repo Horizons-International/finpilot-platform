@@ -34,6 +34,7 @@ from app.api.customer_risk_profiles import (
 )
 from app.api.customers import router as customer_router
 from app.api.dashboard import router as dashboard_router
+from app.api.document_fraud_analysis import router as document_fraud_analysis_router
 from app.api.document_review import router as document_review_router
 from app.api.documents import router as documents_router
 from app.api.executive_dashboard import (
@@ -210,6 +211,7 @@ app.include_router(verification_reviews_router)
 app.include_router(verification_document_type_router)
 app.include_router(ai_prompts_router)
 app.include_router(ai_assistant_router)
+app.include_router(document_fraud_analysis_router)
 app.include_router(aml_investigation_assistant_router)
 app.include_router(ai_usage_router)
 app.include_router(documents_router)
