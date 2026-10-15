@@ -72,6 +72,26 @@ ANALYTICS_RESPONSE_SCHEMA = {
 }
 
 
+TRANSACTION_RISK_RESPONSE_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "risk_score": {"type": "integer"},
+        "reason": {"type": "string"},
+        "recommended_action": {"type": "string"},
+        "risk_factors": {"type": "array", "items": {"type": "string"}},
+        "confidence": {"type": "number"},
+    },
+    "required": [
+        "risk_score",
+        "reason",
+        "recommended_action",
+        "risk_factors",
+        "confidence",
+    ],
+    "additionalProperties": False,
+}
+
+
 class OpenAIProvider(AIProvider):
     def __init__(self, config: AIConfig) -> None:
         if not config.api_key:
@@ -103,11 +123,13 @@ class OpenAIProvider(AIProvider):
             response_name = "analytics_assistant_response"
             response_description = "Structured business analytics response."
 
+        elif request.request_type == AIRequestType.TRANSACTION_RISK_ANALYSIS:
+            response_schema = TRANSACTION_RISK_RESPONSE_SCHEMA
+            response_name = "transaction_risk_analysis_response"
+            response_description = "AI-assisted transaction risk review recommendation."
+
         else:
-            raise AIProviderError(
-                "OpenAI provider currently supports compliance "
-                "and analytics assistant requests only."
-            )
+            raise AIProviderError("OpenAI provider does not support this request type.")
 
         try:
             response = self.client.responses.create(

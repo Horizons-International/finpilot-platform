@@ -79,6 +79,9 @@ from app.api.tenants import router as tenants_router
 from app.api.transaction_monitoring import (
     router as transaction_monitoring_router,
 )
+from app.api.transaction_risk_analysis import (
+    router as transaction_risk_analysis_router,
+)
 from app.api.users import router as users_router
 from app.api.verification_case_assignments import (
     router as verification_case_assignments_router,
@@ -190,6 +193,7 @@ app.include_router(risk_predictions_router)
 app.include_router(risk_scoring_rules_router)
 app.include_router(aml_rules_router)
 app.include_router(transaction_monitoring_router)
+app.include_router(transaction_risk_analysis_router)
 app.include_router(verification_router)
 app.include_router(verification_cases_router)
 app.include_router(
