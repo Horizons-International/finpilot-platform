@@ -55,6 +55,10 @@ from app.models.tenant import Tenant  # noqa: F401
 from app.models.transaction_monitoring_result import (
     TransactionMonitoringResult,  # noqa: F401
 )
+from app.models.transaction_risk_analysis import (
+    TransactionRiskAnalysis,  # noqa: F401
+    TransactionRiskTransaction,  # noqa: F401
+)
 from app.models.user_invitation import UserInvitation  # noqa: F401
 from app.models.user_session import UserSession  # noqa: F401
 from app.models.verification_case import IdentityVerificationCase  # noqa: F401
