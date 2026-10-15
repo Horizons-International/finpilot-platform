@@ -9,6 +9,7 @@ class AIRequestType(str, Enum):
     COMPLIANCE_ASSISTANT = "compliance_assistant"
     ANALYTICS_ASSISTANT = "analytics_assistant"
     TRANSACTION_RISK_ANALYSIS = "transaction_risk_analysis"
+    AML_INVESTIGATION_ASSISTANT = "aml_investigation_assistant"
 
 
 @dataclass(frozen=True)

@@ -1,3 +1,4 @@
+from datetime import timedelta
 from uuid import UUID, uuid4
 
 from sqlalchemy.orm import Session
@@ -5,11 +6,15 @@ from sqlalchemy.orm import Session
 from app.core.security import hash_password
 from app.models.ai_prompt import AIPrompt
 from app.models.ai_prompt_assignment import AIPromptAssignment
+from app.models.subscription import Subscription
 from app.models.tenant import Tenant
 from app.models.user import User
+from app.services.subscription_service import PLAN_CATALOG, SubscriptionService
+from app.utils.date_time import utc_now
 from app.utils.enums import (
     AIFunction,
     AIPromptStatus,
+    SubscriptionStatus,
     UserRole,
     UserStatus,
 )
@@ -124,8 +129,54 @@ def get_or_create_ai_system_user(db: Session) -> User:
     return user
 
 
+def seed_default_tenant_enterprise_subscription(db: Session) -> None:
+    """Ensure the DEFAULT tenant has an active Enterprise subscription."""
+    tenant = db.query(Tenant).filter(Tenant.code == "DEFAULT").first()
+
+    if tenant is None:
+        raise RuntimeError(
+            "Default tenant is required before seeding its subscription."
+        )
+
+    # Establish the tenant context for tenant-scoped database queries.
+    db.info["tenant_id"] = tenant.id
+
+    today = utc_now().date()
+    enterprise = PLAN_CATALOG["enterprise"]
+
+    subscription = (
+        db.query(Subscription)
+        .filter(Subscription.tenant_id == tenant.id)
+        .order_by(Subscription.created_at.desc())
+        .first()
+    )
+
+    if subscription is None:
+        SubscriptionService(db).create(
+            tenant_id=tenant.id,
+            plan_name="enterprise",
+            start_date=today,
+            end_date=today + timedelta(days=365),
+            status_value=SubscriptionStatus.ACTIVE,
+        )
+        return
+
+    # Upgrade the latest subscription rather than creating a duplicate.
+    subscription.plan_name = "enterprise"
+    subscription.status = SubscriptionStatus.ACTIVE
+    subscription.start_date = today
+    subscription.end_date = today + timedelta(days=365)
+    subscription.usage_limits = dict(enterprise["usage_limits"])
+    subscription.features = dict(enterprise["features"])
+
+    db.commit()
+
+
 def seed_ai_prompts(db: Session) -> None:
+    seed_default_tenant_enterprise_subscription(db)
+
     system_user = get_or_create_ai_system_user(db)
+
     tenant_id = system_user.tenant_id
 
     for prompt_data in AI_PROMPTS:

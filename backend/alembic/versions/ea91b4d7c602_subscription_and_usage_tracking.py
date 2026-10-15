@@ -134,15 +134,19 @@ def upgrade() -> None:
 
     # Existing organizations receive a bounded Starter subscription so enabling
     # metering does not strand already onboarded tenants after deployment.
-    starter_limits = {
-        "max_users": 100,
-        "api_calls": 50000,
-        "verification_checks": 1000,
-        "ai_requests": 500,
-        "transactions": 1000,
-        "storage_bytes": 1073741824,
+    enterprise_limits = {
+        "max_users": None,
+        "api_calls": None,
+        "verification_checks": None,
+        "ai_requests": None,
+        "transactions": None,
+        "storage_bytes": None,
     }
-    starter_features = {"advanced_reporting": False, "dedicated_integrations": False}
+
+    enterprise_features = {
+        "advanced_reporting": True,
+        "dedicated_integrations": True,
+    }
     bind = op.get_bind()
     tenant_rows = bind.execute(sa.text("SELECT id FROM tenants")).fetchall()
     for row in tenant_rows:
@@ -159,8 +163,8 @@ def upgrade() -> None:
             {
                 "id": str(uuid.uuid4()),
                 "tenant_id": str(row[0]),
-                "usage_limits": json.dumps(starter_limits),
-                "features": json.dumps(starter_features),
+                "usage_limits": json.dumps(enterprise_limits),
+                "features": json.dumps(enterprise_features),
             },
         )
 

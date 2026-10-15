@@ -26,6 +26,7 @@ from app.main import app
 from app.models.ai_interaction import AIInteraction
 from app.models.ai_prompt_assignment import AIPromptAssignment
 from app.models.ai_usage_log import AIUsageLog
+from app.models.aml_investigation_analysis import AMLInvestigationAnalysis
 from app.models.aml_rule import AMLRule
 from app.models.audit_log import AuditLog
 from app.models.communication_log import CommunicationLog
@@ -1285,3 +1286,33 @@ def default_tenant_id(db_session) -> Any:
     assert tenant is not None
 
     return tenant.id
+
+
+@pytest.fixture
+def cleanup_aml_investigation_analyses():
+    """Delete only AML investigation analyses created during a test."""
+    setup_db = TestSessionLocal()
+    try:
+        existing_ids = {
+            analysis_id
+            for (analysis_id,) in setup_db.query(AMLInvestigationAnalysis.id).all()
+        }
+    finally:
+        setup_db.close()
+
+    yield
+
+    db = TestSessionLocal()
+    try:
+        created_ids = [
+            analysis.id
+            for analysis in db.query(AMLInvestigationAnalysis).all()
+            if analysis.id not in existing_ids
+        ]
+        if created_ids:
+            db.query(AMLInvestigationAnalysis).filter(
+                AMLInvestigationAnalysis.id.in_(created_ids)
+            ).delete(synchronize_session=False)
+            db.commit()
+    finally:
+        db.close()

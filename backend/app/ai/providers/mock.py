@@ -167,4 +167,28 @@ class MockAIProvider(AIProvider):
                 output_tokens=0,
             )
 
+        if request.request_type == AIRequestType.AML_INVESTIGATION_ASSISTANT:
+            return AIResponse(
+                provider_name=self.config.provider,
+                request_type=request.request_type.value,
+                content="Mock AML investigation review completed.",
+                structured_data={
+                    "summary": "Investigation assistance is ready for human review.",
+                    "customer_overview": (
+                        "Mock customer overview based on supplied source context."
+                    ),
+                    "risk_indicators": [],
+                    "related_activity": [],
+                    "suggested_actions": [
+                        "Review the cited customer, case, and transaction records.",
+                        "Verify material indicators before making an "
+                        "investigative decision.",
+                    ],
+                    "confidence": 0.0,
+                },
+                request_id=uuid.uuid4(),
+                input_tokens=0,
+                output_tokens=0,
+            )
+
         raise AIProviderError(f"Unsupported AI request type: {request.request_type}")
