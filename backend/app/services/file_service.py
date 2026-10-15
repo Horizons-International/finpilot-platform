@@ -7,6 +7,7 @@ from app.core.config import settings
 from app.models.file import File
 from app.repositories.file_repository import FileRepository
 from app.services.audit_service import AuditService
+from app.services.subscription_service import ensure_subscription_capacity
 from app.services.tenant_access_audit import deny_tenant_access
 from app.storages.base_storage import BaseStorage
 from app.utils.enums import AuditEventType
@@ -75,6 +76,13 @@ class FileService:
         # Validate file size
         if len(file_content) > settings.MAX_FILE_SIZE:
             raise bad_request("File size exceeds the maximum allowed size.")
+
+        ensure_subscription_capacity(
+            self.db,
+            self.tenant_id,
+            metric="storage_bytes",
+            additional=len(file_content),
+        )
 
         storage_path: str | None = None
 

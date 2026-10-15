@@ -12,6 +12,7 @@ from app.schemas.ai_usage import (
     AIUsageLogResponse,
     AIUsageSummaryResponse,
 )
+from app.services.subscription_service import record_subscription_usage
 from app.services.tenant_context import resolve_tenant_context
 
 logger = get_logger(__name__)
@@ -43,6 +44,8 @@ class AIUsageService:
         error_message: str | None = None,
         commit: bool = True,
     ) -> AIUsageLog:
+        record_subscription_usage(self.db, self.tenant_id, "ai_requests")
+
         usage_log = AIUsageLog(
             user_id=user_id,
             feature=feature,

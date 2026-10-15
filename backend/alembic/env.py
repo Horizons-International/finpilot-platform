@@ -36,6 +36,10 @@ from app.models.partner_onboarding import (
 )
 from app.models.risk_prediction import RiskPrediction  # noqa: F401
 from app.models.security_event import SecurityEvent  # noqa: F401
+from app.models.subscription import (
+    Subscription,  # noqa: F401
+    SubscriptionUsageCounter,  # noqa: F401
+)
 from app.models.user import User  # noqa: F401
 from app.models.user_session import UserSession  # noqa: F401
 from app.models.webhook import Webhook, WebhookEvent  # noqa: F401
