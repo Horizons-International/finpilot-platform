@@ -122,6 +122,35 @@ AML_INVESTIGATION_RESPONSE_SCHEMA = {
 }
 
 
+DOCUMENT_FRAUD_RESPONSE_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "summary": {"type": "string"},
+        "document_quality_notes": {
+            "type": "array",
+            "items": {"type": "string"},
+        },
+        "additional_risk_indicators": {
+            "type": "array",
+            "items": {"type": "string"},
+        },
+        "recommended_actions": {
+            "type": "array",
+            "items": {"type": "string"},
+        },
+        "confidence": {"type": "number"},
+    },
+    "required": [
+        "summary",
+        "document_quality_notes",
+        "additional_risk_indicators",
+        "recommended_actions",
+        "confidence",
+    ],
+    "additionalProperties": False,
+}
+
+
 class OpenAIProvider(AIProvider):
     def __init__(self, config: AIConfig) -> None:
         if not config.api_key:
@@ -161,6 +190,12 @@ class OpenAIProvider(AIProvider):
             response_schema = AML_INVESTIGATION_RESPONSE_SCHEMA
             response_name = "aml_investigation_assistant_response"
             response_description = "Structured AI-assisted AML investigation response."
+        elif request.request_type == AIRequestType.DOCUMENT_FRAUD_ANALYSIS:
+            response_schema = DOCUMENT_FRAUD_RESPONSE_SCHEMA
+            response_name = "document_fraud_analysis_response"
+            response_description = (
+                "AI-assisted document authenticity review observations."
+            )
         else:
             raise AIProviderError("OpenAI provider does not support this request type.")
 

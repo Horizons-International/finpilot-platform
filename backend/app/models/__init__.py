@@ -21,6 +21,7 @@ from app.models.customer_risk_profile import CustomerRiskProfile  # noqa: F401
 from app.models.customer_status_history import CustomerStatusHistory  # noqa: F401
 from app.models.document import CustomerDocument  # noqa: F401
 from app.models.document_extraction import DocumentExtraction  # noqa: F401
+from app.models.document_fraud_analysis import DocumentFraudAnalysis  # noqa: F401
 from app.models.integration import Integration  # noqa: F401
 from app.models.investigation_note import InvestigationNote  # noqa: F401
 from app.models.knowledge_document import KnowledgeDocument  # noqa: F401

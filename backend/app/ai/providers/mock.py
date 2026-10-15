@@ -191,4 +191,23 @@ class MockAIProvider(AIProvider):
                 output_tokens=0,
             )
 
+        if request.request_type == AIRequestType.DOCUMENT_FRAUD_ANALYSIS:
+            return AIResponse(
+                provider_name=self.config.provider,
+                request_type=request.request_type.value,
+                content="Mock document fraud screening observations generated.",
+                structured_data={
+                    "summary": "Mock AI observations are for development only.",
+                    "document_quality_notes": [],
+                    "additional_risk_indicators": [],
+                    "recommended_actions": [
+                        "Confirm all automated findings against the source document."
+                    ],
+                    "confidence": 0.0,
+                },
+                request_id=uuid.uuid4(),
+                input_tokens=0,
+                output_tokens=0,
+            )
+
         raise AIProviderError(f"Unsupported AI request type: {request.request_type}")

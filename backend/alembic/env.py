@@ -29,6 +29,7 @@ from app.models.document_extraction import DocumentExtraction  # noqa: F401
 from app.models.document_extraction_review_log import (
     DocumentExtractionReviewLog,  # noqa: F401
 )
+from app.models.document_fraud_analysis import DocumentFraudAnalysis  # noqa: F401
 from app.models.file import File  # noqa: F401
 from app.models.integration import Integration  # noqa: F401
 from app.models.knowledge_document import KnowledgeDocument  # noqa: F401
