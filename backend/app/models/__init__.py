@@ -2,6 +2,9 @@ from app.models.ai_interaction import AIInteraction  # noqa: F401
 from app.models.ai_prompt import AIPrompt  # noqa: F401
 from app.models.ai_prompt_assignment import AIPromptAssignment  # noqa: F401
 from app.models.ai_usage_log import AIUsageLog  # noqa: F401
+from app.models.aml_investigation_analysis import (
+    AMLInvestigationAnalysis,  # noqa: F401
+)
 from app.models.aml_rule import AMLRule  # noqa: F401
 from app.models.api_key import APIKey, APIKeyUsage  # noqa: F401
 from app.models.communication_log import CommunicationLog  # noqa: F401

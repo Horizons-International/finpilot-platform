@@ -91,6 +91,36 @@ TRANSACTION_RISK_RESPONSE_SCHEMA = {
     "additionalProperties": False,
 }
 
+AML_INVESTIGATION_RESPONSE_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "summary": {"type": "string"},
+        "customer_overview": {"type": "string"},
+        "risk_indicators": {
+            "type": "array",
+            "items": {"type": "string"},
+        },
+        "related_activity": {
+            "type": "array",
+            "items": {"type": "string"},
+        },
+        "suggested_actions": {
+            "type": "array",
+            "items": {"type": "string"},
+        },
+        "confidence": {"type": "number"},
+    },
+    "required": [
+        "summary",
+        "customer_overview",
+        "risk_indicators",
+        "related_activity",
+        "suggested_actions",
+        "confidence",
+    ],
+    "additionalProperties": False,
+}
+
 
 class OpenAIProvider(AIProvider):
     def __init__(self, config: AIConfig) -> None:
@@ -127,7 +157,10 @@ class OpenAIProvider(AIProvider):
             response_schema = TRANSACTION_RISK_RESPONSE_SCHEMA
             response_name = "transaction_risk_analysis_response"
             response_description = "AI-assisted transaction risk review recommendation."
-
+        elif request.request_type == AIRequestType.AML_INVESTIGATION_ASSISTANT:
+            response_schema = AML_INVESTIGATION_RESPONSE_SCHEMA
+            response_name = "aml_investigation_assistant_response"
+            response_description = "Structured AI-assisted AML investigation response."
         else:
             raise AIProviderError("OpenAI provider does not support this request type.")
 

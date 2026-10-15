@@ -8,6 +8,9 @@ from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from app.api.ai_assistant import router as ai_assistant_router
 from app.api.ai_prompts import router as ai_prompts_router
 from app.api.ai_usage import router as ai_usage_router
+from app.api.aml_investigation_assistant import (
+    router as aml_investigation_assistant_router,
+)
 from app.api.aml_rules import (
     router as aml_rules_router,
 )
@@ -207,6 +210,7 @@ app.include_router(verification_reviews_router)
 app.include_router(verification_document_type_router)
 app.include_router(ai_prompts_router)
 app.include_router(ai_assistant_router)
+app.include_router(aml_investigation_assistant_router)
 app.include_router(ai_usage_router)
 app.include_router(documents_router)
 app.include_router(knowledge_documents_router)
