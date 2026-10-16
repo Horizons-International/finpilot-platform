@@ -1,4 +1,4 @@
-"""Tenant-scoped data access for document fraud analysis."""
+"""Tenant-scoped persistence and evidence queries for document fraud analysis."""
 
 from uuid import UUID
 
@@ -16,7 +16,7 @@ from app.utils.enums import ExtractionStatus, OCRProcessingStatus
 
 
 class DocumentFraudAnalysisRepository(TenantScopedRepository[DocumentFraudAnalysis]):
-    """Database operations for one tenant's document fraud analyses."""
+    """Database access for document-fraud analysis within one tenant."""
 
     def __init__(self, db: Session, tenant_id: UUID) -> None:
         super().__init__(
@@ -25,10 +25,7 @@ class DocumentFraudAnalysisRepository(TenantScopedRepository[DocumentFraudAnalys
             tenant_id=tenant_id,
         )
 
-    def get_document(
-        self,
-        document_id: UUID,
-    ) -> CustomerDocument | None:
+    def get_document(self, document_id: UUID) -> CustomerDocument | None:
         return (
             self.db.query(CustomerDocument)
             .filter(
@@ -73,10 +70,7 @@ class DocumentFraudAnalysisRepository(TenantScopedRepository[DocumentFraudAnalys
             .first()
         )
 
-    def get_latest_ocr(
-        self,
-        document_id: UUID,
-    ) -> OCRResult | None:
+    def get_latest_ocr(self, document_id: UUID) -> OCRResult | None:
         return (
             self.db.query(OCRResult)
             .filter(
@@ -112,7 +106,6 @@ class DocumentFraudAnalysisRepository(TenantScopedRepository[DocumentFraudAnalys
             .limit(500)
             .all()
         )
-
         return [(row[0], row[1]) for row in rows]
 
     def get_ocr_duplicate_candidates(
@@ -139,8 +132,11 @@ class DocumentFraudAnalysisRepository(TenantScopedRepository[DocumentFraudAnalys
             .limit(500)
             .all()
         )
-
         return [(row[0], row[1]) for row in rows]
+
+    def get_analysis(self, analysis_id: UUID) -> DocumentFraudAnalysis | None:
+        """Return one analysis, scoped to this repository's tenant."""
+        return self.get_by_id(analysis_id)
 
     def list_history(
         self,
@@ -150,21 +146,12 @@ class DocumentFraudAnalysisRepository(TenantScopedRepository[DocumentFraudAnalys
         limit: int = 50,
     ) -> tuple[list[DocumentFraudAnalysis], int]:
         query = self.query()
-
         if document_id is not None:
             query = query.filter(DocumentFraudAnalysis.document_id == document_id)
-
         if customer_id is not None:
             query = query.filter(DocumentFraudAnalysis.customer_id == customer_id)
-
         total = query.count()
         rows = (
             query.order_by(DocumentFraudAnalysis.created_at.desc()).limit(limit).all()
         )
         return rows, total
-
-    def get_analysis(
-        self,
-        analysis_id: UUID,
-    ) -> DocumentFraudAnalysis | None:
-        return self.get_by_id(analysis_id)

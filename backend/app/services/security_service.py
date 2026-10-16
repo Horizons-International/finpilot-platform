@@ -2,7 +2,6 @@
 
 from uuid import UUID
 
-from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.mfa import (
@@ -13,9 +12,8 @@ from app.core.mfa import (
     verify_totp,
 )
 from app.core.security import verify_password
-from app.models.security_event import SecurityEvent
 from app.models.user import User
-from app.models.user_session import UserSession
+from app.repositories.security_repository import SecurityRepository
 from app.schemas.security import (
     MFAEnrollResponse,
     SecurityEventResponse,
@@ -32,6 +30,7 @@ class SecurityService:
         self.user = user
         self.tenant_id = user.tenant_id
         self.db.info["tenant_id"] = user.tenant_id
+        self.repository = SecurityRepository(db, tenant_id=user.tenant_id)
 
     def begin_mfa_enrollment(self, current_password: str) -> MFAEnrollResponse:
         if self.user.mfa_enabled:
@@ -142,17 +141,7 @@ class SecurityService:
     def list_sessions(
         self, current_session_id: UUID | None
     ) -> list[SecuritySessionResponse]:
-        sessions = list(
-            self.db.scalars(
-                select(UserSession)
-                .where(
-                    UserSession.user_id == self.user.id,
-                    UserSession.tenant_id == self.tenant_id,
-                )
-                .order_by(UserSession.created_at.desc())
-                .limit(100)
-            ).all()
-        )
+        sessions = self.repository.list_user_sessions(self.user.id, limit=100)
         return [
             SecuritySessionResponse(
                 id=item.id,
@@ -175,13 +164,7 @@ class SecurityService:
         ip_address: str | None,
         user_agent: str | None,
     ) -> None:
-        session = self.db.scalar(
-            select(UserSession).where(
-                UserSession.id == session_id,
-                UserSession.user_id == self.user.id,
-                UserSession.tenant_id == self.tenant_id,
-            )
-        )
+        session = self.repository.get_user_session(session_id, self.user.id)
         if session is None:
             raise not_found("Session")
         if session.revoked_at is not None:
@@ -207,14 +190,10 @@ class SecurityService:
         ip_address: str | None,
         user_agent: str | None,
     ) -> int:
-        statement = select(UserSession).where(
-            UserSession.user_id == self.user.id,
-            UserSession.tenant_id == self.tenant_id,
-            UserSession.revoked_at.is_(None),
+        sessions = self.repository.list_active_sessions(
+            self.user.id,
+            excluded_session_id=current_session_id,
         )
-        if current_session_id is not None:
-            statement = statement.where(UserSession.id != current_session_id)
-        sessions = list(self.db.scalars(statement).all())
         now = utc_now()
         for session in sessions:
             session.revoked_at = now
@@ -240,30 +219,15 @@ class SecurityService:
         user_id: UUID | None = None,
         limit: int = 100,
     ) -> list[SecurityEventResponse]:
-        statement = select(SecurityEvent).where(
-            SecurityEvent.tenant_id == self.tenant_id
-        )
-        if event_type:
-            statement = statement.where(SecurityEvent.event_type == event_type)
-        if user_id:
-            statement = statement.where(SecurityEvent.user_id == user_id)
-        events = list(
-            self.db.scalars(
-                statement.order_by(SecurityEvent.timestamp.desc()).limit(limit)
-            ).all()
+        events = self.repository.list_events(
+            event_type=event_type,
+            user_id=user_id,
+            limit=limit,
         )
         return [SecurityEventResponse.model_validate(event) for event in events]
 
     def _revoke_active_sessions(self, *, reason: str) -> int:
-        sessions = list(
-            self.db.scalars(
-                select(UserSession).where(
-                    UserSession.user_id == self.user.id,
-                    UserSession.tenant_id == self.tenant_id,
-                    UserSession.revoked_at.is_(None),
-                )
-            ).all()
-        )
+        sessions = self.repository.list_active_sessions(self.user.id)
         now = utc_now()
         for session in sessions:
             session.revoked_at = now

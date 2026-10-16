@@ -7,7 +7,6 @@ from typing import Any, cast
 from uuid import UUID
 
 from fastapi import HTTPException, status
-from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.ai.providers.factory import get_ai_provider
@@ -15,14 +14,15 @@ from app.ai.schemas.requests import AIRequest, AIRequestType
 from app.ai.schemas.responses import AIResponse
 from app.ai.services.ai_service import AIService
 from app.models.ai_usage_log import AIUsageLog
-from app.models.compliance_case import ComplianceCase
 from app.models.customer import Customer
-from app.models.customer_risk_profile import CustomerRiskProfile
 from app.models.transaction_risk_analysis import (
     TransactionRiskAnalysis,
     TransactionRiskTransaction,
 )
-from app.models.verification_case import IdentityVerificationCase
+from app.repositories.ai_usage_log_repository import AIUsageLogRepository
+from app.repositories.transaction_risk_analysis_repository import (
+    TransactionRiskAnalysisRepository,
+)
 from app.schemas.compliance_case import ComplianceCaseCreate
 from app.schemas.transaction_risk_analysis import (
     TransactionRiskAIOutput,
@@ -52,6 +52,8 @@ class TransactionRiskAnalysisService:
         db.info["tenant_id"] = tenant_id
         self.db = db
         self.tenant_id = tenant_id
+        self.repository = TransactionRiskAnalysisRepository(db, tenant_id=tenant_id)
+        self.ai_usage_repository = AIUsageLogRepository(db, tenant_id=tenant_id)
         self.audit_service = AuditService(db)
 
     @staticmethod
@@ -127,30 +129,15 @@ class TransactionRiskAnalysisService:
         }
 
     def _customer_context(self, customer: Customer) -> dict[str, Any]:
-        risk_profile = self.db.scalar(
-            select(CustomerRiskProfile).where(
-                CustomerRiskProfile.tenant_id == self.tenant_id,
-                CustomerRiskProfile.customer_id == customer.id,
-            )
+        risk_profile = self.repository.get_risk_profile(customer.id)
+        verification_rows = self.repository.list_verification_cases(
+            customer.id,
+            limit=100,
         )
-        verification_rows = self.db.scalars(
-            select(IdentityVerificationCase)
-            .where(
-                IdentityVerificationCase.tenant_id == self.tenant_id,
-                IdentityVerificationCase.customer_id == customer.id,
-            )
-            .order_by(IdentityVerificationCase.created_at.desc())
-            .limit(100)
-        ).all()
-        previous_cases = self.db.scalars(
-            select(ComplianceCase)
-            .where(
-                ComplianceCase.tenant_id == self.tenant_id,
-                ComplianceCase.customer_id == customer.id,
-            )
-            .order_by(ComplianceCase.created_at.desc())
-            .limit(20)
-        ).all()
+        previous_cases = self.repository.list_compliance_cases(
+            customer.id,
+            limit=20,
+        )
         return {
             "customer_id": str(customer.id),
             "risk_level": (
@@ -181,32 +168,29 @@ class TransactionRiskAnalysisService:
         }
 
     def _historical_transactions(
-        self, customer_id: UUID, payload: TransactionRiskAnalysisRequest
+        self,
+        customer_id: UUID,
+        payload: TransactionRiskAnalysisRequest,
     ) -> list[dict[str, Any]]:
         current_start = min(item.occurred_at for item in payload.transactions)
         window_start = current_start - timedelta(days=90)
-        stored = self.db.scalars(
-            select(TransactionRiskTransaction)
-            .where(
-                TransactionRiskTransaction.tenant_id == self.tenant_id,
-                TransactionRiskTransaction.customer_id == customer_id,
-                TransactionRiskTransaction.occurred_at >= window_start,
-                TransactionRiskTransaction.occurred_at < current_start,
-            )
-            .order_by(TransactionRiskTransaction.occurred_at.desc())
-            .limit(1000)
-        ).all()
+        stored = self.repository.list_historical_transactions(
+            customer_id,
+            start_at=window_start,
+            end_at=current_start,
+            limit=1000,
+        )
         candidates = [
-            item
-            for item in payload.historical_transactions
-            if window_start <= item.occurred_at < current_start
+            historical_item
+            for historical_item in payload.historical_transactions
+            if window_start <= historical_item.occurred_at < current_start
         ]
         combined: dict[str, dict[str, Any]] = {}
         for stored_item in stored:
             item_dict = self._observation_dict(stored_item)
             combined[item_dict["transaction_id"]] = item_dict
-        for item in candidates:
-            item_dict = self._observation_dict(item)
+        for candidates_item in candidates:
+            item_dict = self._observation_dict(candidates_item)
             combined[item_dict["transaction_id"]] = item_dict
         return sorted(combined.values(), key=lambda item: str(item["occurred_at"]))
 
@@ -229,28 +213,18 @@ class TransactionRiskAnalysisService:
         ip_address: str | None = None,
         user_agent: str | None = None,
     ) -> TransactionRiskAnalysis:
-        customer = self.db.scalar(
-            select(Customer).where(
-                Customer.id == payload.customer_id,
-                Customer.tenant_id == self.tenant_id,
-            )
-        )
+        customer = self.repository.get_customer(payload.customer_id)
         if customer is None:
             raise not_found("Customer")
 
         incoming_ids = [item.transaction_id for item in payload.transactions]
-        existing_ids = self.db.scalars(
-            select(TransactionRiskTransaction.transaction_id).where(
-                TransactionRiskTransaction.tenant_id == self.tenant_id,
-                TransactionRiskTransaction.transaction_id.in_(incoming_ids),
-            )
-        ).all()
+        existing_ids = self.repository.get_existing_transaction_ids(incoming_ids)
         if existing_ids:
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
                 detail=(
-                    "One or more transaction IDs have already been analyzed for this "
-                    "organization. Submit only new transaction IDs."
+                    "One or more transaction IDs have already been analyzed "
+                    "for this organization. Submit only new transaction IDs."
                 ),
             )
 
@@ -269,26 +243,27 @@ class TransactionRiskAnalysisService:
             "historical_transactions": historical_transactions,
             "assessment_window_days": 90,
             "important_limitations": [
-                "Historical data is limited to the supplied baseline"
-                " and previously analyzed transactions stored here.",
+                "Historical data is limited to the supplied baseline "
+                "and previously analyzed transactions stored here.",
                 "Amounts in different currencies are not added together or converted.",
                 "A risk score is a review signal, not proof of wrongdoing.",
             ],
         }
         prompt = (
             "You are an AML transaction-risk decision-support assistant. "
-            "Analyze the current activity against the historical"
-            " baseline and customer context. Return only the "
-            "required structured fields: risk_score (integer 0-100), "
-            "reason, recommended_action, risk_factors "
-            "(array of concise evidence-based strings), and confidence (0-1). "
-            "Explain measurable deviations such as changes in transaction"
-            " count, value, timing, destinations, or types. Do not invent"
-            " facts, claim that a customer committed a crime, or treat "
-            "missing data as proof of risk. If there is insufficient history,"
-            " say so and reduce confidence. A high score recommends "
-            "human review only; do not recommend an automatic account freeze."
-            " Use an action proportionate to the evidence.\n\n"
+            "Analyze the current activity against the historical "
+            "baseline and customer context. Return only the required "
+            "structured fields: risk_score (integer 0-100), reason, "
+            "recommended_action, "
+            "risk_factors (array of concise "
+            "evidence-based strings), and confidence (0-1). Explain "
+            "measurable deviations such as changes in transaction count, "
+            "value, timing, destinations, or types. Do not invent facts, "
+            "claim that a customer committed a crime, or treat missing "
+            "data as proof of risk. If there is insufficient history, say so and "
+            "reduce confidence. A high score recommends human review only; "
+            "do not recommend an automatic account freeze. Use an action "
+            "proportionate to the evidence.\n\n"
             + _CONTEXT_MARKER
             + json.dumps(context, separators=(",", ":"), default=str)
         )
@@ -321,7 +296,9 @@ class TransactionRiskAnalysisService:
         except Exception as exc:
             raise HTTPException(
                 status_code=status.HTTP_502_BAD_GATEWAY,
-                detail="The AI provider returned an invalid transaction-risk response.",
+                detail=(
+                    "The AI provider returned an invalid transaction-risk response."
+                ),
             ) from exc
 
         risk_level = self._risk_level(ai_result.risk_score)
@@ -342,23 +319,23 @@ class TransactionRiskAnalysisService:
             baseline_summary=baseline_summary,
             ai_response=ai_result.model_dump(mode="json"),
         )
-        self.db.add(analysis)
-        self.db.flush()
-        for item in payload.transactions:
-            self.db.add(
-                TransactionRiskTransaction(
-                    tenant_id=self.tenant_id,
-                    analysis_id=analysis.id,
-                    customer_id=customer.id,
-                    transaction_id=item.transaction_id,
-                    amount=item.amount,
-                    currency=item.currency,
-                    destination_country=item.destination_country,
-                    transaction_type=item.transaction_type,
-                    occurred_at=item.occurred_at,
-                )
+        self.repository.create(analysis)
+        transactions = [
+            TransactionRiskTransaction(
+                tenant_id=self.tenant_id,
+                analysis_id=analysis.id,
+                customer_id=customer.id,
+                transaction_id=item.transaction_id,
+                amount=item.amount,
+                currency=item.currency,
+                destination_country=item.destination_country,
+                transaction_type=item.transaction_type,
+                occurred_at=item.occurred_at,
             )
-        self.db.add(
+            for item in payload.transactions
+        ]
+        self.repository.create_transactions(transactions)
+        self.ai_usage_repository.stage(
             AIUsageLog(
                 tenant_id=self.tenant_id,
                 user_id=user_id,
@@ -415,27 +392,18 @@ class TransactionRiskAnalysisService:
         return analysis
 
     def get_analysis(self, analysis_id: UUID) -> TransactionRiskAnalysis:
-        analysis = self.db.scalar(
-            select(TransactionRiskAnalysis).where(
-                TransactionRiskAnalysis.id == analysis_id,
-                TransactionRiskAnalysis.tenant_id == self.tenant_id,
-            )
-        )
+        analysis = self.repository.get_analysis(analysis_id)
         if analysis is None:
             raise not_found("Transaction risk analysis")
         return analysis
 
     def list_analyses(
-        self, *, customer_id: UUID | None = None, limit: int = 100
+        self,
+        *,
+        customer_id: UUID | None = None,
+        limit: int = 100,
     ) -> list[TransactionRiskAnalysis]:
-        statement = select(TransactionRiskAnalysis).where(
-            TransactionRiskAnalysis.tenant_id == self.tenant_id
+        return self.repository.list_analyses(
+            customer_id=customer_id,
+            limit=limit,
         )
-        if customer_id is not None:
-            statement = statement.where(
-                TransactionRiskAnalysis.customer_id == customer_id
-            )
-        statement = statement.order_by(TransactionRiskAnalysis.created_at.desc()).limit(
-            limit
-        )
-        return list(self.db.scalars(statement).all())

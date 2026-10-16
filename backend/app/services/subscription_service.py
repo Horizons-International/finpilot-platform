@@ -2,20 +2,17 @@
 
 from calendar import monthrange
 from datetime import date, timedelta
-from typing import Any, cast
+from typing import Any
 from uuid import UUID
 
 from fastapi import HTTPException, status
-from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from app.models.file import File
 from app.models.subscription import Subscription, SubscriptionUsageCounter
-from app.models.tenant import Tenant
-from app.models.user import User
+from app.repositories.subscription_repository import SubscriptionRepository
 from app.schemas.subscription import SubscriptionPlan, SubscriptionUsageMetric
 from app.utils.date_time import utc_now
-from app.utils.enums import SubscriptionStatus, TenantStatus, UserStatus
+from app.utils.enums import SubscriptionStatus, TenantStatus
 
 # Conservative defaults keep Starter bounded while allowing existing test and
 # development tenants to use normal workflows. These are product defaults, not
@@ -131,7 +128,7 @@ def _merged_limits(
             raise HTTPException(
                 status_code=422,
                 detail=(
-                    f"Unsupported usage limit(s): {', '.join(sorted(unknown_keys))}.",
+                    f"Unsupported usage limit(s): {', '.join(sorted(unknown_keys))}."
                 ),
             )
         for key, value in custom.items():
@@ -139,32 +136,22 @@ def _merged_limits(
                 raise HTTPException(
                     status_code=422,
                     detail=(
-                        f"Usage limit '{key}' must be zero"
-                        " or greater, or null for unlimited.",
+                        f"Usage limit '{key}' must be zero "
+                        "or greater, or null for unlimited."
                     ),
                 )
             limits[key] = value
     return limits
 
 
-def _tenant_statement(statement: Any, reason: str) -> Any:
-    return statement.execution_options(
-        skip_tenant_filter=True,
-        tenant_scope_reason=reason,
-    )
-
-
 def _subscription_rows(
-    db: Session, tenant_id: UUID, *, lock: bool = False
+    db: Session,
+    tenant_id: UUID,
+    *,
+    lock: bool = False,
 ) -> list[Subscription]:
-    statement = select(Subscription).where(Subscription.tenant_id == tenant_id)
-    statement = _tenant_statement(statement, "load subscription by explicit tenant ID")
-    if lock:
-        statement = statement.with_for_update()
-    return cast(
-        list[Subscription],
-        list(db.scalars(statement.order_by(Subscription.created_at.desc())).all()),
-    )
+    repository = SubscriptionRepository(db, tenant_id=tenant_id)
+    return repository.list_for_tenant(for_update=lock)
 
 
 def _get_current_subscription(
@@ -189,21 +176,16 @@ def _get_current_subscription(
                 status_code=status.HTTP_402_PAYMENT_REQUIRED,
                 detail=(
                     "This organization does not have an active "
-                    "subscription. Contact the platform owner.",
+                    "subscription. Contact the platform owner."
                 ),
             )
         if not create_trial_if_missing:
             raise HTTPException(status_code=404, detail="Subscription not found.")
 
-        tenant_statement = select(Tenant).where(Tenant.id == tenant_id)
-        tenant = cast(
-            Tenant | None,
-            db.scalar(
-                _tenant_statement(
-                    tenant_statement,
-                    "verify tenant before trial subscription provisioning",
-                ).with_for_update()
-            ),
+        tenant = SubscriptionRepository.get_tenant_for_platform_operation(
+            db,
+            tenant_id,
+            for_update=True,
         )
         if tenant is None or tenant.status != TenantStatus.ACTIVE:
             raise HTTPException(
@@ -226,7 +208,7 @@ def _get_current_subscription(
                 status_code=status.HTTP_402_PAYMENT_REQUIRED,
                 detail=(
                     "This organization does not have an active "
-                    "subscription. Contact the platform owner.",
+                    "subscription. Contact the platform owner."
                 ),
             )
         if current is None:
@@ -240,8 +222,7 @@ def _get_current_subscription(
                 usage_limits=_merged_limits(SubscriptionPlan.STARTER.value),
                 features=dict(PLAN_CATALOG[SubscriptionPlan.STARTER.value]["features"]),
             )
-            db.add(current)
-            db.flush()
+            SubscriptionRepository(db, tenant_id=tenant_id).create_subscription(current)
 
     today = utc_now().date()
     if current.end_date < today:
@@ -250,7 +231,7 @@ def _get_current_subscription(
         raise HTTPException(
             status_code=status.HTTP_402_PAYMENT_REQUIRED,
             detail=(
-                "The subscription has expired. Contact the platform owner to renew it.",
+                "The subscription has expired. Contact the platform owner to renew it."
             ),
         )
     if current.start_date > today:
@@ -258,7 +239,7 @@ def _get_current_subscription(
             status_code=status.HTTP_402_PAYMENT_REQUIRED,
             detail=(
                 "The subscription does not start until "
-                f"{current.start_date.isoformat()}.",
+                f"{current.start_date.isoformat()}."
             ),
         )
     if current.status not in {SubscriptionStatus.ACTIVE, SubscriptionStatus.TRIAL}:
@@ -283,19 +264,11 @@ def record_subscription_usage(
 
     subscription = _get_current_subscription(db, tenant_id, lock=True)
     period_start = _period_start()
-    statement = select(SubscriptionUsageCounter).where(
-        SubscriptionUsageCounter.tenant_id == tenant_id,
-        SubscriptionUsageCounter.metric == metric,
-        SubscriptionUsageCounter.period_start == period_start,
-    )
-    counter = cast(
-        SubscriptionUsageCounter | None,
-        db.scalar(
-            _tenant_statement(
-                statement,
-                "read the explicitly tenant-scoped monthly usage counter",
-            ).with_for_update()
-        ),
+    repository = SubscriptionRepository(db, tenant_id=tenant_id)
+    counter = repository.get_usage_counter(
+        metric=metric,
+        period_start=period_start,
+        for_update=True,
     )
     if counter is None:
         counter = SubscriptionUsageCounter(
@@ -304,8 +277,7 @@ def record_subscription_usage(
             period_start=period_start,
             used=0,
         )
-        db.add(counter)
-        db.flush()
+        repository.create_usage_counter(counter)
 
     limit_key = _LIMIT_KEY_BY_METRIC[metric]
     limit_value = subscription.usage_limits.get(limit_key)
@@ -343,25 +315,12 @@ def ensure_subscription_capacity(
         raise ValueError("Additional capacity must be zero or greater.")
 
     subscription = _get_current_subscription(db, tenant_id, lock=True)
+    repository = SubscriptionRepository(db, tenant_id=tenant_id)
     if metric == "active_users":
-        query = select(func.count(User.id)).where(
-            User.tenant_id == tenant_id,
-            User.status == UserStatus.ACTIVE,
-            User.is_deleted.is_(False),
-        )
-        raw_used = db.scalar(
-            _tenant_statement(query, "count active users for one subscription tenant")
-        )
-        used = int(cast(int | None, raw_used) or 0)
+        used = repository.count_active_users()
         unit = "active users"
     else:
-        query = select(func.coalesce(func.sum(File.file_size), 0)).where(
-            File.tenant_id == tenant_id
-        )
-        raw_used = db.scalar(
-            _tenant_statement(query, "sum storage bytes for one subscription tenant")
-        )
-        used = int(cast(int | None, raw_used) or 0)
+        used = repository.sum_storage_bytes()
         unit = "bytes of storage"
 
     limit_value = subscription.usage_limits.get(_LIMIT_KEY_BY_METRIC[metric])
@@ -396,14 +355,10 @@ class SubscriptionService:
         status_value: SubscriptionStatus = SubscriptionStatus.ACTIVE,
         usage_limits: dict[str, int | None] | None = None,
     ) -> Subscription:
-        tenant_statement = select(Tenant).where(Tenant.id == tenant_id)
-        tenant = cast(
-            Tenant | None,
-            self.db.scalar(
-                _tenant_statement(
-                    tenant_statement, "platform-admin subscription creation target"
-                ).with_for_update()
-            ),
+        tenant = SubscriptionRepository.get_tenant_for_platform_operation(
+            self.db,
+            tenant_id,
+            for_update=True,
         )
         if tenant is None:
             raise HTTPException(status_code=404, detail="Organization not found.")
@@ -435,8 +390,8 @@ class SubscriptionService:
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
                 detail=(
-                    "This organization already has a "
-                    "current subscription. Update it instead.",
+                    "This organization already has a current "
+                    "subscription. Update it instead."
                 ),
             )
 
@@ -463,7 +418,10 @@ class SubscriptionService:
                     status_code=422,
                     detail="An active subscription cannot already be expired.",
                 )
-        self.db.add(subscription)
+        SubscriptionRepository(
+            self.db,
+            tenant_id=tenant_id,
+        ).create_subscription(subscription)
         self.db.commit()
         self.db.refresh(subscription)
         return subscription
@@ -484,23 +442,26 @@ class SubscriptionService:
         return latest
 
     def list_subscriptions(
-        self, *, tenant_id: UUID | None = None, limit: int = 100
+        self,
+        *,
+        tenant_id: UUID | None = None,
+        limit: int = 100,
     ) -> list[Subscription]:
-        statement = select(Subscription)
-        if tenant_id is not None:
-            statement = statement.where(Subscription.tenant_id == tenant_id)
-        statement = _tenant_statement(statement, "platform-admin subscription listing")
-        return cast(
-            list[Subscription],
-            list(
-                self.db.scalars(
-                    statement.order_by(Subscription.created_at.desc()).limit(limit)
-                ).all()
-            ),
+        return SubscriptionRepository.list_for_platform_admin(
+            self.db,
+            tenant_id=tenant_id,
+            limit=limit,
         )
 
     def update(self, tenant_id: UUID, changes: dict[str, Any]) -> Subscription:
-        rows = _subscription_rows(self.db, tenant_id, lock=True)
+        # Platform administrators can update an explicitly authorized tenant.
+        # Query it in the repository before rebinding the session context, so a
+        # missing target does not leave the session bound to a nonexistent tenant.
+        rows = SubscriptionRepository.list_tenant_for_platform_operation(
+            self.db,
+            tenant_id,
+            for_update=True,
+        )
         if not rows:
             raise HTTPException(status_code=404, detail="Subscription not found.")
         self.db.info["tenant_id"] = tenant_id
@@ -549,14 +510,9 @@ class SubscriptionService:
         return self.update(tenant_id, {"status": SubscriptionStatus.CANCELLED})
 
     def serialize(self, subscription: Subscription) -> dict[str, Any]:
-        tenant = cast(
-            Tenant | None,
-            self.db.scalar(
-                _tenant_statement(
-                    select(Tenant).where(Tenant.id == subscription.tenant_id),
-                    "load organization name for subscription response",
-                )
-            ),
+        tenant = SubscriptionRepository.get_tenant_for_response(
+            self.db,
+            subscription.tenant_id,
         )
         if tenant is None:
             raise HTTPException(status_code=404, detail="Organization not found.")
@@ -617,38 +573,11 @@ class SubscriptionService:
                 )
         period_start = _period_start()
         period_end = _period_end(period_start)
-        counter_statement = select(SubscriptionUsageCounter).where(
-            SubscriptionUsageCounter.tenant_id == tenant_id,
-            SubscriptionUsageCounter.period_start == period_start,
-        )
-        counters = cast(
-            list[SubscriptionUsageCounter],
-            list(
-                self.db.scalars(
-                    _tenant_statement(
-                        counter_statement, "read tenant monthly subscription usage"
-                    )
-                ).all()
-            ),
-        )
+        repository = SubscriptionRepository(self.db, tenant_id=tenant_id)
+        counters = repository.list_usage_counters(period_start=period_start)
         used_by_metric = {counter.metric: counter.used for counter in counters}
-
-        active_users_query = select(func.count(User.id)).where(
-            User.tenant_id == tenant_id,
-            User.status == UserStatus.ACTIVE,
-            User.is_deleted.is_(False),
-        )
-        raw_active_users = self.db.scalar(
-            _tenant_statement(active_users_query, "report tenant active-user gauge")
-        )
-        active_users = int(cast(int | None, raw_active_users) or 0)
-        storage_query = select(func.coalesce(func.sum(File.file_size), 0)).where(
-            File.tenant_id == tenant_id
-        )
-        raw_storage_bytes = self.db.scalar(
-            _tenant_statement(storage_query, "report tenant storage gauge")
-        )
-        storage_bytes = int(cast(int | None, raw_storage_bytes) or 0)
+        active_users = repository.count_active_users()
+        storage_bytes = repository.sum_storage_bytes()
         current_values = {
             "api_calls": (used_by_metric.get("api_calls", 0), "calls"),
             "verification_checks": (

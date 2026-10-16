@@ -1,12 +1,11 @@
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.models.customer import Customer
 from app.models.transaction_monitoring_result import TransactionMonitoringResult
 from app.repositories.aml_rule_repository import AMLRuleRepository
+from app.repositories.customer_repository import CustomerRepository
 from app.repositories.transaction_monitoring_result_repository import (
     TransactionMonitoringResultRepository,
 )
@@ -23,11 +22,21 @@ class TransactionMonitoringService:
     def __init__(self, db: Session, tenant_id: UUID | None = None) -> None:
         self.db = db
         self.tenant_id = resolve_tenant_context(
-            db, tenant_id, resource_name="transaction monitoring"
+            db,
+            tenant_id,
+            resource_name="transaction monitoring",
         )
-        self.aml_rule_repository = AMLRuleRepository(db, tenant_id=self.tenant_id)
+        self.customer_repository = CustomerRepository(
+            db,
+            tenant_id=self.tenant_id,
+        )
+        self.aml_rule_repository = AMLRuleRepository(
+            db,
+            tenant_id=self.tenant_id,
+        )
         self.result_repository = TransactionMonitoringResultRepository(
-            db, tenant_id=self.tenant_id
+            db,
+            tenant_id=self.tenant_id,
         )
         self.engine = AMLRuleEngine()
         self.audit_service = AuditService(db)
@@ -41,12 +50,7 @@ class TransactionMonitoringService:
         ip_address: str | None = None,
         user_agent: str | None = None,
     ) -> list[TransactionMonitoringResult]:
-        customer = self.db.scalar(
-            select(Customer).where(
-                Customer.id == payload.customer_id,
-                Customer.tenant_id == self.tenant_id,
-            )
-        )
+        customer = self.customer_repository.get_by_id(payload.customer_id)
         if customer is None:
             raise not_found("Customer")
 

@@ -2,10 +2,10 @@ import hashlib
 import secrets
 from uuid import UUID
 
-from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.models.api_key import APIKey, APIKeyUsage
+from app.repositories.api_key_repository import APIKeyRepository
 from app.schemas.api_key import APIKeyCreate
 from app.services.audit_service import AuditService
 from app.services.tenant_access_audit import deny_tenant_access
@@ -23,6 +23,7 @@ class APIKeyService:
         db.info["tenant_id"] = tenant_id
         self.db = db
         self.tenant_id = tenant_id
+        self.repository = APIKeyRepository(db, tenant_id=tenant_id)
         self.audit_service = AuditService(db)
 
     @staticmethod
@@ -53,8 +54,7 @@ class APIKeyService:
             created_by=user_id,
             created_at=utc_now(),
         )
-        self.db.add(api_key)
-        self.db.flush()
+        self.repository.create(api_key)
         self.audit_service.log_event(
             event_type=AuditEventType.API_KEY_CREATED,
             user_id=user_id,
@@ -69,21 +69,10 @@ class APIKeyService:
         return api_key, raw_key
 
     def list_all(self) -> list[APIKey]:
-        statement = (
-            select(APIKey)
-            .where(APIKey.tenant_id == self.tenant_id)
-            .order_by(APIKey.created_at.desc())
-        )
-        return list(self.db.scalars(statement).all())
+        return self.repository.list_keys()
 
     def get_by_id(self, api_key_id: UUID, *, for_update: bool = False) -> APIKey:
-        statement = select(APIKey).where(
-            APIKey.tenant_id == self.tenant_id,
-            APIKey.id == api_key_id,
-        )
-        if for_update:
-            statement = statement.with_for_update()
-        api_key = self.db.scalar(statement)
+        api_key = self.repository.get_key(api_key_id, for_update=for_update)
         if api_key is None:
             deny_tenant_access(
                 self.db,
@@ -121,13 +110,4 @@ class APIKeyService:
 
     def list_usage(self, api_key_id: UUID, *, limit: int = 100) -> list[APIKeyUsage]:
         self.get_by_id(api_key_id)
-        statement = (
-            select(APIKeyUsage)
-            .where(
-                APIKeyUsage.tenant_id == self.tenant_id,
-                APIKeyUsage.api_key_id == api_key_id,
-            )
-            .order_by(APIKeyUsage.created_at.desc())
-            .limit(limit)
-        )
-        return list(self.db.scalars(statement).all())
+        return self.repository.list_usage(api_key_id, limit=limit)

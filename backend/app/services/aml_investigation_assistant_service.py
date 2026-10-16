@@ -7,7 +7,6 @@ from uuid import UUID
 
 from fastapi import HTTPException, status
 from pydantic import ValidationError
-from sqlalchemy import func, select
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
@@ -20,18 +19,10 @@ from app.core.logger import get_logger
 from app.models.aml_investigation_analysis import AMLInvestigationAnalysis
 from app.models.compliance_case import ComplianceCase
 from app.models.customer import Customer
-from app.models.customer_risk_profile import CustomerRiskProfile
-from app.models.transaction_anomaly import (
-    TransactionAnomaly,
-    TransactionAnomalyActivity,
-)
-from app.models.transaction_monitoring_result import TransactionMonitoringResult
-from app.models.transaction_risk_analysis import (
-    TransactionRiskAnalysis,
-    TransactionRiskTransaction,
-)
-from app.models.verification_case import IdentityVerificationCase
 from app.rag.retrieval import RetrievalService
+from app.repositories.aml_investigation_analysis_repository import (
+    AMLInvestigationAnalysisRepository,
+)
 from app.schemas.aml_investigation_assistant import (
     AMLInvestigationAIResult,
     AMLInvestigationAnalysisListResponse,
@@ -73,6 +64,9 @@ class AMLInvestigationAssistantService:
         self.tenant_id = resolve_tenant_context(
             db, tenant_id, resource_name="AML investigation analyses"
         )
+        self.repository = AMLInvestigationAnalysisRepository(
+            db, tenant_id=self.tenant_id
+        )
         self.retrieval_service = retrieval_service
         self.ai_service = ai_service or AIService(provider=get_ai_provider())
         self.usage_service = AIUsageService(db, tenant_id=self.tenant_id)
@@ -107,7 +101,7 @@ class AMLInvestigationAssistantService:
             source_context=context,
             sources=sources,
         )
-        self.db.add(analysis)
+        self.repository.create(analysis)
         self.db.commit()
         self.db.refresh(analysis)
 
@@ -137,6 +131,7 @@ class AMLInvestigationAssistantService:
             analysis.model_name = get_ai_config().model
             analysis.completed_at = utc_now()
             analysis.error_message = None
+            self.repository.update(analysis)
 
             self.usage_service.record(
                 user_id=user_id,
@@ -150,16 +145,12 @@ class AMLInvestigationAssistantService:
             return self._response(analysis)
         except Exception as exc:
             self.db.rollback()
-            persisted = self.db.scalar(
-                select(AMLInvestigationAnalysis).where(
-                    AMLInvestigationAnalysis.id == analysis.id,
-                    AMLInvestigationAnalysis.tenant_id == self.tenant_id,
-                )
-            )
+            persisted = self.repository.get_analysis(analysis.id)
             if persisted is not None:
                 persisted.status = "FAILED"
                 persisted.error_message = _clean_text(exc, 2000) or type(exc).__name__
                 persisted.completed_at = utc_now()
+                self.repository.update(persisted)
                 self.db.commit()
 
             if isinstance(exc, HTTPException):
@@ -188,42 +179,17 @@ class AMLInvestigationAssistantService:
         compliance_case_id: UUID | None = None,
         limit: int = 50,
     ) -> AMLInvestigationAnalysisListResponse:
-        statement = select(AMLInvestigationAnalysis).where(
-            AMLInvestigationAnalysis.tenant_id == self.tenant_id
+        rows, total = self.repository.list_history(
+            customer_id=customer_id,
+            compliance_case_id=compliance_case_id,
+            limit=limit,
         )
-        count_statement = select(func.count(AMLInvestigationAnalysis.id)).where(
-            AMLInvestigationAnalysis.tenant_id == self.tenant_id
-        )
-        if customer_id is not None:
-            statement = statement.where(
-                AMLInvestigationAnalysis.customer_id == customer_id
-            )
-            count_statement = count_statement.where(
-                AMLInvestigationAnalysis.customer_id == customer_id
-            )
-        if compliance_case_id is not None:
-            statement = statement.where(
-                AMLInvestigationAnalysis.compliance_case_id == compliance_case_id
-            )
-            count_statement = count_statement.where(
-                AMLInvestigationAnalysis.compliance_case_id == compliance_case_id
-            )
-        statement = statement.order_by(
-            AMLInvestigationAnalysis.created_at.desc()
-        ).limit(limit)
-        rows = list(self.db.scalars(statement).all())
-        total = int(self.db.scalar(count_statement) or 0)
         return AMLInvestigationAnalysisListResponse(
             items=[self._response(row) for row in rows], total=total
         )
 
     def get_history_item(self, analysis_id: UUID) -> AMLInvestigationAnalysisResponse:
-        analysis = self.db.scalar(
-            select(AMLInvestigationAnalysis).where(
-                AMLInvestigationAnalysis.id == analysis_id,
-                AMLInvestigationAnalysis.tenant_id == self.tenant_id,
-            )
-        )
+        analysis = self.repository.get_analysis(analysis_id)
         if analysis is None:
             raise HTTPException(
                 status_code=404,
@@ -237,12 +203,7 @@ class AMLInvestigationAssistantService:
         case: ComplianceCase | None = None
         customer_id = request.customer_id
         if request.compliance_case_id is not None:
-            case = self.db.scalar(
-                select(ComplianceCase).where(
-                    ComplianceCase.id == request.compliance_case_id,
-                    ComplianceCase.tenant_id == self.tenant_id,
-                )
-            )
+            case = self.repository.get_compliance_case(request.compliance_case_id)
             if case is None:
                 raise HTTPException(
                     status_code=404, detail="Compliance case not found."
@@ -258,12 +219,7 @@ class AMLInvestigationAssistantService:
             raise HTTPException(
                 status_code=422, detail="A customer or case is required."
             )
-        customer = self.db.scalar(
-            select(Customer).where(
-                Customer.id == customer_id,
-                Customer.tenant_id == self.tenant_id,
-            )
-        )
+        customer = self.repository.get_customer(customer_id)
         if customer is None:
             raise HTTPException(status_code=404, detail="Customer not found.")
         return customer, case
@@ -321,12 +277,7 @@ class AMLInvestigationAssistantService:
                 case.created_at,
             )
 
-        profile = self.db.scalar(
-            select(CustomerRiskProfile).where(
-                CustomerRiskProfile.tenant_id == self.tenant_id,
-                CustomerRiskProfile.customer_id == customer.id,
-            )
-        )
+        profile = self.repository.get_risk_profile(customer.id)
         if profile is not None:
             context["risk_profile"] = {
                 "risk_level": str(_enum_value(profile.risk_level)),
@@ -351,54 +302,34 @@ class AMLInvestigationAssistantService:
         else:
             context["risk_profile"] = None
 
-        cases = list(
-            self.db.scalars(
-                select(ComplianceCase)
-                .where(
-                    ComplianceCase.tenant_id == self.tenant_id,
-                    ComplianceCase.customer_id == customer.id,
-                )
-                .order_by(ComplianceCase.created_at.desc())
-                .limit(10)
-            ).all()
-        )
+        cases = self.repository.list_compliance_cases(customer.id)
         context["previous_compliance_cases"] = [
             {
-                "case_id": str(cases_row.id),
-                "case_type": str(_enum_value(cases_row.case_type)),
-                "priority": str(_enum_value(cases_row.priority)),
-                "status": str(_enum_value(cases_row.status)),
-                "description": _clean_text(cases_row.description, 1000) or None,
-                "created_at": _iso(cases_row.created_at),
+                "case_id": str(case_row.id),
+                "case_type": str(_enum_value(case_row.case_type)),
+                "priority": str(_enum_value(case_row.priority)),
+                "status": str(_enum_value(case_row.status)),
+                "description": _clean_text(case_row.description, 1000) or None,
+                "created_at": _iso(case_row.created_at),
             }
-            for cases_row in cases
+            for case_row in cases
         ]
-        for cases_row in cases:
+        for case_row in cases:
             self._add_source(
                 sources,
                 "compliance_case",
-                cases_row.id,
-                f"Previous case: {_enum_value(cases_row.case_type)}",
+                case_row.id,
+                f"Previous case: {_enum_value(case_row.case_type)}",
                 (
-                    f"Type={_enum_value(cases_row.case_type)}; "
-                    f"priority={_enum_value(cases_row.priority)}; "
-                    f"status={_enum_value(cases_row.status)}; description="
-                    f"{_clean_text(cases_row.description, 700) or 'not provided'}."
+                    f"Type={_enum_value(case_row.case_type)}; "
+                    f"priority={_enum_value(case_row.priority)}; "
+                    f"status={_enum_value(case_row.status)}; description="
+                    f"{_clean_text(case_row.description, 700) or 'not provided'}."
                 ),
-                cases_row.created_at,
+                case_row.created_at,
             )
 
-        verification_cases = list(
-            self.db.scalars(
-                select(IdentityVerificationCase)
-                .where(
-                    IdentityVerificationCase.tenant_id == self.tenant_id,
-                    IdentityVerificationCase.customer_id == customer.id,
-                )
-                .order_by(IdentityVerificationCase.created_at.desc())
-                .limit(10)
-            ).all()
-        )
+        verification_cases = self.repository.list_verification_cases(customer.id)
         context["verification_history"] = [
             {
                 "verification_case_id": str(verification_row.id),
@@ -424,17 +355,7 @@ class AMLInvestigationAssistantService:
                 verification_row.completed_at or verification_row.created_at,
             )
 
-        activity = list(
-            self.db.scalars(
-                select(TransactionAnomalyActivity)
-                .where(
-                    TransactionAnomalyActivity.tenant_id == self.tenant_id,
-                    TransactionAnomalyActivity.customer_id == customer.id,
-                )
-                .order_by(TransactionAnomalyActivity.occurred_at.desc())
-                .limit(50)
-            ).all()
-        )
+        activity = self.repository.list_transaction_activity(customer.id)
         context["recent_transactions"] = [
             {
                 "transaction_id": str(activity_row.transaction_id),
@@ -454,106 +375,79 @@ class AMLInvestigationAssistantService:
                 activity_row.transaction_id,
                 f"Transaction {activity_row.transaction_id}",
                 (
-                    f"Amount={activity_row.amount} {activity_row.currency};"
-                    f"destination={activity_row.destination_country or 'unknown'};"
-                    f"beneficiary={activity_row.beneficiary_id or 'unknown'};"
-                    f" type={activity_row.transaction_type}."
+                    f"Amount={activity_row.amount} {activity_row.currency}; "
+                    f"destination={activity_row.destination_country or 'unknown'}; "
+                    f"beneficiary={activity_row.beneficiary_id or 'unknown'}; "
+                    f"type={activity_row.transaction_type}."
                 ),
                 activity_row.occurred_at,
             )
 
         known_transaction_ids = {
-            activity_row.transaction_id for activity_row in activity
+            transaction_row.transaction_id for transaction_row in activity
         }
-        stored_risk_transactions = list(
-            self.db.scalars(
-                select(TransactionRiskTransaction)
-                .where(
-                    TransactionRiskTransaction.tenant_id == self.tenant_id,
-                    TransactionRiskTransaction.customer_id == customer.id,
-                )
-                .order_by(TransactionRiskTransaction.occurred_at.desc())
-                .limit(50)
-            ).all()
+        stored_risk_transactions = self.repository.list_transaction_risk_transactions(
+            customer.id
         )
         context["recent_transaction_risk_records"] = []
-        for row in stored_risk_transactions:
-            if row.transaction_id in known_transaction_ids:
+        for risk_row in stored_risk_transactions:
+            if risk_row.transaction_id in known_transaction_ids:
                 continue
             transaction_context = {
-                "transaction_id": str(row.transaction_id),
-                "amount": str(row.amount),
-                "currency": row.currency,
-                "destination_country": row.destination_country,
+                "transaction_id": str(risk_row.transaction_id),
+                "amount": str(risk_row.amount),
+                "currency": risk_row.currency,
+                "destination_country": risk_row.destination_country,
                 "beneficiary_id": None,
-                "transaction_type": row.transaction_type,
-                "occurred_at": _iso(row.occurred_at),
+                "transaction_type": risk_row.transaction_type,
+                "occurred_at": _iso(risk_row.occurred_at),
             }
-            known_transaction_ids.add(row.transaction_id)
+            known_transaction_ids.add(risk_row.transaction_id)
             context["recent_transactions"].append(transaction_context)
             context["recent_transaction_risk_records"].append(transaction_context)
             self._add_source(
                 sources,
                 "transaction_risk_history",
-                row.transaction_id,
-                f"Risk-analysis transaction {row.transaction_id}",
+                risk_row.transaction_id,
+                f"Risk-analysis transaction {risk_row.transaction_id}",
                 (
-                    f"Amount={row.amount} {row.currency}; "
-                    f"destination={row.destination_country}; "
-                    f"type={row.transaction_type}."
+                    f"Amount={risk_row.amount} {risk_row.currency}; "
+                    f"destination={risk_row.destination_country}; "
+                    f"type={risk_row.transaction_type}."
                 ),
-                row.occurred_at,
+                risk_row.occurred_at,
             )
 
-        risk_analyses = list(
-            self.db.scalars(
-                select(TransactionRiskAnalysis)
-                .where(
-                    TransactionRiskAnalysis.tenant_id == self.tenant_id,
-                    TransactionRiskAnalysis.customer_id == customer.id,
-                )
-                .order_by(TransactionRiskAnalysis.created_at.desc())
-                .limit(10)
-            ).all()
-        )
+        risk_analyses = self.repository.list_transaction_risk_analyses(customer.id)
         context["previous_ai_transaction_risk_assessments"] = [
             {
-                "analysis_id": str(risk_row.id),
-                "risk_score": risk_row.risk_score,
-                "risk_level": risk_row.risk_level,
-                "reason": risk_row.reason,
-                "risk_factors": risk_row.risk_factors,
-                "transaction_summary": risk_row.transaction_summary,
-                "baseline_summary": risk_row.baseline_summary,
-                "created_at": _iso(risk_row.created_at),
+                "analysis_id": str(analysis_row.id),
+                "risk_score": analysis_row.risk_score,
+                "risk_level": analysis_row.risk_level,
+                "reason": analysis_row.reason,
+                "risk_factors": analysis_row.risk_factors,
+                "transaction_summary": analysis_row.transaction_summary,
+                "baseline_summary": analysis_row.baseline_summary,
+                "created_at": _iso(analysis_row.created_at),
             }
-            for risk_row in risk_analyses
+            for analysis_row in risk_analyses
         ]
-        for risk_row in risk_analyses:
+        for analysis_row in risk_analyses:
             self._add_source(
                 sources,
                 "transaction_risk_analysis",
-                risk_row.id,
+                analysis_row.id,
                 "Previous AI transaction-risk assessment",
                 (
-                    f"Score={risk_row.risk_score}; level={risk_row.risk_level}; "
-                    f"reason={_clean_text(risk_row.reason, 700)}; factors="
-                    f"{'; '.join(risk_row.risk_factors[:8])}."
+                    f"Score={analysis_row.risk_score}; "
+                    f"level={analysis_row.risk_level}; "
+                    f"reason={_clean_text(analysis_row.reason, 700)}; factors="
+                    f"{'; '.join(analysis_row.risk_factors[:8])}."
                 ),
-                risk_row.created_at,
+                analysis_row.created_at,
             )
 
-        anomalies = list(
-            self.db.scalars(
-                select(TransactionAnomaly)
-                .where(
-                    TransactionAnomaly.tenant_id == self.tenant_id,
-                    TransactionAnomaly.customer_id == customer.id,
-                )
-                .order_by(TransactionAnomaly.created_at.desc())
-                .limit(20)
-            ).all()
-        )
+        anomalies = self.repository.list_anomalies(customer.id)
         context["recent_anomalies"] = [
             {
                 "anomaly_id": str(anomaly_row.id),
@@ -574,47 +468,37 @@ class AMLInvestigationAssistantService:
                 anomaly_row.id,
                 f"Anomaly: {anomaly_row.anomaly_type}",
                 (
-                    f"Type={anomaly_row.anomaly_type};"
-                    f" score={anomaly_row.risk_score}; level="
+                    f"Type={anomaly_row.anomaly_type}; "
+                    f"score={anomaly_row.risk_score}; level="
                     f"{anomaly_row.risk_level}; {anomaly_row.summary}"
                 ),
                 anomaly_row.created_at,
             )
 
-        monitoring = list(
-            self.db.scalars(
-                select(TransactionMonitoringResult)
-                .where(
-                    TransactionMonitoringResult.tenant_id == self.tenant_id,
-                    TransactionMonitoringResult.customer_id == customer.id,
-                )
-                .order_by(TransactionMonitoringResult.created_at.desc())
-                .limit(20)
-            ).all()
-        )
+        monitoring = self.repository.list_monitoring_results(customer.id)
         context["rule_monitoring_results"] = [
             {
-                "transaction_id": str(monitor_row.transaction_id),
-                "rule_id": str(monitor_row.rule_id),
-                "result": str(_enum_value(monitor_row.result)),
-                "country": monitor_row.country,
-                "created_at": _iso(monitor_row.created_at),
+                "transaction_id": str(monitoring_row.transaction_id),
+                "rule_id": str(monitoring_row.rule_id),
+                "result": str(_enum_value(monitoring_row.result)),
+                "country": monitoring_row.country,
+                "created_at": _iso(monitoring_row.created_at),
             }
-            for monitor_row in monitoring
+            for monitoring_row in monitoring
         ]
-        for monitor_row in monitoring:
+        for monitoring_row in monitoring:
             self._add_source(
                 sources,
                 "rule_monitoring_result",
-                monitor_row.id,
+                monitoring_row.id,
                 "Existing rule-based transaction monitoring result",
                 (
-                    f"Transaction={monitor_row.transaction_id};"
-                    f" rule={monitor_row.rule_id}; "
-                    f"result={_enum_value(monitor_row.result)}; "
-                    f"country={monitor_row.country or 'unknown'}."
+                    f"Transaction={monitoring_row.transaction_id}; "
+                    f"rule={monitoring_row.rule_id}; "
+                    f"result={_enum_value(monitoring_row.result)}; "
+                    f"country={monitoring_row.country or 'unknown'}."
                 ),
-                monitor_row.created_at,
+                monitoring_row.created_at,
             )
         return context, sources[:100]
 
