@@ -11,103 +11,64 @@ from app.api.ai_usage import router as ai_usage_router
 from app.api.aml_investigation_assistant import (
     router as aml_investigation_assistant_router,
 )
-from app.api.aml_rules import (
-    router as aml_rules_router,
-)
+from app.api.aml_rules import router as aml_rules_router
 from app.api.api_keys import router as api_keys_router
 from app.api.auth import router as auth_router
-from app.api.compliance_analytics import (
-    router as compliance_analytics_router,
-)
+from app.api.compliance_analytics import router as compliance_analytics_router
 from app.api.compliance_cases import router as compliance_cases_router
 from app.api.customer_addresses import router as customer_addresses_router
-from app.api.customer_analytics import (
-    router as customer_analytics_router,
-)
+from app.api.customer_analytics import router as customer_analytics_router
 from app.api.customer_audit_logs import router as customer_audit_logs_router
 from app.api.customer_contacts import router as customer_contacts_router
-from app.api.customer_onboarding import (
-    router as customer_onboarding_router,
-)
-from app.api.customer_risk_profiles import (
-    router as customer_risk_profiles_router,
-)
+from app.api.customer_onboarding import router as customer_onboarding_router
+from app.api.customer_risk_profiles import router as customer_risk_profiles_router
 from app.api.customers import router as customer_router
 from app.api.dashboard import router as dashboard_router
 from app.api.document_fraud_analysis import router as document_fraud_analysis_router
 from app.api.document_review import router as document_review_router
 from app.api.documents import router as documents_router
-from app.api.executive_dashboard import (
-    router as executive_dashboard_router,
-)
+from app.api.entity_intelligence import router as entity_intelligence_router
+from app.api.executive_dashboard import router as executive_dashboard_router
 from app.api.extraction import router as extraction_router
 from app.api.files import router as files_router
 from app.api.health import router as health_router
 from app.api.integration_management import router as integration_management_router
 from app.api.integrations import router as integrations_router
-from app.api.investigation_notes import (
-    router as investigation_notes_router,
-)
-from app.api.knowledge_documents import (
-    router as knowledge_documents_router,
-)
+from app.api.investigation_notes import router as investigation_notes_router
+from app.api.knowledge_documents import router as knowledge_documents_router
 from app.api.metrics import router as metrics_router
 from app.api.notifications import router as notifications_router
 from app.api.ocr import router as ocr_router
-from app.api.operations_analytics import (
-    router as operations_analytics_router,
-)
+from app.api.operations_analytics import router as operations_analytics_router
 from app.api.organizations import router as organizations_router
 from app.api.partner_onboarding import router as partner_onboarding_router
 from app.api.profile import router as profile_router
 from app.api.rag import router as rag_router
-from app.api.report_exports import (
-    router as report_exports_router,
-)
+from app.api.report_exports import router as report_exports_router
 from app.api.reports import router as reports_router
-from app.api.risk_predictions import (
-    router as risk_predictions_router,
-)
+from app.api.risk_predictions import router as risk_predictions_router
 from app.api.risk_scoring import router as risk_scoring_router
 from app.api.risk_scoring_rules import router as risk_scoring_rules_router
 from app.api.security import router as security_router
 from app.api.subscriptions import router as subscriptions_router
-from app.api.system_configurations import (
-    router as system_configurations_router,
-)
-from app.api.task_assignment_rules import (
-    router as task_assignment_rules_router,
-)
+from app.api.system_configurations import router as system_configurations_router
+from app.api.task_assignment_rules import router as task_assignment_rules_router
 from app.api.tasks import router as tasks_router
 from app.api.tenants import router as tenants_router
-from app.api.transaction_anomalies import (
-    router as transaction_anomalies_router,
-)
-from app.api.transaction_monitoring import (
-    router as transaction_monitoring_router,
-)
-from app.api.transaction_risk_analysis import (
-    router as transaction_risk_analysis_router,
-)
+from app.api.transaction_anomalies import router as transaction_anomalies_router
+from app.api.transaction_monitoring import router as transaction_monitoring_router
+from app.api.transaction_risk_analysis import router as transaction_risk_analysis_router
 from app.api.users import router as users_router
 from app.api.verification_case_assignments import (
     router as verification_case_assignments_router,
 )
-from app.api.verification_cases import (
-    router as verification_cases_router,
-)
-from app.api.verification_cases import (
-    verification_router,
-)
+from app.api.verification_cases import router as verification_cases_router
+from app.api.verification_cases import verification_router
 from app.api.verification_document_types import (
     router as verification_document_type_router,
 )
-from app.api.verification_reports import (
-    router as verification_reports_router,
-)
-from app.api.verification_reviews import (
-    router as verification_reviews_router,
-)
+from app.api.verification_reports import router as verification_reports_router
+from app.api.verification_reviews import router as verification_reviews_router
 from app.api.webhooks import router as webhooks_router
 from app.api.workflows import router as workflows_router
 from app.core.config import settings
@@ -138,9 +99,7 @@ install_tenant_filter()
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     logger.info("FinPilot API starting")
-
     yield
-
     logger.info("FinPilot API shutting down")
 
 
@@ -184,9 +143,7 @@ app.include_router(operations_analytics_router)
 app.include_router(compliance_cases_router)
 app.include_router(files_router)
 app.include_router(tasks_router)
-app.include_router(
-    task_assignment_rules_router,
-)
+app.include_router(task_assignment_rules_router)
 app.include_router(workflows_router)
 app.include_router(notifications_router)
 app.include_router(customer_router)
@@ -202,11 +159,10 @@ app.include_router(aml_rules_router)
 app.include_router(transaction_monitoring_router)
 app.include_router(transaction_risk_analysis_router)
 app.include_router(transaction_anomalies_router)
+app.include_router(entity_intelligence_router)
 app.include_router(verification_router)
 app.include_router(verification_cases_router)
-app.include_router(
-    verification_case_assignments_router,
-)
+app.include_router(verification_case_assignments_router)
 app.include_router(verification_reviews_router)
 app.include_router(verification_document_type_router)
 app.include_router(ai_prompts_router)
@@ -220,38 +176,17 @@ app.include_router(verification_reports_router)
 app.include_router(ocr_router)
 app.include_router(extraction_router)
 app.include_router(document_review_router)
-app.include_router(
-    investigation_notes_router,
-)
+app.include_router(investigation_notes_router)
 app.include_router(rag_router)
 app.include_router(integration_management_router)
 app.include_router(partner_onboarding_router)
 app.include_router(security_router)
 
-app.add_exception_handler(
-    HTTPException,
-    http_exception_handler,
-)
-
-app.add_exception_handler(
-    RequestValidationError,
-    validation_exception_handler,
-)
-
-app.add_exception_handler(
-    IntegrityError,
-    integrity_error_handler,
-)
-
-app.add_exception_handler(
-    SQLAlchemyError,
-    database_exception_handler,
-)
-
-app.add_exception_handler(
-    Exception,
-    unexpected_exception_handler,
-)
+app.add_exception_handler(HTTPException, http_exception_handler)
+app.add_exception_handler(RequestValidationError, validation_exception_handler)
+app.add_exception_handler(IntegrityError, integrity_error_handler)
+app.add_exception_handler(SQLAlchemyError, database_exception_handler)
+app.add_exception_handler(Exception, unexpected_exception_handler)
 
 
 @app.get(
@@ -261,9 +196,7 @@ app.add_exception_handler(
     summary="Get current user",
     description="Returns the profile information of the currently authenticated user.",
 )
-def get_me(
-    current_user: User = Depends(get_current_user),
-):
+def get_me(current_user: User = Depends(get_current_user)):
     return APIResponse(
         success=True,
         message="User profile retrieved successfully.",
@@ -280,18 +213,10 @@ def get_me(
 @app.middleware("http")
 async def log_requests(request: Request, call_next):
     start_time = time.perf_counter()
-
     try:
         response = await call_next(request)
-
         elapsed_time = (time.perf_counter() - start_time) * 1000
-
-        request_id = getattr(
-            request.state,
-            "request_id",
-            "unknown",
-        )
-
+        request_id = getattr(request.state, "request_id", "unknown")
         logger.info(
             "Request ID=%s | %s %s | %s | %.2fms",
             request_id,
@@ -300,21 +225,13 @@ async def log_requests(request: Request, call_next):
             response.status_code,
             elapsed_time,
         )
-
         return response
-
     except Exception:
-        request_id = getattr(
-            request.state,
-            "request_id",
-            "unknown",
-        )
-
+        request_id = getattr(request.state, "request_id", "unknown")
         logger.exception(
             "Request ID=%s | %s %s | unexpected error",
             request_id,
             request.method,
             request.url.path,
         )
-
         raise

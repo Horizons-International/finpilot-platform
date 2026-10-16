@@ -21,17 +21,19 @@ from app.models.customer_risk_profile import CustomerRiskProfile  # noqa: F401
 from app.models.customer_status_history import CustomerStatusHistory  # noqa: F401
 from app.models.document import CustomerDocument  # noqa: F401
 from app.models.document_extraction import DocumentExtraction  # noqa: F401
+from app.models.document_extraction_review_log import (
+    DocumentExtractionReviewLog,  # noqa: F401
+)
 from app.models.document_fraud_analysis import DocumentFraudAnalysis  # noqa: F401
+from app.models.entity_intelligence import (  # noqa: F401
+    EntityIntelligenceNode,
+    EntityIntelligenceRelationship,
+)
+from app.models.file import File  # noqa: F401
 from app.models.integration import Integration  # noqa: F401
-from app.models.investigation_note import InvestigationNote  # noqa: F401
 from app.models.knowledge_document import KnowledgeDocument  # noqa: F401
-from app.models.knowledge_document_chunk import (
-    KnowledgeDocumentChunk,  # noqa: F401
-)
-from app.models.notification import (
-    Notification,  # noqa: F401
-    NotificationDelivery,  # noqa: F401
-)
+from app.models.knowledge_document_chunk import KnowledgeDocumentChunk  # noqa: F401
+from app.models.notification import Notification, NotificationDelivery  # noqa: F401
 from app.models.ocr_result import OCRResult  # noqa: F401
 from app.models.organization import Organization  # noqa: F401
 from app.models.partner_onboarding import (
@@ -39,22 +41,14 @@ from app.models.partner_onboarding import (
     PartnerOnboardingHistory,  # noqa: F401
 )
 from app.models.report_export import ReportExport  # noqa: F401
+from app.models.risk_prediction import RiskPrediction  # noqa: F401
 from app.models.risk_score_threshold import RiskScoreThreshold  # noqa: F401
 from app.models.risk_scoring_rule import RiskScoringRule  # noqa: F401
 from app.models.security_event import SecurityEvent  # noqa: F401
-from app.models.subscription import (
-    Subscription,  # noqa: F401
-    SubscriptionUsageCounter,  # noqa: F401
-)
+from app.models.subscription import Subscription, SubscriptionUsageCounter  # noqa: F401
 from app.models.system_configuration import SystemConfiguration  # noqa: F401
-from app.models.task import (
-    Task,  # noqa: F401
-    TaskComment,  # noqa: F401
-    TaskStatusHistory,  # noqa: F401
-)
-from app.models.task_assignment_rule import (
-    TaskAssignmentRule,  # noqa: F401
-)
+from app.models.task import Task, TaskComment, TaskStatusHistory  # noqa: F401
+from app.models.task_assignment_rule import TaskAssignmentRule  # noqa: F401
 from app.models.tenant import Tenant  # noqa: F401
 from app.models.transaction_anomaly import (
     TransactionAnomaly,  # noqa: F401
@@ -67,6 +61,7 @@ from app.models.transaction_risk_analysis import (
     TransactionRiskAnalysis,  # noqa: F401
     TransactionRiskTransaction,  # noqa: F401
 )
+from app.models.user import User  # noqa: F401
 from app.models.user_invitation import UserInvitation  # noqa: F401
 from app.models.user_session import UserSession  # noqa: F401
 from app.models.verification_case import IdentityVerificationCase  # noqa: F401
