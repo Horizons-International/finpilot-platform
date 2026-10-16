@@ -54,6 +54,7 @@ from app.services.organization_service import OrganizationService
 from app.services.organization_user_service import (
     OrganizationUserService,
 )
+from app.services.regulatory_assistant_service import RegulatoryAssistantService
 from app.services.report_export_service import (
     ReportExportService,
 )
@@ -474,4 +475,19 @@ def get_user_invitation_service(
 ) -> UserInvitationService:
     return UserInvitationService(
         db=db,
+    )
+
+
+def get_regulatory_assistant_service(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> RegulatoryAssistantService:
+    return RegulatoryAssistantService(
+        db,
+        tenant_id=current_user.tenant_id,
+        user_id=current_user.id,
+        retrieval_service_factory=lambda: RetrievalService(
+            db,
+            tenant_id=current_user.tenant_id,
+        ),
     )

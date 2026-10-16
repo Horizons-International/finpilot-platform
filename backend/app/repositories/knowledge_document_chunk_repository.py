@@ -78,6 +78,7 @@ class KnowledgeDocumentChunkRepository(TenantScopedRepository[KnowledgeDocumentC
         embedding: list[float],
         limit: int,
         category: KnowledgeDocumentCategory | None = None,
+        categories: set[KnowledgeDocumentCategory] | None = None,
     ) -> list[tuple[KnowledgeDocumentChunk, float]]:
         distance = KnowledgeDocumentChunk.embedding.cosine_distance(embedding).label(
             "distance"
@@ -95,8 +96,15 @@ class KnowledgeDocumentChunkRepository(TenantScopedRepository[KnowledgeDocumentC
             )
         )
 
+        if category is not None and categories is not None:
+            raise ValueError("Provide category or categories, not both.")
         if category is not None:
             query = query.filter(KnowledgeDocument.category == category.value)
+        elif categories is not None:
+            category_values = [item.value for item in categories]
+            if not category_values:
+                return []
+            query = query.filter(KnowledgeDocument.category.in_(category_values))
 
         results = query.order_by(distance).limit(limit).all()
         return [(chunk, float(distance_value)) for chunk, distance_value in results]
