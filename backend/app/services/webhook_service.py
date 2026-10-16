@@ -3,10 +3,10 @@
 import secrets
 from uuid import UUID
 
-from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.models.webhook import Webhook, WebhookEvent
+from app.repositories.webhook_repository import WebhookRepository
 from app.schemas.webhook import WebhookCreate, WebhookUpdate
 from app.services.audit_service import AuditService
 from app.services.tenant_access_audit import deny_tenant_access
@@ -23,16 +23,11 @@ class WebhookService:
         db.info["tenant_id"] = tenant_id
         self.db = db
         self.tenant_id = tenant_id
+        self.repository = WebhookRepository(db, tenant_id=tenant_id)
         self.audit_service = AuditService(db)
 
     def _get(self, webhook_id: UUID, *, lock: bool = False) -> Webhook:
-        statement = select(Webhook).where(
-            Webhook.id == webhook_id,
-            Webhook.tenant_id == self.tenant_id,
-        )
-        if lock:
-            statement = statement.with_for_update()
-        webhook = self.db.scalar(statement)
+        webhook = self.repository.get_webhook(webhook_id, for_update=lock)
         if webhook is None:
             deny_tenant_access(
                 self.db,
@@ -59,8 +54,7 @@ class WebhookService:
             event_types=data.event_types,
             status=WebhookStatus.ACTIVE,
         )
-        self.db.add(webhook)
-        self.db.flush()
+        self.repository.create(webhook)
         self.audit_service.log_event(
             event_type=AuditEventType.WEBHOOK_CREATED,
             user_id=user_id,
@@ -75,11 +69,7 @@ class WebhookService:
         return webhook, signing_secret
 
     def list_all(self, *, status: WebhookStatus | None = None) -> list[Webhook]:
-        statement = select(Webhook).where(Webhook.tenant_id == self.tenant_id)
-        if status is not None:
-            statement = statement.where(Webhook.status == status)
-        statement = statement.order_by(Webhook.created_at.desc())
-        return list(self.db.scalars(statement).all())
+        return self.repository.list_webhooks(status=status)
 
     def get_by_id(self, webhook_id: UUID) -> Webhook:
         return self._get(webhook_id)
@@ -162,11 +152,8 @@ class WebhookService:
         limit: int = 100,
     ) -> list[WebhookEvent]:
         self._get(webhook_id)
-        statement = select(WebhookEvent).where(
-            WebhookEvent.tenant_id == self.tenant_id,
-            WebhookEvent.webhook_id == webhook_id,
+        return self.repository.list_events(
+            webhook_id,
+            status=status,
+            limit=limit,
         )
-        if status is not None:
-            statement = statement.where(WebhookEvent.status == status)
-        statement = statement.order_by(WebhookEvent.created_at.desc()).limit(limit)
-        return list(self.db.scalars(statement).all())

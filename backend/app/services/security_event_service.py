@@ -6,6 +6,7 @@ from uuid import UUID
 from sqlalchemy.orm import Session
 
 from app.models.security_event import SecurityEvent
+from app.repositories.security_repository import SecurityRepository
 
 
 def record_security_event(
@@ -34,8 +35,7 @@ def record_security_event(
         request_path=request_path[:500] if request_path else None,
         details=details or {},
     )
-    db.add(event)
-    db.flush()
+    SecurityRepository(db, tenant_id=resolved_tenant_id).create_event(event)
     if commit:
         db.commit()
     return event

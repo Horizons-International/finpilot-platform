@@ -3,7 +3,6 @@
 import re
 from uuid import UUID, uuid4
 
-from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -13,7 +12,6 @@ from app.models.partner_onboarding import (
     PartnerOnboardingHistory,
 )
 from app.models.tenant import Tenant
-from app.models.user import User
 from app.repositories.partner_onboarding_repository import PartnerOnboardingRepository
 from app.schemas.partner_onboarding import (
     PartnerBusinessInformationUpdate,
@@ -60,13 +58,7 @@ class PartnerOnboardingService:
 
     def create_request(self, data: PartnerOnboardingCreate) -> PartnerOnboarding:
         email = str(data.contact_email).strip().lower()
-        duplicate = self.db.scalar(
-            select(PartnerOnboarding.id).where(
-                PartnerOnboarding.contact_email == email,
-                PartnerOnboarding.status != PartnerOnboardingStatus.REJECTED,
-            )
-        )
-        if duplicate is not None:
+        if self.repository.has_open_request_for_email(email):
             raise conflict(
                 "An open partner onboarding request already exists for this contact "
                 "email."
@@ -145,17 +137,7 @@ class PartnerOnboardingService:
         user_agent: str | None,
     ) -> PartnerOnboarding:
         onboarding = self._get_mutable_request(onboarding_id, for_update=True)
-        reviewer = self.db.scalar(
-            select(User)
-            .where(User.id == assigned_to)
-            .execution_options(
-                skip_tenant_filter=True,
-                tenant_scope_reason=(
-                    "platform administrator validates a reviewer for global "
-                    "partner onboarding"
-                ),
-            )
-        )
+        reviewer = self.repository.get_platform_admin(assigned_to)
         if reviewer is None or not reviewer.is_platform_admin:
             raise bad_request(
                 "The assigned reviewer must be an active platform administrator."
@@ -208,14 +190,10 @@ class PartnerOnboardingService:
             raise bad_request("No business information fields were provided.")
         if values.get("contact_email") is not None:
             normalized_email = str(values["contact_email"]).strip().lower()
-            duplicate = self.db.scalar(
-                select(PartnerOnboarding.id).where(
-                    PartnerOnboarding.id != onboarding.id,
-                    PartnerOnboarding.contact_email == normalized_email,
-                    PartnerOnboarding.status != PartnerOnboardingStatus.REJECTED,
-                )
-            )
-            if duplicate is not None:
+            if self.repository.has_open_request_for_email(
+                normalized_email,
+                exclude_id=onboarding.id,
+            ):
                 raise conflict(
                     "An open partner onboarding request already exists for this "
                     "contact email."
@@ -323,8 +301,7 @@ class PartnerOnboardingService:
         had_tenant_context = "tenant_id" in self.db.info
 
         try:
-            self.db.add(tenant)
-            self.db.flush()
+            self.repository.create_tenant(tenant)
 
             # Organization is tenant-owned. Temporarily bind the ORM session to
             # the new tenant to let the central before_flush guard validate it.
@@ -345,8 +322,7 @@ class PartnerOnboardingService:
                 status=OrganizationStatus.ACTIVE,
                 settings={},
             )
-            self.db.add(organization)
-            self.db.flush()
+            self.repository.create_organization(organization)
         except Exception:
             self.db.rollback()
             raise

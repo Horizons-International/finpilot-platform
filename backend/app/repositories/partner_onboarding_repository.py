@@ -5,10 +5,13 @@ from uuid import UUID
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.models.organization import Organization
 from app.models.partner_onboarding import (
     PartnerOnboarding,
     PartnerOnboardingHistory,
 )
+from app.models.tenant import Tenant
+from app.models.user import User
 from app.utils.enums import PartnerOnboardingStatus
 
 
@@ -22,6 +25,44 @@ class PartnerOnboardingRepository:
         self.db.add(onboarding)
         self.db.flush()
         return onboarding
+
+    def has_open_request_for_email(
+        self,
+        email: str,
+        *,
+        exclude_id: UUID | None = None,
+    ) -> bool:
+        statement = select(PartnerOnboarding.id).where(
+            PartnerOnboarding.contact_email == email,
+            PartnerOnboarding.status != PartnerOnboardingStatus.REJECTED,
+        )
+        if exclude_id is not None:
+            statement = statement.where(PartnerOnboarding.id != exclude_id)
+        return self.db.scalar(statement) is not None
+
+    def get_platform_admin(self, user_id: UUID) -> User | None:
+        statement = (
+            select(User)
+            .where(User.id == user_id)
+            .execution_options(
+                skip_tenant_filter=True,
+                tenant_scope_reason=(
+                    "platform administrator validates a reviewer for global "
+                    "partner onboarding"
+                ),
+            )
+        )
+        return self.db.scalar(statement)
+
+    def create_tenant(self, tenant: Tenant) -> Tenant:
+        self.db.add(tenant)
+        self.db.flush()
+        return tenant
+
+    def create_organization(self, organization: Organization) -> Organization:
+        self.db.add(organization)
+        self.db.flush()
+        return organization
 
     def get_by_id(
         self,

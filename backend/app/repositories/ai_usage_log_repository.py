@@ -32,6 +32,20 @@ class AIUsageLogRepository(TenantScopedRepository[AIUsageLog]):
         if user_exists is None:
             raise ValueError("The AI usage log user does not belong to this tenant.")
 
+    def stage(self, log: AIUsageLog) -> AIUsageLog:
+        """Add a log to the current transaction without forcing an early flush.
+
+        This is useful when a service must persist the usage log atomically with
+        a business result and audit entry. The caller remains responsible for
+        commit/rollback.
+        """
+        if log.tenant_id is not None and log.tenant_id != self.tenant_id:
+            raise ValueError("AI usage log tenant does not match repository tenant.")
+        self._ensure_user_belongs_to_tenant(log.user_id)
+        log.tenant_id = self.tenant_id
+        self.db.add(log)
+        return log
+
     def create(self, log: AIUsageLog) -> AIUsageLog:
         self._ensure_user_belongs_to_tenant(log.user_id)
         return super().create(log)

@@ -3,6 +3,7 @@ from uuid import UUID
 from sqlalchemy.orm import Session
 
 from app.models.audit_log import AuditLog
+from app.repositories.audit_repository import AuditRepository
 from app.services.security_event_service import record_security_event
 from app.utils.enums import AuditEventType
 
@@ -39,7 +40,7 @@ class AuditService:
             resource_type=resource_type,
             resource_id=resource_id,
         )
-        self.db.add(audit_log)
+        AuditRepository.create_event(self.db, audit_log)
 
         security_event_type = {
             "LOGIN_SUCCESS": "LOGIN_SUCCESS",
