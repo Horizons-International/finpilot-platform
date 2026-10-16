@@ -1,6 +1,7 @@
 from app.models.ai_interaction import AIInteraction  # noqa: F401
 from app.models.ai_prompt import AIPrompt  # noqa: F401
 from app.models.ai_prompt_assignment import AIPromptAssignment  # noqa: F401
+from app.models.ai_risk_recommendation import AIRiskRecommendation  # noqa: F401
 from app.models.ai_usage_log import AIUsageLog  # noqa: F401
 from app.models.aml_investigation_analysis import (
     AMLInvestigationAnalysis,  # noqa: F401
@@ -31,6 +32,7 @@ from app.models.entity_intelligence import (  # noqa: F401
 )
 from app.models.file import File  # noqa: F401
 from app.models.integration import Integration  # noqa: F401
+from app.models.investigation_note import InvestigationNote  # noqa: F401
 from app.models.knowledge_document import KnowledgeDocument  # noqa: F401
 from app.models.knowledge_document_chunk import KnowledgeDocumentChunk  # noqa: F401
 from app.models.notification import Notification, NotificationDelivery  # noqa: F401
