@@ -7,25 +7,39 @@ from app.ai.exceptions import AIProviderError
 from app.core.dependencies import (
     get_ai_analytics_assistant_service,
     get_ai_compliance_service,
+    get_regulatory_assistant_service,
 )
 from app.core.responses import APIResponse
 from app.core.security import require_roles
-from app.schemas.ai_analytics_assistant import (
-    AIAnalyticsResponse,
-)
+from app.schemas.ai_analytics_assistant import AIAnalyticsResponse
 from app.schemas.ai_assistant import (
     AIComplianceRequest,
     AIComplianceResponse,
     AIInteractionResponse,
 )
+from app.schemas.regulatory_assistant import (
+    RegulatoryAssistantAnswerResponse,
+    RegulatoryAssistantRequest,
+    RegulatoryAssistantSearchResponse,
+)
 from app.services.ai_analytics_assistant_service import AIAnalyticsAssistantService
 from app.services.ai_compliance_service import AIComplianceService
+from app.services.regulatory_assistant_service import RegulatoryAssistantService
 from app.utils.enums import UserRole
 from app.utils.errors import service_unavailable
 
 router = APIRouter(
     prefix="/api/v1/ai-assistant",
     tags=["AI Assistant"],
+)
+
+
+REGULATORY_ASSISTANT_ROLES = (
+    UserRole.ADMINISTRATOR,
+    UserRole.COMPLIANCE_MANAGER,
+    UserRole.COMPLIANCE_OFFICER,
+    UserRole.REVIEWER,
+    UserRole.AUDITOR,
 )
 
 
@@ -183,4 +197,61 @@ def ask_analytics_assistant(
         success=True,
         message="Analytics question answered successfully.",
         data=response,
+    )
+
+
+@router.post(
+    "/regulatory/ask",
+    response_model=APIResponse[RegulatoryAssistantAnswerResponse],
+    status_code=status.HTTP_200_OK,
+    summary="Ask the AI regulatory assistant",
+    description=(
+        "Answers a regulatory or compliance question using active tenant-scoped "
+        "compliance policies, internal procedures, and regulatory guidelines. "
+        "The response includes supporting source references."
+    ),
+)
+def ask_regulatory_assistant(
+    payload: RegulatoryAssistantRequest,
+    _: dict[str, Any] = Depends(
+        require_roles(*REGULATORY_ASSISTANT_ROLES, resource_type="regulatory_assistant")
+    ),
+    service: RegulatoryAssistantService = Depends(get_regulatory_assistant_service),
+) -> APIResponse[RegulatoryAssistantAnswerResponse]:
+    try:
+        result = service.ask(payload)
+    except AIProviderError as exc:
+        raise service_unavailable(
+            "AI regulatory assistant is temporarily unavailable."
+        ) from exc
+
+    return APIResponse(
+        success=True,
+        message="Regulatory question answered with approved knowledge sources.",
+        data=result,
+    )
+
+
+@router.post(
+    "/regulatory/search",
+    response_model=APIResponse[RegulatoryAssistantSearchResponse],
+    status_code=status.HTTP_200_OK,
+    summary="Search regulatory knowledge sources",
+    description=(
+        "Searches active, tenant-scoped compliance policies, internal procedures, "
+        "and regulatory guidelines without generating an AI answer."
+    ),
+)
+def search_regulatory_knowledge(
+    payload: RegulatoryAssistantRequest,
+    _: dict[str, Any] = Depends(
+        require_roles(*REGULATORY_ASSISTANT_ROLES, resource_type="regulatory_assistant")
+    ),
+    service: RegulatoryAssistantService = Depends(get_regulatory_assistant_service),
+) -> APIResponse[RegulatoryAssistantSearchResponse]:
+    results = service.search(payload)
+    return APIResponse(
+        success=True,
+        message="Regulatory knowledge sources retrieved successfully.",
+        data=results,
     )

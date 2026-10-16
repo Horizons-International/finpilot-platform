@@ -35,6 +35,7 @@ class RetrievalService:
         query: str,
         limit: int = DEFAULT_RETRIEVAL_LIMIT,
         category: KnowledgeDocumentCategory | None = None,
+        categories: set[KnowledgeDocumentCategory] | None = None,
     ) -> list[RetrievalResult]:
         query = query.strip()
 
@@ -47,13 +48,23 @@ class RetrievalService:
         if limit > MAX_RETRIEVAL_LIMIT:
             raise bad_request(f"Retrieval limit cannot exceed {MAX_RETRIEVAL_LIMIT}.")
 
+        if category is not None and categories is not None:
+            raise bad_request("Provide category or categories, not both.")
+
         query_embedding = self.embedding_service.embed_query(query)
 
-        results = self.repository.search_similar(
-            embedding=query_embedding,
-            limit=limit,
-            category=category,
-        )
+        if categories is None:
+            results = self.repository.search_similar(
+                embedding=query_embedding,
+                limit=limit,
+                category=category,
+            )
+        else:
+            results = self.repository.search_similar(
+                embedding=query_embedding,
+                limit=limit,
+                categories=categories,
+            )
 
         return [
             self._build_result(
