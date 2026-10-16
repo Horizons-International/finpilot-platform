@@ -8,11 +8,7 @@ class Settings(BaseSettings):
     # Application
     APP_NAME: str = "FinPilot API"
     APP_VERSION: str = "1.0.0"
-    ENVIRONMENT: Literal[
-        "development",
-        "testing",
-        "production",
-    ] = "development"
+    ENVIRONMENT: Literal["development", "testing", "production"] = "development"
 
     # Database
     DATABASE_URL: str
@@ -57,55 +53,29 @@ class Settings(BaseSettings):
     AI_PROVIDER: str = "mock"
     AI_API_KEY: str = ""
     AI_MODEL: str = ""
+    AI_MODEL_VERSION: str = "unspecified"
     AI_MAX_TOKENS: int = Field(default=1000, gt=0)
     AI_TEMPERATURE: float = Field(default=0.0, ge=0.0, le=2.0)
     AI_TIMEOUT: int = Field(default=30, gt=0)
-    AI_MAX_CONTEXT_CHARACTERS: int = Field(
-        default=30000,
-        gt=0,
-    )
+    AI_MAX_CONTEXT_CHARACTERS: int = Field(default=30000, gt=0)
 
     # Communication Providers
     EMAIL_PROVIDER: str = "mock"
     SMS_PROVIDER: str = "mock"
-
     EMAIL_FROM_ADDRESS: str = ""
     SMS_FROM_NUMBER: str = ""
 
     # SLA Monitoring
-    SLA_APPROACHING_THRESHOLD_PERCENT: float = Field(
-        default=20.0,
-        gt=0.0,
-        le=100.0,
-    )
-
-    SLA_MONITOR_INTERVAL_SECONDS: int = Field(
-        default=60,
-        gt=0,
-    )
+    SLA_APPROACHING_THRESHOLD_PERCENT: float = Field(default=20.0, gt=0.0, le=100.0)
+    SLA_MONITOR_INTERVAL_SECONDS: int = Field(default=60, gt=0)
 
     # Reporting Exports
-    REPORT_ASYNC_ROW_THRESHOLD: int = Field(
-        default=5000,
-        gt=0,
-    )
-
-    REPORT_MAX_ROWS: int = Field(
-        default=100_000,
-        gt=0,
-    )
-
-    REPORT_EXPORT_INTERVAL_SECONDS: int = Field(
-        default=5,
-        gt=0,
-    )
+    REPORT_ASYNC_ROW_THRESHOLD: int = Field(default=5000, gt=0)
+    REPORT_MAX_ROWS: int = Field(default=100_000, gt=0)
+    REPORT_EXPORT_INTERVAL_SECONDS: int = Field(default=5, gt=0)
 
     # User Invitations
-    USER_INVITATION_EXPIRE_HOURS: int = Field(
-        default=48,
-        gt=0,
-        le=168,
-    )
+    USER_INVITATION_EXPIRE_HOURS: int = Field(default=48, gt=0, le=168)
 
     # Webhook delivery/retry configuration
     WEBHOOK_ENCRYPTION_KEY: str = ""

@@ -6,8 +6,8 @@ from fastapi.exceptions import RequestValidationError
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 
 from app.api.ai_assistant import router as ai_assistant_router
+from app.api.ai_model_metrics import router as ai_model_metrics_router
 from app.api.ai_prompts import router as ai_prompts_router
-from app.api.ai_risk_recommendations import router as ai_risk_recommendations_router
 from app.api.ai_usage import router as ai_usage_router
 from app.api.aml_investigation_assistant import (
     router as aml_investigation_assistant_router,
@@ -15,6 +15,7 @@ from app.api.aml_investigation_assistant import (
 from app.api.aml_rules import router as aml_rules_router
 from app.api.api_keys import router as api_keys_router
 from app.api.auth import router as auth_router
+from app.api.case_priorities import router as case_priorities_router
 from app.api.compliance_analytics import router as compliance_analytics_router
 from app.api.compliance_cases import router as compliance_cases_router
 from app.api.customer_addresses import router as customer_addresses_router
@@ -91,9 +92,7 @@ from app.models.user import User
 from app.schemas.auth import MeResponse
 
 setup_logging()
-
 logger = get_logger(__name__)
-
 install_tenant_filter()
 
 
@@ -108,9 +107,9 @@ app = FastAPI(
     title=settings.APP_NAME,
     lifespan=lifespan,
     description=(
-        """FinPilot Platform API for user management, authentication,
+        """FinPilot Platform API for user management, authentication, 
         profiles, and administration, AML, compliance cases, risk scoring,
-        verification, RAG, AI, transaction monitoring, reporting, etc."""
+         verification, RAG, AI, transaction monitoring, reporting, etc."""
     ),  # fmt: skip
     version=settings.APP_VERSION,
     docs_url="/docs",
@@ -160,6 +159,7 @@ app.include_router(aml_rules_router)
 app.include_router(transaction_monitoring_router)
 app.include_router(transaction_risk_analysis_router)
 app.include_router(transaction_anomalies_router)
+app.include_router(entity_intelligence_router)
 app.include_router(verification_router)
 app.include_router(verification_cases_router)
 app.include_router(verification_case_assignments_router)
@@ -167,7 +167,8 @@ app.include_router(verification_reviews_router)
 app.include_router(verification_document_type_router)
 app.include_router(ai_prompts_router)
 app.include_router(ai_assistant_router)
-app.include_router(ai_risk_recommendations_router)
+app.include_router(ai_model_metrics_router)
+app.include_router(case_priorities_router)
 app.include_router(document_fraud_analysis_router)
 app.include_router(aml_investigation_assistant_router)
 app.include_router(ai_usage_router)
@@ -177,7 +178,6 @@ app.include_router(verification_reports_router)
 app.include_router(ocr_router)
 app.include_router(extraction_router)
 app.include_router(document_review_router)
-app.include_router(entity_intelligence_router)
 app.include_router(investigation_notes_router)
 app.include_router(rag_router)
 app.include_router(integration_management_router)
