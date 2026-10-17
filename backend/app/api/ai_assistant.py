@@ -2,8 +2,10 @@ from typing import Any
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query, Request, status
+from sqlalchemy.orm import Session
 
 from app.ai.exceptions import AIProviderError
+from app.core.database import get_db
 from app.core.dependencies import (
     get_ai_analytics_assistant_service,
     get_ai_compliance_service,
@@ -17,6 +19,10 @@ from app.schemas.ai_assistant import (
     AIComplianceResponse,
     AIInteractionResponse,
 )
+from app.schemas.ai_decision_explanation import (
+    AIDecisionExplanationHistoryResponse,
+    AIDecisionExplanationResponse,
+)
 from app.schemas.regulatory_assistant import (
     RegulatoryAssistantAnswerResponse,
     RegulatoryAssistantRequest,
@@ -24,6 +30,12 @@ from app.schemas.regulatory_assistant import (
 )
 from app.services.ai_analytics_assistant_service import AIAnalyticsAssistantService
 from app.services.ai_compliance_service import AIComplianceService
+from app.services.ai_decision_explanation_recorder import (
+    install_ai_decision_explanation_recorder,
+)
+from app.services.ai_decision_explanation_service import (
+    AIDecisionExplanationService,
+)
 from app.services.regulatory_assistant_service import RegulatoryAssistantService
 from app.utils.enums import UserRole
 from app.utils.errors import service_unavailable
@@ -254,4 +266,83 @@ def search_regulatory_knowledge(
         success=True,
         message="Regulatory knowledge sources retrieved successfully.",
         data=results,
+    )
+
+
+_EXPLANATION_VIEW_ROLES = (
+    UserRole.ADMINISTRATOR,
+    UserRole.ORGANIZATION_ADMIN,
+    UserRole.COMPLIANCE_MANAGER,
+    UserRole.COMPLIANCE_OFFICER,
+    UserRole.REVIEWER,
+    UserRole.AUDITOR,
+    UserRole.ANALYST,
+    UserRole.VIEWER,
+)
+
+# Importing the main AI API enables same-transaction explanation capture for
+# completed decisions created by the risk, AML, document, and assistant services.
+install_ai_decision_explanation_recorder()
+
+
+@router.get(
+    "/decision-explanations/{decision_type}/{decision_id}",
+    response_model=APIResponse[AIDecisionExplanationResponse],
+    status_code=status.HTTP_200_OK,
+    summary="Get the explanation for an AI decision",
+    description=(
+        "Returns the latest stored decision rationale, contributing factors, "
+        "supporting source references, risk indicators, and confidence metadata."
+    ),
+)
+def get_ai_decision_explanation(
+    decision_type: str,
+    decision_id: UUID,
+    db: Session = Depends(get_db),
+    current_user: dict[str, Any] = Depends(
+        require_roles(*_EXPLANATION_VIEW_ROLES, resource_type="ai_decision_explanation")
+    ),
+) -> APIResponse[AIDecisionExplanationResponse]:
+    service = AIDecisionExplanationService(
+        db, tenant_id=UUID(current_user["tenant_id"])
+    )
+    explanation = service.get_latest(decision_type, decision_id)
+    return APIResponse(
+        success=True,
+        message="AI decision explanation retrieved successfully.",
+        data=AIDecisionExplanationResponse.model_validate(explanation),
+    )
+
+
+@router.get(
+    "/decision-explanations/{decision_type}/{decision_id}/history",
+    response_model=APIResponse[AIDecisionExplanationHistoryResponse],
+    status_code=status.HTTP_200_OK,
+    summary="Get explanation history for an AI decision",
+    description=(
+        "Returns historical explanation snapshots for one tenant-owned decision, "
+        "newest first."
+    ),
+)
+def get_ai_decision_explanation_history(
+    decision_type: str,
+    decision_id: UUID,
+    limit: int = Query(default=100, ge=1, le=200),
+    db: Session = Depends(get_db),
+    current_user: dict[str, Any] = Depends(
+        require_roles(*_EXPLANATION_VIEW_ROLES, resource_type="ai_decision_explanation")
+    ),
+) -> APIResponse[AIDecisionExplanationHistoryResponse]:
+    service = AIDecisionExplanationService(
+        db, tenant_id=UUID(current_user["tenant_id"])
+    )
+    items, total = service.get_history(decision_type, decision_id, limit=limit)
+    data = AIDecisionExplanationHistoryResponse(
+        items=[AIDecisionExplanationResponse.model_validate(item) for item in items],
+        total=total,
+    )
+    return APIResponse(
+        success=True,
+        message="AI decision explanation history retrieved successfully.",
+        data=data,
     )
