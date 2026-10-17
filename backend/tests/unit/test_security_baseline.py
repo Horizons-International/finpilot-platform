@@ -5,8 +5,9 @@ from collections.abc import Iterable
 from typing import Any
 
 import bcrypt
+import jwt
 import pytest
-from jose import JWTError, jwt
+from jwt.exceptions import InvalidTokenError
 from pydantic import ValidationError
 from starlette.types import Message, Scope
 
@@ -186,7 +187,7 @@ def test_access_tokens_without_expiration_are_rejected() -> None:
         algorithm="HS256",
     )
 
-    with pytest.raises(JWTError):
+    with pytest.raises(InvalidTokenError):
         core_security.decode_access_token(token)
 
 
@@ -197,7 +198,7 @@ def test_access_tokens_without_subject_are_rejected() -> None:
         algorithm="HS256",
     )
 
-    with pytest.raises(JWTError, match="subject"):
+    with pytest.raises(InvalidTokenError, match="subject"):
         core_security.decode_access_token(token)
 
 
