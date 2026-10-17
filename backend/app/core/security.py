@@ -1,3 +1,6 @@
+"""Password, JWT, server-side session, and role-based access controls."""
+
+import hashlib
 import re
 from collections.abc import Callable
 from datetime import timedelta
@@ -16,11 +19,24 @@ from app.models.tenant import Tenant
 from app.models.user import User
 from app.models.user_session import UserSession
 from app.services.audit_service import AuditService
+from app.services.security_event_service import record_security_event
 from app.utils.date_time import utc_now
 from app.utils.enums import AuditEventType, TenantStatus, UserRole, UserStatus
 from app.utils.errors import unauthorized
 
 ALGORITHM = "HS256"
+_PASSWORD_PREHASH_PREFIX = b"FinPilot password hash v2\x00"
+
+
+def _password_material(password: str) -> bytes:
+    """Normalize long input to fixed-size material before bcrypt.
+
+    bcrypt only consumes the first 72 bytes. A domain-separated SHA-256 prehash
+    prevents silent truncation. verify_password continues to accept legacy raw
+    bcrypt hashes so deployments do not need to force a password reset.
+    """
+    digest = hashlib.sha256(_PASSWORD_PREHASH_PREFIX + password.encode("utf-8"))
+    return digest.hexdigest().encode("ascii")
 
 
 # ---------------------------------------------------------------------------
@@ -30,25 +46,31 @@ ALGORITHM = "HS256"
 
 def hash_password(password: str) -> str:
     password_bytes = password.encode("utf-8")
+    if len(password_bytes) <= 72:
+        # Keep the established hash format for ordinary passwords so an
+        # overlapping deployment can still verify existing-style hashes.
+        return bcrypt.hashpw(password_bytes, bcrypt.gensalt(rounds=12)).decode("utf-8")
+    stored_hash = bcrypt.hashpw(_password_material(password), bcrypt.gensalt(rounds=12))
+    return "v2$" + stored_hash.decode("utf-8")
 
-    salt = bcrypt.gensalt()
 
-    hashed = bcrypt.hashpw(password_bytes, salt)
+def verify_password(plain_password: str, hashed_password: str) -> bool:
+    """Verify current hashes and legacy raw-bcrypt hashes without leaking errors."""
+    try:
+        if hashed_password.startswith("v2$"):
+            return bcrypt.checkpw(
+                _password_material(plain_password),
+                hashed_password[3:].encode("utf-8"),
+            )
 
-    return hashed.decode("utf-8")
-
-
-def verify_password(
-    plain_password: str,
-    hashed_password: str,
-) -> bool:
-    password_bytes = plain_password.encode("utf-8")
-    hashed_bytes = hashed_password.encode("utf-8")
-
-    return bcrypt.checkpw(
-        password_bytes,
-        hashed_bytes,
-    )
+        # Backward-compatible raw-bcrypt hashes are only valid for <=72 bytes.
+        password_bytes = plain_password.encode("utf-8")
+        if len(password_bytes) > 72:
+            return False
+        return bcrypt.checkpw(password_bytes, hashed_password.encode("utf-8"))
+    except (ValueError, TypeError, UnicodeError):
+        # Legacy bcrypt rejects input longer than its 72-byte limit.
+        return False
 
 
 # ---------------------------------------------------------------------------
@@ -57,30 +79,18 @@ def verify_password(
 
 
 def create_access_token(
-    data: dict,
+    data: dict[str, Any],
     expires_delta: timedelta | None = None,
 ) -> str:
     to_encode = data.copy()
-
-    if expires_delta:
-        expire = utc_now() + expires_delta
-    else:
-        expire = utc_now() + timedelta(minutes=settings.JWT_ACCESS_EXPIRE_MINUTES)
-
-    to_encode.update(
-        {
-            "exp": expire,
-            "type": "access",
-        }
-    )
-
-    return str(
-        jwt.encode(
-            to_encode,
-            settings.SECRET_KEY,
-            algorithm=ALGORITHM,
-        )
-    )
+    now = utc_now()
+    configured_lifetime = timedelta(minutes=settings.JWT_ACCESS_EXPIRE_MINUTES)
+    if expires_delta is not None and expires_delta > configured_lifetime:
+        raise ValueError("Access token lifetime exceeds the configured maximum")
+    lifetime = expires_delta if expires_delta is not None else configured_lifetime
+    expire = now + lifetime
+    to_encode.update({"iat": now, "exp": expire, "type": "access"})
+    return str(jwt.encode(to_encode, settings.SECRET_KEY, algorithm=ALGORITHM))
 
 
 # ---------------------------------------------------------------------------
@@ -89,30 +99,18 @@ def create_access_token(
 
 
 def create_refresh_token(
-    data: dict,
+    data: dict[str, Any],
     expires_delta: timedelta | None = None,
 ) -> str:
     to_encode = data.copy()
-
-    if expires_delta:
-        expire = utc_now() + expires_delta
-    else:
-        expire = utc_now() + timedelta(days=settings.JWT_REFRESH_EXPIRE_DAYS)
-
-    to_encode.update(
-        {
-            "exp": expire,
-            "type": "refresh",
-        }
-    )
-
-    return str(
-        jwt.encode(
-            to_encode,
-            settings.SECRET_KEY,
-            algorithm=ALGORITHM,
-        )
-    )
+    now = utc_now()
+    configured_lifetime = timedelta(days=settings.JWT_REFRESH_EXPIRE_DAYS)
+    if expires_delta is not None and expires_delta > configured_lifetime:
+        raise ValueError("Refresh token lifetime exceeds the configured maximum")
+    lifetime = expires_delta if expires_delta is not None else configured_lifetime
+    expire = now + lifetime
+    to_encode.update({"iat": now, "exp": expire, "type": "refresh"})
+    return str(jwt.encode(to_encode, settings.SECRET_KEY, algorithm=ALGORITHM))
 
 
 # ---------------------------------------------------------------------------
@@ -125,8 +123,12 @@ def decode_access_token(token: str) -> dict[str, Any]:
         token,
         settings.SECRET_KEY,
         algorithms=[ALGORITHM],
+        options={"require_exp": True},
     )
-
+    if not isinstance(payload, dict):
+        raise JWTError("Invalid token payload")
+    if not isinstance(payload.get("sub"), str) or not payload["sub"].strip():
+        raise JWTError("Missing or invalid subject claim")
     return cast(dict[str, Any], payload)
 
 
@@ -136,11 +138,14 @@ def decode_refresh_token(token: str) -> dict[str, Any]:
             token,
             settings.SECRET_KEY,
             algorithms=[ALGORITHM],
+            options={"require_exp": True},
         )
-
+        if not isinstance(payload, dict):
+            raise JWTError("Invalid token payload")
+        if not isinstance(payload.get("sub"), str) or not payload["sub"].strip():
+            raise JWTError("Missing or invalid subject claim")
         if payload.get("type") != "refresh":
             raise unauthorized("Invalid refresh token")
-
         return cast(dict[str, Any], payload)
     except JWTError as exc:
         raise unauthorized("Invalid or expired refresh token") from exc
@@ -158,10 +163,7 @@ def get_current_user(
     credentials: HTTPAuthorizationCredentials = Depends(security),
     db: Session = Depends(get_db),
 ) -> User:
-    """
-    Validate the access token and return its payload.
-    """
-
+    """Validate an unexpired access token and its live user/session/tenant."""
     if credentials is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -169,10 +171,8 @@ def get_current_user(
             headers={"WWW-Authenticate": "Bearer"},
         )
 
-    token = credentials.credentials
-
     try:
-        payload = decode_access_token(token)
+        payload = decode_access_token(credentials.credentials)
     except JWTError as exc:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -189,21 +189,11 @@ def get_current_user(
 
     try:
         user_id = UUID(str(payload["sub"]))
-    except (KeyError, TypeError, ValueError):
-        raise unauthorized("Invalid access token")
-
-    if not user_id:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid access token",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
+    except (KeyError, TypeError, ValueError) as exc:
+        raise unauthorized("Invalid access token") from exc
 
     if not payload.get("email"):
-        raise HTTPException(
-            status_code=401,
-            detail="Invalid access token.",
-        )
+        raise unauthorized("Invalid access token")
 
     user = (
         db.query(User)
@@ -214,18 +204,15 @@ def get_current_user(
         )
         .first()
     )
-
-    if not user:
+    if user is None:
         raise unauthorized("User not found")
-
     if user.status != UserStatus.ACTIVE or user.is_deleted:
         raise unauthorized("User account is not active")
 
     raw_session_id = payload.get("sid")
     request.state.session_id = None
     if raw_session_id is None:
-        # Development/test tokens created directly by unit tests are legacy-compatible.
-        # Production bearer tokens are always tied to a revocable server-side session.
+        # Legacy unit-test tokens are tolerated outside production only.
         if settings.ENVIRONMENT == "production":
             raise unauthorized("Token is not associated with an active session")
     else:
@@ -244,28 +231,43 @@ def get_current_user(
             )
             .first()
         )
+        now = utc_now()
         if (
             user_session is None
             or user_session.user_id != user.id
             or user_session.tenant_id != user.tenant_id
             or user_session.revoked_at is not None
-            or user_session.expires_at <= utc_now()
+            or user_session.expires_at <= now
             or payload.get("tenant_id") != str(user.tenant_id)
         ):
             raise unauthorized("Session is invalid, expired, or revoked")
+
+        idle_cutoff = now - timedelta(minutes=settings.SESSION_IDLE_TIMEOUT_MINUTES)
+        if (
+            user_session.last_seen_at is None
+            or user_session.last_seen_at <= idle_cutoff
+        ):
+            user_session.revoked_at = now
+            user_session.revoked_reason = "idle_timeout"
+            record_security_event(
+                db,
+                event_type="SESSION_IDLE_TIMEOUT",
+                user_id=user.id,
+                tenant_id=user.tenant_id,
+                email=user.email,
+                ip_address=request.client.host if request.client else None,
+                user_agent=request.headers.get("user-agent"),
+                request_path=request.url.path,
+                details={"session_id": str(user_session.id)},
+            )
+            db.commit()
+            raise unauthorized("Session expired after inactivity")
+
         request.state.session_id = str(user_session.id)
 
-    tenant = (
-        db.query(Tenant)
-        .filter(
-            Tenant.id == user.tenant_id,
-        )
-        .first()
-    )
-
+    tenant = db.query(Tenant).filter(Tenant.id == user.tenant_id).first()
     if tenant is None:
         raise unauthorized("Tenant not found")
-
     if tenant.status != TenantStatus.ACTIVE:
         raise unauthorized("Tenant is not active")
 
@@ -297,9 +299,8 @@ def require_platform_admin(
     if not current_user.is_platform_admin:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail=("Platform administrator access is required."),
+            detail="Platform administrator access is required.",
         )
-
     return {
         "sub": str(current_user.id),
         "email": current_user.email,
@@ -328,10 +329,7 @@ def require_roles(
     *allowed_roles: UserRole,
     resource_type: str | None = None,
 ) -> Callable[..., Any]:
-    """
-    Create a reusable dependency that restricts an endpoint
-    to the specified roles.
-    """
+    """Create a reusable dependency that restricts an endpoint to these roles."""
 
     def role_checker(
         request: Request,
@@ -340,13 +338,9 @@ def require_roles(
     ) -> dict[str, Any]:
         if current_user.role not in allowed_roles:
             resource_id = None
-
             if resource_type is not None:
                 resource_id = request.path_params.get(f"{resource_type}_id")
-
-            audit_service = AuditService(db)
-
-            audit_service.log_event(
+            AuditService(db).log_event(
                 event_type=AuditEventType.ACCESS_DENIED,
                 user_id=current_user.id,
                 email=current_user.email,
@@ -355,14 +349,11 @@ def require_roles(
                 resource_type=resource_type,
                 resource_id=resource_id,
             )
-
             db.commit()
-
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="You do not have permission to access this resource.",
             )
-
         return {
             "sub": str(current_user.id),
             "email": current_user.email,
@@ -384,15 +375,13 @@ def validate_password(password: str) -> None:
         raise ValueError(
             f"Password must be at least {settings.PASSWORD_MIN_LENGTH} characters long"
         )
-
+    if len(password) > 128:
+        raise ValueError("Password must be no more than 128 characters long")
     if not re.search(r"[A-Z]", password):
         raise ValueError("Password must contain at least one uppercase letter")
-
     if not re.search(r"[a-z]", password):
         raise ValueError("Password must contain at least one lowercase letter")
-
     if not re.search(r"\d", password):
         raise ValueError("Password must contain at least one number")
-
     if not re.search(r"[^A-Za-z0-9]", password):
         raise ValueError("Password must contain at least one special character")

@@ -1,3 +1,5 @@
+"""Bounded authentication request and response schemas."""
+
 from pydantic import BaseModel, ConfigDict, EmailStr, Field
 
 from app.schemas.mixins import EmailFieldValidatorMixin
@@ -5,11 +7,8 @@ from app.utils.enums import UserRole, UserStatus
 
 
 class LoginRequest(EmailFieldValidatorMixin, BaseModel):
-    email: EmailStr
-    password: str = Field(
-        min_length=8,
-        max_length=128,
-    )
+    email: EmailStr = Field(max_length=255)
+    password: str = Field(min_length=8, max_length=128)
     mfa_code: str | None = Field(
         default=None,
         min_length=6,
@@ -28,7 +27,7 @@ class LoginRequest(EmailFieldValidatorMixin, BaseModel):
 
 
 class RefreshTokenRequest(BaseModel):
-    refresh_token: str = Field(min_length=1)
+    refresh_token: str = Field(min_length=1, max_length=8192)
 
 
 class AuthUserResponse(BaseModel):
@@ -55,14 +54,8 @@ class RefreshTokenResponse(BaseModel):
 
 
 class ChangePasswordRequest(BaseModel):
-    current_password: str = Field(
-        min_length=8,
-        max_length=128,
-    )
-    new_password: str = Field(
-        min_length=12,
-        max_length=128,
-    )
+    current_password: str = Field(min_length=8, max_length=128)
+    new_password: str = Field(min_length=12, max_length=128)
 
 
 class MeResponse(BaseModel):
@@ -74,11 +67,5 @@ class MeResponse(BaseModel):
 
 
 class AcceptInvitationRequest(BaseModel):
-    token: str = Field(
-        min_length=1,
-    )
-
-    password: str = Field(
-        min_length=12,
-        max_length=128,
-    )
+    token: str = Field(min_length=1, max_length=512)
+    password: str = Field(min_length=12, max_length=128)

@@ -1,6 +1,8 @@
+"""Validated application settings and production security guardrails."""
+
 from typing import Literal
 
-from pydantic import EmailStr, Field
+from pydantic import EmailStr, Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -13,12 +15,12 @@ class Settings(BaseSettings):
     # Database
     DATABASE_URL: str
 
-    # JWT
+    # JWT. Explicit upper bounds prevent accidental long-lived credentials.
     SECRET_KEY: str
-    JWT_ACCESS_EXPIRE_MINUTES: int = Field(default=30, gt=0)
-    JWT_REFRESH_EXPIRE_DAYS: int = Field(default=7, gt=0)
+    JWT_ACCESS_EXPIRE_MINUTES: int = Field(default=30, gt=0, le=60)
+    JWT_REFRESH_EXPIRE_DAYS: int = Field(default=7, gt=0, le=30)
 
-    # Administrator
+    # Administrator bootstrap credentials
     ADMIN_EMAIL: EmailStr
     ADMIN_PASSWORD: str
 
@@ -28,6 +30,49 @@ class Settings(BaseSettings):
         case_sensitive=True,
         extra="ignore",
     )
+
+    @model_validator(mode="after")
+    def validate_production_secrets(self) -> "Settings":
+        """Refuse known placeholder/weak bootstrap secrets in production."""
+        if self.ENVIRONMENT != "production":
+            return self
+
+        secret = self.SECRET_KEY.strip()
+        weak_values = {
+            "secret",
+            "changeme",
+            "change-me",
+            "change-this-secret-key",
+            "your-secret-key",
+            "development-secret",
+        }
+        if len(secret) < 32 or len(set(secret)) < 8 or secret.casefold() in weak_values:
+            raise ValueError(
+                "Production SECRET_KEY must be a unique, high-entropy value "
+                "containing at least 32 characters. Generate one with a "
+                "cryptographically secure random generator."
+            )
+
+        password = self.ADMIN_PASSWORD
+        password_is_strong = (
+            len(password) >= 12
+            and any(char.isupper() for char in password)
+            and any(char.islower() for char in password)
+            and any(char.isdigit() for char in password)
+            and any(not char.isalnum() for char in password)
+        )
+        weak_passwords = {
+            "change-this-admin-password",
+            "password",
+            "password123!",
+            "admin123!",
+        }
+        if not password_is_strong or password.casefold() in weak_passwords:
+            raise ValueError(
+                "Production ADMIN_PASSWORD must be at least 12 characters and "
+                "contain uppercase, lowercase, numeric, and special characters."
+            )
+        return self
 
     # Storage Settings
     STORAGE_TYPE: str = "local"
@@ -88,6 +133,22 @@ class Settings(BaseSettings):
     PASSWORD_MIN_LENGTH: int = Field(default=12, ge=12, le=128)
     LOGIN_FAILURE_THRESHOLD: int = Field(default=5, ge=3, le=20)
     LOGIN_FAILURE_WINDOW_MINUTES: int = Field(default=15, ge=1, le=120)
+
+    # Request-level defensive controls. Tune to measured traffic patterns.
+    RATE_LIMIT_ENABLED: bool = True
+    RATE_LIMIT_WINDOW_SECONDS: int = Field(default=60, ge=1, le=3600)
+    RATE_LIMIT_REQUESTS_PER_IP: int = Field(default=3000, ge=1)
+    RATE_LIMIT_REQUESTS_PER_ROUTE: int = Field(default=600, ge=1)
+    RATE_LIMIT_AUTH_REQUESTS: int = Field(default=120, ge=1)
+    RATE_LIMIT_MAX_TRACKED_KEYS: int = Field(default=20_000, ge=100)
+    MAX_REQUEST_BODY_BYTES: int = Field(default=12 * 1024 * 1024, ge=1024)
+
+    # Session policy
+    SESSION_IDLE_TIMEOUT_MINUTES: int = Field(default=60, ge=1, le=1440)
+
+    # Response protection
+    SECURITY_HEADERS_ENABLED: bool = True
+    HSTS_MAX_AGE_SECONDS: int = Field(default=31_536_000, ge=0, le=63_072_000)
 
 
 settings = Settings()  # type: ignore[call-arg]

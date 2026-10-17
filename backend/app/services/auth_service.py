@@ -1,3 +1,5 @@
+"""Authentication workflows with bounded token and server-side session lifetimes."""
+
 from datetime import timedelta
 from typing import Any
 from uuid import UUID, uuid4
@@ -98,7 +100,6 @@ class AuthService:
             )
 
         user = self.user_repository.get_by_email(normalized_email)
-
         if user is None:
             self.audit_service.log_event(
                 event_type=AuditEventType.LOGIN_FAILURE,
@@ -110,9 +111,8 @@ class AuthService:
             self.db.commit()
             raise unauthorized("Invalid email or password")
 
-        # Bind known-user login events to its tenant before storing audit/security data.
+        # Bind known-user events to the tenant before storing audit/security data.
         self.db.info["tenant_id"] = user.tenant_id
-
         if not verify_password(password, user.password_hash):
             self.audit_service.log_event(
                 event_type=AuditEventType.LOGIN_FAILURE,
@@ -282,6 +282,22 @@ class AuthService:
             user.tenant_id
         ):
             raise unauthorized("Invalid refresh token session")
+
+        idle_cutoff = now - timedelta(minutes=settings.SESSION_IDLE_TIMEOUT_MINUTES)
+        if session.last_seen_at is None or session.last_seen_at <= idle_cutoff:
+            session.revoked_at = now
+            session.revoked_reason = "idle_timeout"
+            record_security_event(
+                self.db,
+                event_type="SESSION_IDLE_TIMEOUT",
+                user_id=user.id,
+                tenant_id=user.tenant_id,
+                email=user.email,
+                request_path="/api/v1/auth/refresh",
+                details={"session_id": str(session.id), "flow": "refresh"},
+            )
+            self.db.commit()
+            raise unauthorized("Session expired after inactivity")
 
         self.db.info["tenant_id"] = user.tenant_id
         access_token = create_access_token(
