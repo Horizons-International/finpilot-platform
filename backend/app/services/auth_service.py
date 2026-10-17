@@ -5,7 +5,7 @@ from typing import Any
 from uuid import UUID, uuid4
 
 from fastapi import HTTPException, status
-from jose import JWTError
+from jwt.exceptions import InvalidTokenError
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
@@ -238,7 +238,7 @@ class AuthService:
     def refresh_token(self, refresh_token: str) -> RefreshTokenResponse:
         try:
             payload = decode_refresh_token(refresh_token)
-        except JWTError as exc:
+        except InvalidTokenError as exc:
             raise unauthorized("Invalid or expired refresh token") from exc
 
         try:

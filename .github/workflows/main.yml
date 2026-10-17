@@ -42,6 +42,11 @@ jobs:
       JWT_KEY: jwt-secret-key
       ADMIN_EMAIL: test-admin@example.com
       ADMIN_PASSWORD: test-admin-password
+      # TestClient traffic shares one synthetic client IP across the whole suite.
+      # The limiter is covered deterministically by unit tests; disable only its
+      # process-wide HTTP gate for DB-backed integration tests to prevent ordering
+      # and execution-speed-dependent 429s. Login failure lockout remains enabled.
+      RATE_LIMIT_ENABLED: "false"
 
     steps:
       - name: Checkout repository
@@ -72,4 +77,3 @@ jobs:
 
       - name: Pytest
         run: uv run pytest
-        

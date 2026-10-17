@@ -8,9 +8,11 @@ from typing import Any, cast
 from uuid import UUID
 
 import bcrypt
+import jwt
 from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
-from jose import JWTError, jwt
+from jwt.exceptions import InvalidTokenError
+from jwt.types import Options
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
@@ -123,12 +125,12 @@ def decode_access_token(token: str) -> dict[str, Any]:
         token,
         settings.SECRET_KEY,
         algorithms=[ALGORITHM],
-        options={"require_exp": True},
+        options=cast(Options, {"require": ["exp"]}),
     )
     if not isinstance(payload, dict):
-        raise JWTError("Invalid token payload")
+        raise InvalidTokenError("Invalid token payload")
     if not isinstance(payload.get("sub"), str) or not payload["sub"].strip():
-        raise JWTError("Missing or invalid subject claim")
+        raise InvalidTokenError("Missing or invalid subject claim")
     return cast(dict[str, Any], payload)
 
 
@@ -138,16 +140,16 @@ def decode_refresh_token(token: str) -> dict[str, Any]:
             token,
             settings.SECRET_KEY,
             algorithms=[ALGORITHM],
-            options={"require_exp": True},
+            options=cast(Options, {"require": ["exp"]}),
         )
         if not isinstance(payload, dict):
-            raise JWTError("Invalid token payload")
+            raise InvalidTokenError("Invalid token payload")
         if not isinstance(payload.get("sub"), str) or not payload["sub"].strip():
-            raise JWTError("Missing or invalid subject claim")
+            raise InvalidTokenError("Missing or invalid subject claim")
         if payload.get("type") != "refresh":
             raise unauthorized("Invalid refresh token")
         return cast(dict[str, Any], payload)
-    except JWTError as exc:
+    except InvalidTokenError as exc:
         raise unauthorized("Invalid or expired refresh token") from exc
 
 
@@ -173,7 +175,7 @@ def get_current_user(
 
     try:
         payload = decode_access_token(credentials.credentials)
-    except JWTError as exc:
+    except InvalidTokenError as exc:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid or expired access token",
