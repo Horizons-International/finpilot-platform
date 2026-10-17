@@ -1,0 +1,37 @@
+name: Security dependency audit
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  schedule:
+    - cron: "23 4 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  dependency-audit:
+    name: Audit locked Python dependencies
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v6
+
+      - name: Export dependencies from the locked environment
+        run: uv export --locked --format requirements.txt --all-groups --no-emit-project --output-file requirements-security-audit.txt
+
+      - name: Audit third-party dependencies
+        run: uvx pip-audit --strict --requirement requirements-security-audit.txt
