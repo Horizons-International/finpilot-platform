@@ -71,10 +71,8 @@ class RegulatoryAssistantService:
                 self.retrieval_service = self.retrieval_service_factory()
             else:
                 self.retrieval_service = RetrievalService(
-                    self.db,
-                    tenant_id=self.tenant_id,
+                    self.db, tenant_id=self.tenant_id
                 )
-
         return self.retrieval_service
 
     def _retrieve(
