@@ -2,10 +2,11 @@ import uuid
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import JSON, DateTime, ForeignKey, String, func
+from sqlalchemy import DateTime, ForeignKey, String, func
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
+from app.core.data_protection import EncryptedJSON
 from app.core.database import Base
 from app.models.customer import Customer
 from app.models.user import User
@@ -15,63 +16,29 @@ class CustomerAuditLog(Base):
     __tablename__ = "customer_audit_logs"
 
     id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True),
-        primary_key=True,
-        default=uuid.uuid4,
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
     )
-
     tenant_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
         ForeignKey("tenants.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
     )
-
     customer_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True),
-        ForeignKey("customers.id"),
-        nullable=False,
-        index=True,
+        UUID(as_uuid=True), ForeignKey("customers.id"), nullable=False, index=True
     )
-
     user_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True),
-        ForeignKey("users.id"),
-        nullable=False,
-        index=True,
+        UUID(as_uuid=True), ForeignKey("users.id"), nullable=False, index=True
     )
-
-    resource_type: Mapped[str] = mapped_column(
-        String(50),
-        nullable=False,
-    )
-
-    resource_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True),
-        nullable=False,
-    )
-
-    action: Mapped[str] = mapped_column(
-        String(100),
-        nullable=False,
-    )
-
-    old_value: Mapped[Any | None] = mapped_column(
-        JSON,
-        nullable=True,
-    )
-
-    new_value: Mapped[Any | None] = mapped_column(
-        JSON,
-        nullable=True,
-    )
-
+    resource_type: Mapped[str] = mapped_column(String(50), nullable=False)
+    resource_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
+    action: Mapped[str] = mapped_column(String(100), nullable=False)
+    # Audit payloads often mirror old/new customer fields; encrypt the whole payload.
+    old_value: Mapped[Any | None] = mapped_column(EncryptedJSON(), nullable=True)
+    new_value: Mapped[Any | None] = mapped_column(EncryptedJSON(), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True),
-        server_default=func.now(),
-        nullable=False,
+        DateTime(timezone=True), server_default=func.now(), nullable=False
     )
-
     customer: Mapped[Customer] = relationship("Customer")
     user: Mapped[User] = relationship("User")
     tenant = relationship("Tenant")

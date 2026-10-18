@@ -30,6 +30,12 @@ from app.models.communication_log import CommunicationLog  # noqa: F401
 from app.models.customer import Customer  # noqa: F401
 from app.models.customer_address import CustomerAddress  # noqa: F401
 from app.models.customer_status_history import CustomerStatusHistory  # noqa: F401
+from app.models.data_protection import (
+    DataDeletionRequest,  # noqa: F401
+    DataLegalHold,  # noqa: F401
+    DataProtectionAuditEvent,  # noqa: F401
+    DataProtectionPolicy,  # noqa: F401
+)
 from app.models.document_extraction import DocumentExtraction  # noqa: F401
 from app.models.document_extraction_review_log import (
     DocumentExtractionReviewLog,  # noqa: F401

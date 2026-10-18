@@ -2,6 +2,7 @@ from unittest.mock import patch
 
 import pytest
 
+from app.core.config import settings
 from app.services.file_service import FileService
 from app.services.knowledge_indexing_service import (
     KnowledgeIndexingService,
@@ -86,7 +87,7 @@ async def test_complete_rag_pipeline(
     # 3. Index document
     # ---------------------------------------------------------
 
-    storage = LocalStorage(str(tmp_path))
+    storage = LocalStorage(settings.STORAGE_PATH)
 
     file_service = FileService(
         db=db_session,

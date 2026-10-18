@@ -154,7 +154,7 @@ async def test_index_active_knowledge_document(
         folder="documents",
     )
 
-    cleanup_test_files(file_record.id)
+    cleanup_test_files(file_record.id, storage)
 
     document = KnowledgeDocument(
         name="AML Policy",
@@ -410,7 +410,7 @@ async def test_indexing_does_not_create_file_download_audit(
         folder="documents",
     )
 
-    cleanup_test_files(file_record.id)
+    cleanup_test_files(file_record.id, storage)
 
     document = KnowledgeDocument(
         name="Audit Test Policy",

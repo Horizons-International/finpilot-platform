@@ -1,6 +1,7 @@
 import os
 from datetime import date, datetime
-from typing import Any
+from pathlib import Path
+from typing import Any, Protocol
 from uuid import UUID, uuid4
 
 import pytest
@@ -102,6 +103,12 @@ TestSessionLocal = sessionmaker(
     expire_on_commit=False,
     info={"allow_unscoped_tenant_operations": True},
 )
+
+
+class CleanupStorage(Protocol):
+    def exists(self, storage_path: str) -> bool: ...
+
+    def delete(self, storage_path: str) -> None: ...
 
 
 @pytest.fixture(autouse=True)
@@ -244,30 +251,71 @@ def create_test_user():
 
 
 @pytest.fixture
-def cleanup_test_files():
-    created_file_ids = []
+def cleanup_test_files(tmp_path: Path):
+    created_files: list[tuple[object, CleanupStorage | None]] = []
 
-    def _track_file(file_id):
-        created_file_ids.append(file_id)
+    def _track_file(
+        file_id: object,
+        storage: CleanupStorage | None = None,
+    ) -> None:
+        created_files.append((file_id, storage))
 
     yield _track_file
 
     db = TestSessionLocal()
-    storage = LocalStorage(settings.STORAGE_PATH)
+
+    project_root = Path(__file__).resolve().parents[1]
+    source_documents_root = (project_root / "knowledge-base" / "documents").resolve()
+
+    allowed_roots = (
+        Path(settings.STORAGE_PATH).resolve(),
+        tmp_path.resolve(),
+    )
 
     try:
-        for file_id in created_file_ids:
+        for file_id, supplied_storage in created_files:
             file_record = db.query(File).filter(File.id == file_id).first()
 
-            if file_record:
-                # Delete physical file first.
-                if storage.exists(file_record.storage_path):
-                    storage.delete(file_record.storage_path)
+            if file_record is None:
+                continue
 
-                # Delete database record.
-                db.delete(file_record)
+            if supplied_storage is not None:
+                # Use the same storage implementation that created the file.
+                if supplied_storage.exists(file_record.storage_path):
+                    supplied_storage.delete(file_record.storage_path)
+            else:
+                # Keep your existing allowed_roots / source_documents_root
+                # validation and LocalStorage cleanup logic here.
+                # Do not weaken the storage-path security checks.
+                stored_path = Path(file_record.storage_path).resolve()
 
-        db.commit()
+                storage_root = next(
+                    (
+                        root
+                        for root in allowed_roots
+                        if stored_path != root and root in stored_path.parents
+                    ),
+                    None,
+                )
+
+                is_source_document = (
+                    stored_path != source_documents_root
+                    and source_documents_root in stored_path.parents
+                )
+
+                if storage_root is not None:
+                    local_storage = LocalStorage(str(storage_root))
+                    if local_storage.exists(file_record.storage_path):
+                        local_storage.delete(file_record.storage_path)
+                elif not is_source_document:
+                    raise RuntimeError(
+                        "Refusing to clean a file outside the approved "
+                        f"storage roots: {stored_path}"
+                    )
+
+            # Retain your existing database-record cleanup.
+            db.delete(file_record)
+
     finally:
         db.close()
 

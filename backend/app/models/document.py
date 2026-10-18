@@ -6,6 +6,7 @@ from sqlalchemy import Enum as SQLEnum
 from sqlalchemy.dialects.postgresql import UUID as PostgreSQLUUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
+from app.core.data_protection import EncryptedString
 from app.core.database import Base
 from app.utils.enums import DocumentStatus
 
@@ -14,119 +15,57 @@ class CustomerDocument(Base):
     __tablename__ = "customer_documents"
 
     id: Mapped[UUID] = mapped_column(
-        PostgreSQLUUID(as_uuid=True),
-        primary_key=True,
-        default=uuid4,
+        PostgreSQLUUID(as_uuid=True), primary_key=True, default=uuid4
     )
-
     tenant_id: Mapped[UUID] = mapped_column(
         PostgreSQLUUID(as_uuid=True),
-        ForeignKey(
-            "tenants.id",
-            ondelete="CASCADE",
-        ),
+        ForeignKey("tenants.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
     )
-
     customer_id: Mapped[UUID] = mapped_column(
         PostgreSQLUUID(as_uuid=True),
-        ForeignKey(
-            "customers.id",
-            ondelete="CASCADE",
-        ),
+        ForeignKey("customers.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
     )
-
     verification_case_id: Mapped[UUID] = mapped_column(
         PostgreSQLUUID(as_uuid=True),
-        ForeignKey(
-            "identity_verification_cases.id",
-            ondelete="CASCADE",
-        ),
+        ForeignKey("identity_verification_cases.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
     )
-
     document_type_id: Mapped[UUID] = mapped_column(
         PostgreSQLUUID(as_uuid=True),
-        ForeignKey(
-            "verification_document_types.id",
-            ondelete="RESTRICT",
-        ),
+        ForeignKey("verification_document_types.id", ondelete="RESTRICT"),
         nullable=False,
         index=True,
     )
-
-    file_reference: Mapped[str] = mapped_column(
-        String(1000),
-        nullable=False,
-    )
-
-    file_name: Mapped[str] = mapped_column(
-        String(255),
-        nullable=False,
-    )
-
-    file_type: Mapped[str] = mapped_column(
-        String(100),
-        nullable=False,
-    )
-
-    file_size: Mapped[int] = mapped_column(
-        Integer,
-        nullable=False,
-    )
-
+    file_reference: Mapped[str] = mapped_column(String(1000), nullable=False)
+    file_name: Mapped[str] = mapped_column(EncryptedString(), nullable=False)
+    file_type: Mapped[str] = mapped_column(String(100), nullable=False)
+    file_size: Mapped[int] = mapped_column(Integer, nullable=False)
     status: Mapped[DocumentStatus] = mapped_column(
-        SQLEnum(
-            DocumentStatus,
-            name="document_status",
-            native_enum=True,
-        ),
+        SQLEnum(DocumentStatus, name="document_status", native_enum=True),
         nullable=False,
         default=DocumentStatus.UPLOADED,
     )
-
     uploaded_by: Mapped[UUID] = mapped_column(
         PostgreSQLUUID(as_uuid=True),
-        ForeignKey(
-            "users.id",
-            ondelete="RESTRICT",
-        ),
+        ForeignKey("users.id", ondelete="RESTRICT"),
         nullable=False,
         index=True,
     )
-
     created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True),
-        server_default=func.now(),
-        nullable=False,
+        DateTime(timezone=True), server_default=func.now(), nullable=False
     )
-
-    customer = relationship(
-        "Customer",
-        back_populates="documents",
-    )
-
+    customer = relationship("Customer", back_populates="documents")
     verification_case = relationship(
-        "IdentityVerificationCase",
-        back_populates="documents",
+        "IdentityVerificationCase", back_populates="documents"
     )
-
-    document_type = relationship(
-        "VerificationDocumentType",
-    )
-
-    uploader = relationship(
-        "User",
-    )
-
+    document_type = relationship("VerificationDocumentType")
+    uploader = relationship("User")
     ocr_results = relationship(
-        "OCRResult",
-        back_populates="document",
-        cascade="all, delete-orphan",
+        "OCRResult", back_populates="document", cascade="all, delete-orphan"
     )
-
     tenant = relationship("Tenant")
