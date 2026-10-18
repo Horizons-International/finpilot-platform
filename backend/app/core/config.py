@@ -12,8 +12,14 @@ class Settings(BaseSettings):
     APP_VERSION: str = "1.0.0"
     ENVIRONMENT: Literal["development", "testing", "production"] = "development"
 
-    # Database
+    # Database. In production use sslmode=verify-full where supported.
     DATABASE_URL: str
+    DATABASE_REQUIRE_SSL: bool = True
+
+    # Application-level encryption key. Keep outside source control.
+    DATA_PROTECTION_KEY: str = Field(default="", repr=False)
+    PUBLIC_BASE_URL: str = ""
+    HTTPS_REQUIRED_IN_PRODUCTION: bool = True
 
     # JWT. Explicit upper bounds prevent accidental long-lived credentials.
     SECRET_KEY: str

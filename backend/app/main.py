@@ -26,6 +26,7 @@ from app.api.customer_onboarding import router as customer_onboarding_router
 from app.api.customer_risk_profiles import router as customer_risk_profiles_router
 from app.api.customers import router as customer_router
 from app.api.dashboard import router as dashboard_router
+from app.api.data_protection import router as data_protection_router
 from app.api.document_fraud_analysis import router as document_fraud_analysis_router
 from app.api.document_review import router as document_review_router
 from app.api.documents import router as documents_router
@@ -74,6 +75,7 @@ from app.api.verification_reviews import router as verification_reviews_router
 from app.api.webhooks import router as webhooks_router
 from app.api.workflows import router as workflows_router
 from app.core.config import settings
+from app.core.data_protection_startup import validate_data_protection_environment
 from app.core.exceptions import (
     database_exception_handler,
     http_exception_handler,
@@ -90,6 +92,8 @@ from app.middleware.request_id import RequestIDMiddleware
 from app.middleware.security_monitoring import SecurityMonitoringMiddleware
 from app.models.user import User
 from app.schemas.auth import MeResponse
+
+validate_data_protection_environment()
 
 setup_logging()
 logger = get_logger(__name__)
@@ -183,6 +187,7 @@ app.include_router(rag_router)
 app.include_router(integration_management_router)
 app.include_router(partner_onboarding_router)
 app.include_router(security_router)
+app.include_router(data_protection_router)
 
 app.add_exception_handler(HTTPException, http_exception_handler)
 app.add_exception_handler(RequestValidationError, validation_exception_handler)
