@@ -87,6 +87,10 @@ os.environ.setdefault(
     "postgresql+psycopg://user:123789@localhost:5432/testdb",
 )
 
+# Prevent shared TestClient IPs from exhausting the global API rate limiter.
+# Dedicated rate-limit tests explicitly enable it when needed.
+settings.RATE_LIMIT_ENABLED = False
+
 test_database_url = os.environ["TEST_DATABASE_URL"]
 
 test_engine = create_engine(test_database_url)
