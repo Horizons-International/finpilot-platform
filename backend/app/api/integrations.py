@@ -10,6 +10,7 @@ from app.core.database import get_db
 from app.core.responses import APIResponse
 from app.models.customer import Customer
 from app.schemas.customer import CustomerResponse
+from app.services.audit_event_service import AuditEventService
 from app.utils.errors import not_found
 
 router = APIRouter(
@@ -45,6 +46,22 @@ def list_partner_customers(
             .limit(limit)
         ).all()
     )
+
+    AuditEventService(db, principal.tenant_id).record_event(
+        action="DATA_ACCESS",
+        user_id=None,
+        entity_type="customer_collection",
+        entity_id=None,
+        metadata={
+            "access_type": "READ",
+            "actor_type": "API_KEY",
+            "api_key_id": str(principal.api_key_id),
+            "endpoint": "GET /api/v1/integrations/customers/",
+        },
+    )
+
+    db.commit()
+
     return APIResponse(
         success=True,
         message="Partner customers retrieved successfully.",
@@ -72,6 +89,22 @@ def get_partner_customer(
     if customer is None:
         response.status_code = 404
         raise not_found("Customer")
+
+    AuditEventService(db, principal.tenant_id).record_event(
+        action="DATA_ACCESS",
+        user_id=None,
+        entity_type="customer",
+        entity_id=customer.id,
+        metadata={
+            "access_type": "READ",
+            "actor_type": "API_KEY",
+            "api_key_id": str(principal.api_key_id),
+            "endpoint": "GET /api/v1/integrations/customers/{customer_id}",
+        },
+    )
+
+    db.commit()
+
     return APIResponse(
         success=True,
         message="Partner customer retrieved successfully.",

@@ -14,6 +14,7 @@ from app.api.aml_investigation_assistant import (
 )
 from app.api.aml_rules import router as aml_rules_router
 from app.api.api_keys import router as api_keys_router
+from app.api.audit_events import router as audit_events_router
 from app.api.auth import router as auth_router
 from app.api.case_priorities import router as case_priorities_router
 from app.api.compliance_analytics import router as compliance_analytics_router
@@ -88,6 +89,7 @@ from app.core.responses import APIResponse
 from app.core.security import get_current_user
 from app.core.tenant_filter import install_tenant_filter
 from app.middleware.api_key_usage import APIKeyUsageMiddleware
+from app.middleware.audit_access import AuditAccessMiddleware
 from app.middleware.request_id import RequestIDMiddleware
 from app.middleware.security_monitoring import SecurityMonitoringMiddleware
 from app.models.user import User
@@ -124,6 +126,7 @@ app = FastAPI(
 app.add_middleware(RequestIDMiddleware)
 app.add_middleware(APIKeyUsageMiddleware)
 app.add_middleware(SecurityMonitoringMiddleware)
+app.add_middleware(AuditAccessMiddleware)
 
 app.include_router(auth_router)
 app.include_router(api_keys_router)
@@ -131,6 +134,7 @@ app.include_router(subscriptions_router)
 app.include_router(webhooks_router)
 app.include_router(integrations_router)
 app.include_router(health_router)
+app.include_router(audit_events_router)
 app.include_router(profile_router)
 app.include_router(users_router)
 app.include_router(tenants_router)

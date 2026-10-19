@@ -12,6 +12,7 @@ from app.repositories.report_export_repository import (
 from app.schemas.report_exports import (
     ReportExportRequest,
 )
+from app.services.audit_event_service import AuditEventService
 from app.services.notification_service import NotificationService
 from app.services.tenant_access_audit import deny_tenant_access
 from app.storages.base_storage import BaseStorage
@@ -90,6 +91,18 @@ class ReportExportService:
 
         self.repository.create(
             report_export,
+        )
+
+        AuditEventService(self.db, self.tenant_id).record_event(
+            action="REPORT_EXPORT_REQUESTED",
+            user_id=requested_by,
+            entity_type="report_export",
+            entity_id=report_export.id,
+            metadata={
+                "report_type": report_export.report_type.value,
+                "format": report_export.format.value,
+                "row_count": row_count,
+            },
         )
 
         self.db.commit()
