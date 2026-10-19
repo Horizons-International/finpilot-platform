@@ -113,6 +113,7 @@ def create_service(
     tenant_id: uuid.UUID,
 ) -> tuple[OCRService, MagicMock]:
     db = MagicMock()
+    db.info = {"tenant_id": tenant_id}
 
     service = OCRService(
         db=db,
@@ -483,8 +484,11 @@ def test_process_document_by_id_raises_for_missing_document(
 
     provider = MockOCRProvider()
 
+    db = MagicMock()
+    db.info = {"tenant_id": default_tenant_id}
+
     service = OCRService(
-        db=MagicMock(),
+        db=db,
         provider=provider,
         tenant_id=default_tenant_id,
     )
@@ -590,8 +594,11 @@ def test_get_latest_result(
 
     provider = MockOCRProvider()
 
+    db = MagicMock()
+    db.info = {"tenant_id": default_tenant_id}
+
     service = OCRService(
-        db=MagicMock(),
+        db=db,
         provider=provider,
         tenant_id=default_tenant_id,
     )
@@ -620,8 +627,11 @@ def test_get_latest_result_returns_none_when_not_found(
 
     provider = MockOCRProvider()
 
+    db = MagicMock()
+    db.info = {"tenant_id": default_tenant_id}
+
     service = OCRService(
-        db=MagicMock(),
+        db=db,
         provider=provider,
         tenant_id=default_tenant_id,
     )

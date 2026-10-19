@@ -25,6 +25,7 @@ from app.repositories.ai_risk_recommendation_repository import (
 )
 from app.schemas.ai_risk_recommendation import AIRiskRecommendationGenerateRequest
 from app.schemas.transaction_risk_analysis import TransactionRiskAIOutput
+from app.services.audit_event_service import AuditEventService
 from app.utils.errors import not_found
 
 logger = get_logger(__name__)
@@ -523,6 +524,16 @@ class AIRiskRecommendationService:
             model_name=model_name,
         )
         record = self.repository.create(record)
+        AuditEventService(self.db, self.tenant_id).record_event(
+            action="AI_RECOMMENDATION_CREATED",
+            user_id=user_id,
+            entity_type="ai_risk_recommendation",
+            entity_id=record.id,
+            metadata={
+                "customer_id": str(record.customer_id),
+                "risk_level": record.risk_level,
+            },
+        )
         self.db.commit()
         self.db.refresh(record)
         logger.info(
