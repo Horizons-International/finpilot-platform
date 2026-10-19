@@ -1,4 +1,4 @@
-"""Integrity manifest helpers shared by the backup and restore-test tools."""
+"""Integrity-manifest creation and verification helpers for FinPilot backups."""
 
 from __future__ import annotations
 
@@ -31,7 +31,7 @@ def write_manifest(
     environment: str,
     repository_commit: str | None,
 ) -> Path:
-    """Create a manifest for regular files in the bundle except the manifest itself."""
+    """Hash every regular top-level bundle file except the manifest/signature."""
     files: dict[str, dict[str, int | str]] = {}
     for path in sorted(bundle_dir.iterdir()):
         if not path.is_file() or path.name in {MANIFEST_NAME, SIGNATURE_NAME}:
@@ -40,7 +40,6 @@ def write_manifest(
             "size_bytes": path.stat().st_size,
             "sha256": sha256_file(path),
         }
-
     if not files:
         raise BackupVerificationError("Cannot create a manifest for an empty bundle")
 
@@ -49,7 +48,7 @@ def write_manifest(
         "created_at_utc": datetime.now(UTC).isoformat(),
         "environment": environment,
         "repository_commit": repository_commit,
-        "backup_kind": "postgresql_custom_dump_plus_storage_archive",
+        "backup_kind": "postgresql_custom_dump_plus_storage_and_configuration_archives",
         "files": files,
     }
     manifest_path = bundle_dir / MANIFEST_NAME
@@ -85,26 +84,22 @@ def verify_manifest_signature(bundle_dir: Path) -> bool:
 def verify_bundle(
     bundle_dir: Path, *, require_signature: bool = False
 ) -> dict[str, Any]:
-    """Verify the detached signature (if any) and every file hash in the manifest."""
+    """Verify detached signature (if any) and every manifest SHA-256/size entry."""
     manifest_path = bundle_dir / MANIFEST_NAME
     if not manifest_path.is_file():
         raise BackupVerificationError(f"Missing {MANIFEST_NAME} in {bundle_dir}")
-
     signed = verify_manifest_signature(bundle_dir)
     if require_signature and not signed:
-        raise BackupVerificationError("A signed manifest is required for this restore")
-
+        raise BackupVerificationError("A signed manifest is required for this backup")
     try:
         manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as exc:
         raise BackupVerificationError("The backup manifest is not valid JSON") from exc
-
     if manifest.get("format_version") != 1:
         raise BackupVerificationError("Unsupported backup manifest format version")
     files = manifest.get("files")
     if not isinstance(files, dict) or not files:
         raise BackupVerificationError("The backup manifest has no file entries")
-
     for name, info in files.items():
         candidate = Path(name)
         if (
@@ -124,8 +119,6 @@ def verify_bundle(
             raise BackupVerificationError(f"Invalid digest/size for {name}")
         if path.stat().st_size != expected_size:
             raise BackupVerificationError(f"Size mismatch for {name}")
-        actual_hash = sha256_file(path)
-        if actual_hash != expected_hash:
+        if sha256_file(path) != expected_hash:
             raise BackupVerificationError(f"SHA-256 mismatch for {name}")
-
     return cast(dict[str, Any], manifest)

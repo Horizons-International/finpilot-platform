@@ -1,46 +1,77 @@
-# Backup Scheduling and Monitoring
+# Automated Backups, Verification, and History
 
-The backup tool is on-demand; the repository does not currently configure an automated backup scheduler or off-site storage. Schedule it only after choosing a protected destination and confirming expected database/storage size and runtime.
+## Capabilities
 
-## Preferred production approach
+`backup.py` creates a unique bundle containing `database.dump`, `globals.sql`, `storage.tar.gz`, and `configuration.tar.gz`, plus a SHA-256 manifest. It runs `verify_bundle` before reporting success. Database-resident audit records are included in the complete PostgreSQL dump; uploaded documents/local files are in `/app/storage`; application/deployment configuration is placed in `configuration.tar.gz`.
 
-Use a managed PostgreSQL backup/PITR service and versioned/replicated object storage in a separate failure domain. Alert on missing recovery points, broken replication, exhausted capacity, failed restore drills, and inaccessible encryption keys. This is generally safer and more scalable than repeatedly creating full copies of a large storage volume.
+Active `.env` files are included in the configuration archive only when `BACKUP_GPG_RECIPIENT` is configured, because the resulting bundle will then be GPG-encrypted. `.env.example` files and approved non-secret configuration files can be included without encryption. Do not infer that a non-encrypted development bundle is safe for production.
 
-## Full-bundle fallback
+The history viewer reads `history.jsonl` from the output root:
 
-If using the bundled full-dump script to target RPO ≤ 1 hour, schedule it at least hourly only if a full database plus full local-storage archive can reliably complete within that window and the off-site transfer also completes before the deadline. If not, the target is not met; choose PITR and storage replication instead.
-
-Every successful run creates a distinct bundle directory. The job must upload/copy the complete directory, including `manifest.json` and any `manifest.json.asc`, into encrypted off-site storage. Do not regard a bundle on the same host as a disaster-recovery copy.
-
-### Linux host example (adapt and test before enabling)
-
-Install the scheduler on a trusted backup runner; ensure Docker access and GPG public/signing keys are provisioned for that service account. Environment variables used for production encryption must be supplied by a secret manager or restricted service environment, not written inline into the cron file.
-
-```cron
-# Example only: run a full bundle every hour. Confirm duration/capacity first.
-0 * * * * cd /srv/finpilot-platform && /usr/bin/python3 -m scripts.disaster_recovery.backup --environment production >> /var/log/finpilot-dr-backup.log 2>&1
+```powershell
+py -m scripts.disaster_recovery.history --limit 25
+py -m scripts.disaster_recovery.history --event backup --json
 ```
 
-This example creates local bundles but does not implement the off-site copy. Add an approved uploader or provider backup mechanism and alerting; do not mark the control complete until end-to-end off-site recovery is tested. Protect and rotate the log, since it reveals operational details.
+History events include successful/failed backup operations and successful/failed restore-test operations. A verification-only action can be run manually:
 
-### Windows Task Scheduler example
+```powershell
+py -m scripts.disaster_recovery.automation verify-latest --environment development
+```
 
-- **Program/script:** path to the approved Python interpreter, for example `C:\Python312\python.exe`.
-- **Add arguments:** `-m scripts.disaster_recovery.backup --environment production --output-root D:\FinPilotBackups`
-- **Start in:** the cloned FinPilot repository root.
-- **Trigger:** hourly only if the measured full backup and upload finish within the target RPO; otherwise use managed PITR/replication.
-- **Run as:** restricted backup service account with the minimum Docker/backup permissions needed.
-- **Environment and GPG:** configure `BACKUP_GPG_RECIPIENT` and `BACKUP_GPG_SIGNING_KEY` in the restricted service account's environment/keyring or secret-management integration. Avoid storing key material in the task arguments.
-- **Failure action:** alert an owner on nonzero exit or missed run. Ensure the scheduled process copies the complete bundle to an approved off-site location.
+## Windows Task Scheduler
 
-## Monitoring signals
+From repository root:
 
-At minimum monitor:
+```powershell
+.\tools\disaster_recovery\install_scheduled_backup.ps1 -Environment development -IntervalHours 1
+```
 
-- Latest successful database recovery point age.
-- Latest successful storage backup/replication age.
-- End-to-end time from backup start through off-site-copy completion.
-- Backup and restore-test exit code.
-- GPG signing/encryption/key availability result.
-- Off-site object count, size growth, immutable retention status, and capacity.
-- Most recent successful isolated restore drill and its achieved RTO/RPO.
+The script registers an hourly backup task and a daily restore-test task at 03:15. You can set `-IntervalHours` from 1 to 24. Measure actual full backup runtime and data volume before deciding on frequency. If a full database+document backup and transfer cannot complete within the target recovery-point interval, use managed PostgreSQL PITR and file/object-storage replication instead.
+
+Inspect task results:
+
+```powershell
+Get-ScheduledTask -TaskName "FinPilot-Automated-Backup", "FinPilot-Daily-Restore-Test" | Get-ScheduledTaskInfo
+```
+
+Task history is written to `<output-root>/history.jsonl`. Configure Windows Task Scheduler failure alerts/centralized monitoring separately; this package logs failure status but does not send email, SMS, or paging alerts.
+
+The installer uses the current interactive Windows account. It does not run after that account logs off. Use a dedicated service account or infrastructure scheduler for unattended/production operations.
+
+## Production setup and encryption
+
+Production backup calls require both `BACKUP_GPG_RECIPIENT` (public encryption key identifier) and `BACKUP_GPG_SIGNING_KEY` (signing private-key identifier), a usable GPG installation, and key material in the scheduled account's GPG keyring. Provide those environment variables persistently to the scheduled task account (not just to the interactive shell), then sign out/in to refresh the environment and register:
+
+```powershell
+.\tools\disaster_recovery\install_scheduled_backup.ps1 -Environment production -IntervalHours 1
+```
+
+Test encryption, signature validation, and decryption after a controlled key-recovery exercise. Keep private decryption keys separate from backup files and host credentials. Use encrypted staging storage: source dump/archive files necessarily exist as plaintext briefly before GPG encryption completes.
+
+## Cloud/off-site backups and retention
+
+The scheduler currently writes verified local bundles; it does not upload to S3, Azure Blob, GCS, or another off-site provider. Configure your approved upload or use managed backup/PITR and versioned/replicated document storage. Off-site copy completion, immutable retention, access separation, capacity alerts, and a tested retention policy are external operational steps. Automatic pruning is deliberately disabled to avoid deleting needed recovery points without an approved policy.
+
+## Restore tests
+
+The daily task selects the latest complete bundle and runs `restore_test.py --require-configuration`; production additionally requires a signed manifest. The test verifies file sizes and hashes, decrypts bundle files when necessary, restores the DB into a throwaway database created from `template0`, validates Alembic metadata, safely extracts document/configuration archives to scratch directories, and drops the throwaway DB on success. On failure the temporary DB is intentionally preserved for inspection.
+
+Example:
+
+```powershell
+py -m scripts.disaster_recovery.automation restore-test-latest --environment development
+```
+
+This does not replace live DB/storage. It is a technical restore check, not full-service or business-data validation. Complete periodic clean-environment recovery drills and record actual RTO/RPO in `recovery-test-record.md`.
+
+## Linux scheduler alternative
+
+On a trusted backup runner, configure the environment and GPG keyring for the restricted scheduler identity outside the cron file. Example entries (change repository path, interpreter, logs, interval, and restore-test time to fit the deployment):
+
+```cron
+0 * * * * cd /srv/finpilot-platform && /usr/bin/python3 -m scripts.disaster_recovery.automation backup --environment production >> /var/log/finpilot-backup.log 2>&1
+15 3 * * * cd /srv/finpilot-platform && /usr/bin/python3 -m scripts.disaster_recovery.automation restore-test-latest --environment production >> /var/log/finpilot-restore-test.log 2>&1
+```
+
+Cron starts the commands automatically but does not upload backups or page an owner. Secure and rotate the logs, ensure the account can invoke the intended Docker context, and test each command under the scheduler's actual environment before relying on it.

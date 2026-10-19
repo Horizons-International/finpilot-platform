@@ -54,3 +54,16 @@
 ## Evidence attachments
 
 List secure evidence IDs or location references. Do not attach passwords, tokens, private keys, full database dumps, customer data, or decrypted backups to this record.
+
+## Automated backup evidence (complete for scheduled exercises)
+
+- Scheduled task / scheduler job name:
+- Schedule/interval:
+- Execution identity:
+- Output-root and `history.jsonl` entry:
+- Bundle configuration archive verified:
+- Database dump, document storage, and DB-resident audit records included:
+- Environment/config secret files included only under encryption:
+- Automated verification exit status:
+- Restore-test task status and latest test timestamp:
+- Off-site transfer / immutable copy status (if configured):

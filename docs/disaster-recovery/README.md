@@ -133,3 +133,26 @@ Before declaring DR ready, verify:
 - [ ] Application release artifact and config can be recovered without the production host.
 - [ ] Named people can follow these steps without the original implementer.
 - [ ] A successful recovery drill demonstrates the stated RTO and RPO.
+
+## 9. Automated backup execution and history
+
+The extended backup tools now produce a verified bundle containing the PostgreSQL custom-format dump (including all database-resident audit records), PostgreSQL globals export, `/app/storage` document/file archive, and `configuration.tar.gz`. Active `.env` files are only included in the configuration archive when GPG encryption is configured; non-secret deployment configuration and example files are included where available. Backup output is indexed in `<output-root>/history.jsonl`.
+
+From the repository root:
+
+```powershell
+py -m scripts.disaster_recovery.backup --environment development
+py -m scripts.disaster_recovery.history --limit 25
+py -m scripts.disaster_recovery.automation verify-latest --environment development
+py -m scripts.disaster_recovery.automation restore-test-latest --environment development
+```
+
+To register local Windows tasks (hourly backup and daily restore test):
+
+```powershell
+.\tools\disaster_recovery\install_scheduled_backup.ps1 -Environment development -IntervalHours 1
+```
+
+For production, configure GPG recipient and signing key identifiers for the scheduler identity before installing the tasks with `-Environment production`. Production-mode backups fail closed without encryption/signing configuration. The Task Scheduler installer uses the current interactive Windows account and runs only while that account is logged on; production should use a restricted unattended service account or an approved infrastructure scheduler.
+
+The scheduler writes local verified backups and history only. Off-site copy, managed PITR/replication, alert delivery, backup retention/pruning, and complete service-level recovery testing remain operational controls to configure and validate separately. Do not state production DR readiness until those controls are proven in the target deployment.

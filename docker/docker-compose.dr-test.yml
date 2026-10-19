@@ -1,0 +1,41 @@
+
+name: finpilot-dr-test
+
+services:
+  postgres:
+    # Match the PostgreSQL image tag used by your existing
+    # development setup. Pin its OS variant when standardized.
+    image: pgvector/pgvector:pg17
+    environment:
+      POSTGRES_DB: finpilot_dr_test
+      POSTGRES_USER: dr_test
+      POSTGRES_PASSWORD: dr-test-only-password
+    volumes:
+      - dr_test_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U dr_test -d finpilot_dr_test"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  backend:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    environment:
+      ENVIRONMENT: testing
+      DATABASE_URL: postgresql+psycopg://dr_test:dr-test-only-password@postgres:5432/finpilot_dr_test
+      SECRET_KEY: "finpilot-dr-test-only-secret-key-not-for-production-123456"
+      ADMIN_EMAIL: dr-test@example.com
+      ADMIN_PASSWORD: "Dr-Test-Only-Password-123!"
+      STORAGE_PATH: /app/storage
+      DATABASE_REQUIRE_SSL: "false"
+    volumes:
+      - dr_test_storage:/app/storage
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+volumes:
+  dr_test_pgdata:
+  dr_test_storage:
