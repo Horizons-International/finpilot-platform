@@ -208,20 +208,6 @@ def get_document_review_service(
     )
 
 
-def get_ai_compliance_service(
-    db: Session = Depends(get_db),
-    retrieval_service: RetrievalService = Depends(
-        get_retrieval_service,
-    ),
-    current_user: User = Depends(get_current_user),
-) -> AIComplianceService:
-    return AIComplianceService(
-        db,
-        retrieval_service=retrieval_service,
-        tenant_id=current_user.tenant_id,
-    )
-
-
 def get_risk_scoring_service(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
@@ -366,9 +352,13 @@ def get_operations_analytics_service(
 
 def get_optional_retrieval_service(
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ) -> RetrievalService | None:
     try:
-        return RetrievalService(db)
+        return RetrievalService(
+            db,
+            tenant_id=current_user.tenant_id,
+        )
     except AIConfigurationError:
         return None
 
@@ -490,4 +480,18 @@ def get_regulatory_assistant_service(
             db,
             tenant_id=current_user.tenant_id,
         ),
+    )
+
+
+def get_ai_compliance_service(
+    db: Session = Depends(get_db),
+    retrieval_service: RetrievalService | None = Depends(
+        get_optional_retrieval_service,
+    ),
+    current_user: User = Depends(get_current_user),
+) -> AIComplianceService:
+    return AIComplianceService(
+        db,
+        retrieval_service=retrieval_service,
+        tenant_id=current_user.tenant_id,
     )

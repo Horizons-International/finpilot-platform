@@ -1,0 +1,2 @@
+# Install in a dedicated virtual environment, not in the production image.
+locust>=2.32,<3.0
