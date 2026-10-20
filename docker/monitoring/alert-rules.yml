@@ -1,0 +1,47 @@
+groups:
+  - name: finpilot-availability
+    rules:
+      - alert: FinPilotBackendReadinessDown
+        expr: probe_success{job="finpilot_backend_readiness"} == 0
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: "FinPilot backend readiness failed: {{ $labels.instance }}"
+          description: "The instance readiness endpoint has failed for at least one minute. Check Docker health status and backend logs."
+
+      - alert: FinPilotBackendCapacityReduced
+        expr: sum(probe_success{job="finpilot_backend_readiness"}) < 2
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "FinPilot has fewer than two healthy application instances"
+          description: "Investigate failed backend instances; the platform has lost application redundancy."
+
+      - alert: FinPilotLoadBalancerDown
+        expr: probe_success{job="finpilot_load_balancer"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "FinPilot load balancer readiness failed"
+          description: "The health probe through HAProxy did not succeed for at least one minute."
+
+      - alert: FinPilotPostgresUnreachable
+        expr: probe_success{job="finpilot_postgres_tcp"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "FinPilot PostgreSQL TCP port is unreachable"
+          description: "TCP connectivity to PostgreSQL failed. This is a port reachability check; Compose pg_isready supplies the database readiness check."
+
+      - alert: FinPilotProbeExporterUnavailable
+        expr: up{job=~"finpilot_backend_readiness|finpilot_load_balancer|finpilot_postgres_tcp"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "FinPilot black-box probe scrape failed: {{ $labels.instance }}"
+          description: "Prometheus cannot scrape the Blackbox Exporter for this target. Check exporter and network health."
