@@ -1,115 +1,185 @@
+# FinPilot High Availability development foundation.
+# Run from the repository root with:
+#   docker compose -f docker/docker-compose.yml up -d --build
+# This file replaces the existing docker/docker-compose.yml. Keep .env in docker/.
+
+x-backend-runtime: &backend-runtime
+  env_file:
+    - .env
+  volumes:
+    - finpilot_storage:/app/storage
+  depends_on:
+    postgres:
+      condition: service_healthy
+  restart: unless-stopped
+  init: true
+  stop_grace_period: 30s
+  healthcheck:
+    test:
+      - CMD
+      - python
+      - -c
+      - "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/ready', timeout=3)"
+    interval: 15s
+    timeout: 5s
+    retries: 3
+    start_period: 30s
+
 services:
+  # Keep this service named `backend` so existing commands such as
+  # `docker compose exec backend uv run alembic upgrade head` continue to work.
   backend:
+    <<: *backend-runtime
+    image: finpilot-backend:local
+    # The image is built from this repository. Do not try to pull this local tag.
+    pull_policy: build
     build:
       context: ..
       dockerfile: docker/Dockerfile
-    container_name: backend
-    ports:
-      - "8000:8000"
-    env_file:
-      - .env
+
+  backend-2:
+    <<: *backend-runtime
+    image: finpilot-backend:local
+    # This image is built locally by the `backend` service above. Do not try
+    # to pull this development-only tag from a remote registry.
+    pull_policy: never
+
+  backend-3:
+    <<: *backend-runtime
+    image: finpilot-backend:local
+    # Reuse the local image built for `backend`; this is not a published image.
+    pull_policy: never
+
+  # HAProxy is the only published HTTP entry point; each backend instance is
+  # reached internally on the Compose network.
+  haproxy:
+    image: haproxy:3.2-alpine
     volumes:
-      - finpilot_storage:/app/storage
+      - ./haproxy/haproxy.cfg:/usr/local/etc/haproxy/haproxy.cfg:ro
+    ports:
+      - "8000:8080"
+      - "127.0.0.1:8404:8404"
     depends_on:
-      - postgres
+      - backend
+      - backend-2
+      - backend-3
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:8080/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
 
   postgres:
     image: pgvector/pgvector:pg17
     container_name: postgres
-    restart: unless-stopped
     environment:
       POSTGRES_DB: customers
       POSTGRES_USER: user
-      POSTGRES_PASSWORD: "123789"
+      # Development fallback retained for compatibility with the existing .env.
+      # Use a strong secret from an approved secret manager in production.
+      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD:-123789}"
     ports:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    restart: unless-stopped
+    stop_grace_period: 1m
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \"$${POSTGRES_USER}\" -d \"$${POSTGRES_DB}\""]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 10s
 
   pgadmin:
     image: dpage/pgadmin4:latest
     container_name: pgadmin
-    restart: unless-stopped
     environment:
       PGADMIN_DEFAULT_EMAIL: admin@example.com
       PGADMIN_DEFAULT_PASSWORD: admin
     ports:
       - "5050:80"
     depends_on:
-      - postgres
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
 
   sla-monitor:
     build:
       context: ..
       dockerfile: docker/Dockerfile
-    container_name: sla-monitor
     env_file:
       - .env
-    command:
-      [
-        "uv",
-        "run",
-        "python",
-        "-m",
-        "app.jobs.sla_monitor"
-      ]
+    command: ["uv", "run", "python", "-m", "app.jobs.sla_monitor"]
     depends_on:
-      - postgres
+      postgres:
+        condition: service_healthy
     restart: unless-stopped
 
   analytics-aggregator:
     build:
       context: ..
       dockerfile: docker/Dockerfile
-    container_name: analytics-aggregator
     env_file:
       - .env
-    command:
-      [
-        "uv",
-        "run",
-        "python",
-        "-m",
-        "app.jobs.analytics_aggregator"
-      ]
+    command: ["uv", "run", "python", "-m", "app.jobs.analytics_aggregator"]
     depends_on:
-      - postgres
+      postgres:
+        condition: service_healthy
     restart: unless-stopped
 
   report-export-worker:
     build:
       context: ..
       dockerfile: docker/Dockerfile
-    container_name: report-export-worker
     env_file:
       - .env
     volumes:
       - finpilot_storage:/app/storage
-    command:
-      [
-        "uv",
-        "run",
-        "python",
-        "-m",
-        "app.jobs.report_export_worker"
-      ]
+    command: ["uv", "run", "python", "-m", "app.jobs.report_export_worker"]
     depends_on:
-      - postgres
+      postgres:
+        condition: service_healthy
     restart: unless-stopped
 
   webhook-delivery-worker:
     build:
       context: ..
       dockerfile: docker/Dockerfile
-    container_name: webhook-delivery-worker
     env_file:
       - .env
-    command:
-      ["uv", "run", "python", "-m", "app.jobs.webhook_delivery_worker"]
+    command: ["uv", "run", "python", "-m", "app.jobs.webhook_delivery_worker"]
     depends_on:
-      - postgres
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
+  blackbox-exporter:
+    image: quay.io/prometheus/blackbox-exporter:v0.28.0
+    command: ["--config.file=/etc/blackbox_exporter/config.yml"]
+    volumes:
+      - ./monitoring/blackbox.yml:/etc/blackbox_exporter/config.yml:ro
+    restart: unless-stopped
+
+  prometheus:
+    image: prom/prometheus:v3.15.0
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --storage.tsdb.retention.time=15d
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./monitoring/alert-rules.yml:/etc/prometheus/alert-rules.yml:ro
+      - prometheus_data:/prometheus
+    ports:
+      - "127.0.0.1:9090:9090"
+    depends_on:
+      - blackbox-exporter
     restart: unless-stopped
 
 volumes:
   postgres_data:
   finpilot_storage:
+  prometheus_data:
