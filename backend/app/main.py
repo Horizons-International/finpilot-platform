@@ -19,6 +19,7 @@ from app.api.auth import router as auth_router
 from app.api.case_priorities import router as case_priorities_router
 from app.api.compliance_analytics import router as compliance_analytics_router
 from app.api.compliance_cases import router as compliance_cases_router
+from app.api.compliance_documents import router as compliance_documents_router
 from app.api.customer_addresses import router as customer_addresses_router
 from app.api.customer_analytics import router as customer_analytics_router
 from app.api.customer_audit_logs import router as customer_audit_logs_router
@@ -190,6 +191,7 @@ app.include_router(investigation_notes_router)
 app.include_router(rag_router)
 app.include_router(integration_management_router)
 app.include_router(partner_onboarding_router)
+app.include_router(compliance_documents_router)
 app.include_router(security_router)
 app.include_router(data_protection_router)
 
