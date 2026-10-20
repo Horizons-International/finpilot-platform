@@ -1,0 +1,4 @@
+# Generated assessment output may contain sensitive security findings.
+# Store reports only in approved repositories/storage and sanitize before sharing.
+results/*
+!results/.gitkeep

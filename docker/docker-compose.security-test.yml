@@ -1,0 +1,71 @@
+name: finpilot-security-test
+
+# Isolated, localhost-only security-test stack. Do not use this configuration
+# for development data, staging credentials, or production deployments.
+services:
+  security-postgres:
+    image: pgvector/pgvector:pg17
+    environment:
+      POSTGRES_DB: finpilot_security_test
+      POSTGRES_USER: security_test
+      POSTGRES_PASSWORD: security-test-only-password
+    # Intentionally not published to the host. The backend connects over the
+    # private Compose network, avoiding Windows-reserved or occupied host ports.
+    volumes:
+      - security_test_db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U security_test -d finpilot_security_test"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 10s
+
+  security-backend:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    environment:
+      APP_NAME: FinPilot Security Test API
+      APP_VERSION: 1.0.0-security-test
+      ENVIRONMENT: testing
+      DATABASE_URL: postgresql+psycopg://security_test:security-test-only-password@security-postgres:5432/finpilot_security_test
+      DATABASE_REQUIRE_SSL: "false"
+      SECRET_KEY: "security-test-only-secret-key-not-for-real-use-0123456789ABCDEF"
+      ADMIN_EMAIL: security-test-admin@example.com
+      ADMIN_PASSWORD: "Security123*"
+      AI_PROVIDER: mock
+      VERIFICATION_PROVIDER: mock
+      OCR_PROVIDER: mock
+      EXTRACTION_PROVIDER: mock
+      EMAIL_PROVIDER: mock
+      SMS_PROVIDER: mock
+      RATE_LIMIT_ENABLED: "true"
+      RATE_LIMIT_WINDOW_SECONDS: "60"
+      RATE_LIMIT_REQUESTS_PER_IP: "1000"
+      # Deliberately low only to let the automated test demonstrate HTTP 429.
+      RATE_LIMIT_REQUESTS_PER_ROUTE: "3"
+      RATE_LIMIT_AUTH_REQUESTS: "5"
+      RATE_LIMIT_MAX_TRACKED_KEYS: "1000"
+      MAX_REQUEST_BODY_BYTES: "1048576"
+      SECURITY_HEADERS_ENABLED: "true"
+      HSTS_MAX_AGE_SECONDS: "0"
+      STORAGE_PATH: /app/storage
+    ports:
+      - "127.0.0.1:18080:8000"
+    depends_on:
+      security-postgres:
+        condition: service_healthy
+    # A socket check avoids consuming the deliberately tiny HTTP route limit.
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import socket; s=socket.create_connection(('127.0.0.1', 8000), timeout=2); s.close()"
+      interval: 30s
+      timeout: 3s
+      retries: 10
+      start_period: 30s
+
+volumes:
+  security_test_db_data:
