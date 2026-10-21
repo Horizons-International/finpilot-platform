@@ -33,3 +33,10 @@ Thumbs.db
 
 storage/
 test_storage/
+
+# Actual deployment environment files and secret-bearing state
+/deploy/environments/*.env
+/deploy/environments/*.env.*
+!/deploy/environments/*.env.example
+/deploy/.deploy-state/
+/release-evidence/

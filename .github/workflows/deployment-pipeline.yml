@@ -1,0 +1,186 @@
+name: FinPilot Deployment Pipeline
+
+on:
+  pull_request:
+    branches: [develop, main, master]
+  push:
+    branches: [develop, main, master]
+    tags: ["v*.*.*"]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: finpilot-ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  verify:
+    name: Quality gates and tests
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    services:
+      postgres:
+        image: pgvector/pgvector:pg17
+        env:
+          POSTGRES_USER: user
+          POSTGRES_PASSWORD: 123789
+          POSTGRES_DB: testdb
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U user -d testdb"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+    env:
+      ENVIRONMENT: testing
+      DATABASE_URL: postgresql+psycopg://user:123789@localhost:5432/testdb
+      TEST_DATABASE_URL: postgresql+psycopg://user:123789@localhost:5432/testdb
+      SECRET_KEY: eRMA3YxdyUG6dL_s7EQA0seEfTxV-6JauRUdE_FhLyHwkK5QDL9bpB_uzFXu-kqT
+      JWT_KEY: deployment-pipeline-test-only-jwt-key
+      ADMIN_EMAIL: deployment-test-admin@example.com
+      ADMIN_PASSWORD: Deployment-Test-Only-Password123!
+      RATE_LIMIT_ENABLED: "false"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+          cache-dependency-glob: backend/uv.lock
+      - name: Install locked dependencies
+        run: uv sync --locked
+      - name: Apply migrations
+        run: uv run alembic upgrade head
+      - name: Ruff
+        run: uv run ruff check .
+      - name: Black
+        run: uv run black --check .
+      - name: MyPy
+        run: uv run mypy .
+      - name: Pytest
+        run: uv run pytest -q
+      - name: Validate release Compose template
+        working-directory: .
+        env:
+          FINPILOT_IMAGE: ghcr.io/horizons-international/finpilot-platform
+          RELEASE_TAG: validation
+          FINPILOT_ENVIRONMENT: testing
+          FINPILOT_RUNTIME_ENV_FILE: ${{ github.workspace }}/deploy/environments/testing.env.example
+          FINPILOT_STORAGE_VOLUME: finpilot_testing_storage
+        run: >-
+          docker compose --project-name finpilot-template-check
+          --env-file "$FINPILOT_RUNTIME_ENV_FILE"
+          --file deploy/compose/docker-compose.release.yml config --quiet
+
+  publish-image:
+    name: Build and publish immutable container image
+    if: github.event_name == 'push'
+    needs: [verify]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      image_name: ${{ steps.image.outputs.name }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+      - name: Normalize GHCR image name
+        id: image
+        shell: bash
+        run: |
+          IMAGE_NAME="ghcr.io/${GITHUB_REPOSITORY,,}"
+          echo "name=$IMAGE_NAME" >> "$GITHUB_OUTPUT"
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Docker metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ steps.image.outputs.name }}
+          tags: |
+            type=raw,value=${{ github.sha }}
+            type=ref,event=tag
+          labels: |
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            org.opencontainers.image.revision=${{ github.sha }}
+      - name: Build and push image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: docker/Dockerfile
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+      - name: Write release manifest
+        working-directory: .
+        shell: bash
+        run: |
+          mkdir -p release-evidence
+          cat > release-evidence/release-manifest.json <<EOF
+          {
+            "repository": "${GITHUB_REPOSITORY}",
+            "commit": "${GITHUB_SHA}",
+            "ref": "${GITHUB_REF}",
+            "image": "${{ steps.image.outputs.name }}:${GITHUB_SHA}",
+            "workflow_run_id": "${GITHUB_RUN_ID}",
+            "workflow_run_attempt": "${GITHUB_RUN_ATTEMPT}"
+          }
+          EOF
+      - name: Upload release manifest
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-manifest-${{ github.sha }}
+          path: release-evidence/release-manifest.json
+          if-no-files-found: error
+          retention-days: 90
+
+  deploy-automatically:
+    name: Deploy verified image to branch-mapped environment
+    if: >-
+      github.event_name == 'push' &&
+      (github.ref == 'refs/heads/develop' || github.ref == 'refs/heads/main' ||
+       github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/tags/v'))
+    needs: [verify, publish-image]
+    runs-on: [self-hosted, linux, x64]
+    permissions:
+      contents: read
+      packages: read
+    environment:
+      name: ${{ startsWith(github.ref, 'refs/tags/v') && 'production' || github.ref == 'refs/heads/develop' && 'development' || 'testing' }}
+    concurrency:
+      group: finpilot-deploy-${{ startsWith(github.ref, 'refs/tags/v') && 'production' || github.ref == 'refs/heads/develop' && 'development' || 'testing' }}
+      cancel-in-progress: false
+    env:
+      DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+      DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+      DEPLOY_SSH_PRIVATE_KEY: ${{ secrets.DEPLOY_SSH_PRIVATE_KEY }}
+      DEPLOY_SSH_KNOWN_HOSTS: ${{ secrets.DEPLOY_SSH_KNOWN_HOSTS }}
+      DEPLOY_PATH: ${{ vars.DEPLOY_PATH }}
+      GHCR_USERNAME: ${{ secrets.GHCR_USERNAME }}
+      GHCR_PULL_TOKEN: ${{ secrets.GHCR_PULL_TOKEN }}
+      FINPILOT_IMAGE: ${{ needs.publish-image.outputs.image_name }}
+      RELEASE_TAG: ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || github.sha }}
+      TARGET_ENV: ${{ startsWith(github.ref, 'refs/tags/v') && 'production' || github.ref == 'refs/heads/develop' && 'development' || 'testing' }}
+    steps:
+      - name: Checkout deployment assets
+        uses: actions/checkout@v7
+      - name: Deploy over verified SSH
+        run: bash deploy/scripts/deploy-over-ssh.sh

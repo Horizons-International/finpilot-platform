@@ -9,7 +9,7 @@ from app.core.config import settings
 
 def validate_data_protection_environment() -> None:
     """Call during FastAPI lifespan/startup before serving production traffic."""
-    if settings.ENVIRONMENT != "production":
+    if settings.ENVIRONMENT not in {"staging", "production"}:
         return
 
     if not settings.DATA_PROTECTION_KEY:

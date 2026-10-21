@@ -10,7 +10,9 @@ class Settings(BaseSettings):
     # Application
     APP_NAME: str = "FinPilot API"
     APP_VERSION: str = "1.0.0"
-    ENVIRONMENT: Literal["development", "testing", "production"] = "development"
+    ENVIRONMENT: Literal["development", "testing", "production", "staging"] = (
+        "development"
+    )
 
     # Database. In production use sslmode=verify-full where supported.
     DATABASE_URL: str
@@ -40,7 +42,7 @@ class Settings(BaseSettings):
     @model_validator(mode="after")
     def validate_production_secrets(self) -> "Settings":
         """Refuse known placeholder/weak bootstrap secrets in production."""
-        if self.ENVIRONMENT != "production":
+        if self.ENVIRONMENT not in {"staging", "production"}:
             return self
 
         secret = self.SECRET_KEY.strip()

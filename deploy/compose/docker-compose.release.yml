@@ -1,0 +1,85 @@
+name: finpilot-${FINPILOT_ENVIRONMENT:?Set FINPILOT_ENVIRONMENT}
+
+x-app-runtime: &app-runtime
+  image: ${FINPILOT_IMAGE:?Set FINPILOT_IMAGE}:${RELEASE_TAG:?Set RELEASE_TAG}
+  env_file:
+    - ${FINPILOT_RUNTIME_ENV_FILE:?Set FINPILOT_RUNTIME_ENV_FILE to an absolute path}
+  environment:
+    APP_VERSION: ${RELEASE_TAG:?Set RELEASE_TAG}
+    STORAGE_PATH: /app/storage
+  volumes:
+    - finpilot_storage:/app/storage
+  restart: unless-stopped
+  init: true
+  stop_grace_period: 30s
+  healthcheck:
+    test:
+      - CMD
+      - python
+      - -c
+      - "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/ready', timeout=3)"
+    interval: 15s
+    timeout: 5s
+    retries: 5
+    start_period: 45s
+
+services:
+  backend:
+    <<: *app-runtime
+
+  backend-2:
+    <<: *app-runtime
+
+  backend-3:
+    <<: *app-runtime
+
+  haproxy:
+    image: haproxy:3.2-alpine
+    volumes:
+      - ./haproxy.cfg:/usr/local/etc/haproxy/haproxy.cfg:ro
+    ports:
+      - "127.0.0.1:${FINPILOT_HTTP_PORT:-8000}:8080"
+      - "127.0.0.1:${FINPILOT_STATS_PORT:-8404}:8404"
+    depends_on:
+      - backend
+      - backend-2
+      - backend-3
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:8080/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+
+  sla-monitor:
+    <<: *app-runtime
+    profiles: [workers]
+    healthcheck:
+      disable: true
+    command: ["uv", "run", "python", "-m", "app.jobs.sla_monitor"]
+
+  analytics-aggregator:
+    <<: *app-runtime
+    profiles: [workers]
+    healthcheck:
+      disable: true
+    command: ["uv", "run", "python", "-m", "app.jobs.analytics_aggregator"]
+
+  report-export-worker:
+    <<: *app-runtime
+    profiles: [workers]
+    healthcheck:
+      disable: true
+    command: ["uv", "run", "python", "-m", "app.jobs.report_export_worker"]
+
+  webhook-delivery-worker:
+    <<: *app-runtime
+    profiles: [workers]
+    healthcheck:
+      disable: true
+    command: ["uv", "run", "python", "-m", "app.jobs.webhook_delivery_worker"]
+
+volumes:
+  finpilot_storage:
+    name: ${FINPILOT_STORAGE_VOLUME:?Set FINPILOT_STORAGE_VOLUME}
