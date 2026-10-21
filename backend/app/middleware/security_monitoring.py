@@ -337,7 +337,10 @@ class SecurityMonitoringMiddleware:
                     ),
                 )
             )
-        if settings.ENVIRONMENT == "production" and settings.HSTS_MAX_AGE_SECONDS:
+        if (
+            settings.ENVIRONMENT in {"staging", "production"}
+            and settings.HSTS_MAX_AGE_SECONDS
+        ):
             headers.append(
                 (
                     b"strict-transport-security",
