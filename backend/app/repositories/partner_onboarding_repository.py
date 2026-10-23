@@ -5,18 +5,22 @@ from uuid import UUID
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.models.api_key import APIKey
 from app.models.organization import Organization
 from app.models.partner_onboarding import (
     PartnerOnboarding,
+    PartnerOnboardingAdministrator,
+    PartnerOnboardingDocument,
     PartnerOnboardingHistory,
 )
 from app.models.tenant import Tenant
 from app.models.user import User
+from app.models.user_invitation import UserInvitation
 from app.utils.enums import PartnerOnboardingStatus
 
 
 class PartnerOnboardingRepository:
-    """Repository for records managed only by platform administrators."""
+    """Persistence operations for pre-tenant onboarding and activation records."""
 
     def __init__(self, db: Session) -> None:
         self.db = db
@@ -54,6 +58,20 @@ class PartnerOnboardingRepository:
         )
         return self.db.scalar(statement)
 
+    def get_existing_user_id_by_email(self, email: str) -> UUID | None:
+        """Check globally unique user email before onboarding activation."""
+        statement = (
+            select(User.id)
+            .where(User.email == email)
+            .execution_options(
+                skip_tenant_filter=True,
+                tenant_scope_reason=(
+                    "check globally unique user email before onboarding activation"
+                ),
+            )
+        )
+        return self.db.scalar(statement)
+
     def create_tenant(self, tenant: Tenant) -> Tenant:
         self.db.add(tenant)
         self.db.flush()
@@ -63,6 +81,30 @@ class PartnerOnboardingRepository:
         self.db.add(organization)
         self.db.flush()
         return organization
+
+    def create_administrator(
+        self, administrator: PartnerOnboardingAdministrator
+    ) -> PartnerOnboardingAdministrator:
+        self.db.add(administrator)
+        self.db.flush()
+        return administrator
+
+    def create_document(
+        self, document: PartnerOnboardingDocument
+    ) -> PartnerOnboardingDocument:
+        self.db.add(document)
+        self.db.flush()
+        return document
+
+    def create_invitation(self, invitation: UserInvitation) -> UserInvitation:
+        self.db.add(invitation)
+        self.db.flush()
+        return invitation
+
+    def create_api_key(self, api_key: APIKey) -> APIKey:
+        self.db.add(api_key)
+        self.db.flush()
+        return api_key
 
     def get_by_id(
         self,
@@ -75,6 +117,17 @@ class PartnerOnboardingRepository:
         )
         if for_update:
             statement = statement.with_for_update()
+        return self.db.scalar(statement)
+
+    def get_document(
+        self,
+        onboarding_id: UUID,
+        document_id: UUID,
+    ) -> PartnerOnboardingDocument | None:
+        statement = select(PartnerOnboardingDocument).where(
+            PartnerOnboardingDocument.onboarding_id == onboarding_id,
+            PartnerOnboardingDocument.id == document_id,
+        )
         return self.db.scalar(statement)
 
     def list_all(
