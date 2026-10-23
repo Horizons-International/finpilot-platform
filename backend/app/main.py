@@ -37,6 +37,7 @@ from app.api.executive_dashboard import router as executive_dashboard_router
 from app.api.extraction import router as extraction_router
 from app.api.files import router as files_router
 from app.api.health import router as health_router
+from app.api.implementation_workspaces import router as implementation_workspaces_router
 from app.api.integration_management import router as integration_management_router
 from app.api.integrations import router as integrations_router
 from app.api.investigation_notes import router as investigation_notes_router
@@ -192,6 +193,7 @@ app.include_router(rag_router)
 app.include_router(integration_management_router)
 app.include_router(partner_onboarding_router)
 app.include_router(compliance_documents_router)
+app.include_router(implementation_workspaces_router)
 app.include_router(security_router)
 app.include_router(data_protection_router)
 
