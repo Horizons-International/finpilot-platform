@@ -326,8 +326,24 @@ class SecurityMonitoringMiddleware:
             (b"cache-control", b"no-store"),
             (b"pragma", b"no-cache"),
         ]
-        # Swagger/ReDoc require scripts and styles; CSP here targets API responses.
-        if path not in {"/docs", "/redoc", "/openapi.json"}:
+        # The developer portal uses same-origin CSS/JS and makes browser requests
+        # to the configured API base URL. Give only these static portal routes a
+        # policy that supports those resources; keep API routes locked down.
+        if path == "/developer-portal" or path.startswith("/developer-portal/"):
+            headers.append(
+                (
+                    b"content-security-policy",
+                    (
+                        b"default-src 'self'; script-src 'self'; style-src 'self'; "
+                        b"img-src 'self' data:; connect-src 'self' http: https:; "
+                        b"font-src 'self' data:; frame-ancestors 'none'; "
+                        b"base-uri 'self'; form-action 'self'"
+                    ),
+                )
+            )
+        # Swagger/ReDoc load their own scripts/styles; the strict CSP below
+        # continues to apply to regular API responses.
+        elif path not in {"/docs", "/redoc", "/openapi.json"}:
             headers.append(
                 (
                     b"content-security-policy",
