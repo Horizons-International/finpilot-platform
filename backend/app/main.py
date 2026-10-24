@@ -29,6 +29,7 @@ from app.api.customer_risk_profiles import router as customer_risk_profiles_rout
 from app.api.customers import router as customer_router
 from app.api.dashboard import router as dashboard_router
 from app.api.data_protection import router as data_protection_router
+from app.api.developer_portal import router as developer_portal_router
 from app.api.document_fraud_analysis import router as document_fraud_analysis_router
 from app.api.document_review import router as document_review_router
 from app.api.documents import router as documents_router
@@ -162,6 +163,7 @@ app.include_router(customer_addresses_router)
 app.include_router(customer_risk_profiles_router)
 app.include_router(customer_audit_logs_router)
 app.include_router(customer_onboarding_router)
+app.include_router(developer_portal_router)
 app.include_router(risk_scoring_router)
 app.include_router(risk_predictions_router)
 app.include_router(risk_scoring_rules_router)
