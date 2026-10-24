@@ -32,6 +32,13 @@ from app.models.entity_intelligence import (  # noqa: F401
     EntityIntelligenceRelationship,
 )
 from app.models.file import File  # noqa: F401
+from app.models.implementation_workspace import (  # noqa: F401
+    ImplementationWorkspace,
+    ImplementationWorkspaceComment,
+    ImplementationWorkspaceMember,
+    ImplementationWorkspaceMilestone,
+    ImplementationWorkspaceTask,
+)
 from app.models.integration import Integration  # noqa: F401
 from app.models.investigation_note import InvestigationNote  # noqa: F401
 from app.models.knowledge_document import KnowledgeDocument  # noqa: F401

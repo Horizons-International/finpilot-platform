@@ -14,9 +14,33 @@ concurrency:
   group: finpilot-ci-${{ github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
+# Pull requests only validate deployment configuration here. Backend CI owns
+# migrations, Ruff, Black, MyPy, and pytest for pull requests. For push/tag
+# events, this workflow performs the complete release verification before build
+# and deployment.
 jobs:
-  verify:
+  verify-pull-request:
+    name: Validate deployment Compose template (pull request)
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+      - name: Validate release Compose template
+        env:
+          FINPILOT_IMAGE: ghcr.io/horizons-international/finpilot-platform
+          RELEASE_TAG: validation
+          FINPILOT_ENVIRONMENT: testing
+          FINPILOT_RUNTIME_ENV_FILE: ${{ github.workspace }}/deploy/environments/testing.env.example
+          FINPILOT_STORAGE_VOLUME: finpilot_testing_storage
+        run: >-
+          docker compose --project-name finpilot-template-check
+          --env-file "$FINPILOT_RUNTIME_ENV_FILE"
+          --file deploy/compose/docker-compose.release.yml config --quiet
+
+  verify-push:
     name: Quality gates and tests
+    if: github.event_name == 'push'
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -84,7 +108,7 @@ jobs:
   publish-image:
     name: Build and publish immutable container image
     if: github.event_name == 'push'
-    needs: [verify]
+    needs: [verify-push]
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -158,7 +182,7 @@ jobs:
       github.event_name == 'push' &&
       (github.ref == 'refs/heads/develop' || github.ref == 'refs/heads/main' ||
        github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/tags/v'))
-    needs: [verify, publish-image]
+    needs: [verify-push, publish-image]
     runs-on: [self-hosted, linux, x64]
     permissions:
       contents: read
