@@ -26,6 +26,7 @@ from app.api.customer_audit_logs import router as customer_audit_logs_router
 from app.api.customer_contacts import router as customer_contacts_router
 from app.api.customer_onboarding import router as customer_onboarding_router
 from app.api.customer_risk_profiles import router as customer_risk_profiles_router
+from app.api.customer_success import router as customer_success_router
 from app.api.customers import router as customer_router
 from app.api.dashboard import router as dashboard_router
 from app.api.data_protection import router as data_protection_router
@@ -164,6 +165,7 @@ app.include_router(customer_addresses_router)
 app.include_router(customer_risk_profiles_router)
 app.include_router(customer_audit_logs_router)
 app.include_router(customer_onboarding_router)
+app.include_router(customer_success_router)
 app.include_router(developer_portal_router)
 app.include_router(risk_scoring_router)
 app.include_router(risk_predictions_router)

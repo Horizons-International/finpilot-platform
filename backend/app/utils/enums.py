@@ -190,6 +190,8 @@ class UserRole(str, Enum):
     # Existing platform/system role retained.
     AUDITOR = "Auditor"
 
+    CUSTOMER_SUCCESS_MANAGER = "Customer Success Manager"
+
 
 class AddressType(str, Enum):
     RESIDENTIAL = "residential"
