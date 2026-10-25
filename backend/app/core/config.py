@@ -18,6 +18,9 @@ class Settings(BaseSettings):
     DATABASE_URL: str
     DATABASE_REQUIRE_SSL: bool = True
 
+    # Sandbox configuration
+    SANDBOX_ENABLED: bool = False
+
     # Application-level encryption key. Keep outside source control.
     DATA_PROTECTION_KEY: str = Field(default="", repr=False)
     PUBLIC_BASE_URL: str = ""

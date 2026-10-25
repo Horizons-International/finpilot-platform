@@ -81,7 +81,7 @@ services:
       # Use a strong secret from an approved secret manager in production.
       POSTGRES_PASSWORD: "${POSTGRES_PASSWORD:-123789}"
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5433:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     restart: unless-stopped

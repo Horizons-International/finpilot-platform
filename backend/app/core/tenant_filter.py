@@ -417,7 +417,7 @@ def _bind_new_records_to_active_tenant(
             # unauthenticated operation has no tenant to attribute the event to.
             if (
                 record_tenant is None
-                and type(record).__name__ == "AuditLog"
+                and type(record).__name__ in {"AuditLog", "SecurityEvent"}
                 and _tenant_id_column_is_nullable(record)
             ):
                 continue

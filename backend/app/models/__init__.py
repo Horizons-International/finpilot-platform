@@ -54,6 +54,16 @@ from app.models.report_export import ReportExport  # noqa: F401
 from app.models.risk_prediction import RiskPrediction  # noqa: F401
 from app.models.risk_score_threshold import RiskScoreThreshold  # noqa: F401
 from app.models.risk_scoring_rule import RiskScoringRule  # noqa: F401
+from app.models.sandbox import (  # noqa: F401
+    SandboxAccount,
+    SandboxAPIKey,
+    SandboxCustomer,
+    SandboxOrganization,
+    SandboxUser,
+    SandboxVerification,
+    SandboxWebhook,
+    SandboxWebhookEvent,
+)
 from app.models.security_event import SecurityEvent  # noqa: F401
 from app.models.subscription import Subscription, SubscriptionUsageCounter  # noqa: F401
 from app.models.system_configuration import SystemConfiguration  # noqa: F401

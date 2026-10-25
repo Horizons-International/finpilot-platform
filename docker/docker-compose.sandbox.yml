@@ -1,0 +1,74 @@
+# Isolated FinPilot sandbox API stack.
+# No Postgres service is defined here: the API uses the existing Windows-host
+# PostgreSQL database named "sandbox" through host.docker.internal.
+# Run this file from the docker/ directory with -p finpilot-sandbox.
+
+x-sandbox-runtime: &sandbox-runtime
+  image: finpilot-backend:sandbox
+  env_file:
+    # Keep all other application settings from the usual development env.
+    # .env.sandbox is last so its values override entries from .env.
+    - .env
+    - .env.sandbox
+  extra_hosts:
+    - "host.docker.internal:host-gateway"
+  restart: unless-stopped
+  init: true
+  stop_grace_period: 30s
+
+services:
+  backend-sandbox:
+    <<: *sandbox-runtime
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    ports:
+      - "127.0.0.1:8001:8000"
+    volumes:
+      - ../backend/storage-sandbox:/app/storage-sandbox
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/ready', timeout=3)"
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+
+  # Background jobs are optional to avoid running scheduled jobs while you
+  # are only testing the API. Start them with --profile workers when needed.
+  sla-monitor:
+    <<: *sandbox-runtime
+    profiles: ["workers"]
+    command: ["uv", "run", "python", "-m", "app.jobs.sla_monitor"]
+    depends_on:
+      backend-sandbox:
+        condition: service_healthy
+
+  analytics-aggregator:
+    <<: *sandbox-runtime
+    profiles: ["workers"]
+    command: ["uv", "run", "python", "-m", "app.jobs.analytics_aggregator"]
+    depends_on:
+      backend-sandbox:
+        condition: service_healthy
+
+  report-export-worker:
+    <<: *sandbox-runtime
+    profiles: ["workers"]
+    command: ["uv", "run", "python", "-m", "app.jobs.report_export_worker"]
+    volumes:
+      - ../backend/storage-sandbox:/app/storage-sandbox
+    depends_on:
+      backend-sandbox:
+        condition: service_healthy
+
+  webhook-delivery-worker:
+    <<: *sandbox-runtime
+    profiles: ["workers"]
+    command: ["uv", "run", "python", "-m", "app.jobs.webhook_delivery_worker"]
+    depends_on:
+      backend-sandbox:
+        condition: service_healthy

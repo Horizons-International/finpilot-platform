@@ -20,16 +20,6 @@ def seed_admin() -> None:
     db = SessionLocal()
 
     try:
-        user_repository = UserRepository(db)
-
-        existing_admin = user_repository.get_by_email(
-            admin_email,
-        )
-
-        if existing_admin:
-            print(f"Administrator already exists: {admin_email}")
-            return
-
         tenant = (
             db.query(Tenant)
             .filter(
@@ -42,6 +32,16 @@ def seed_admin() -> None:
             raise RuntimeError(
                 "Default tenant does not exist. Run database migrations first."
             )
+
+        user_repository = UserRepository(db, tenant.id)
+
+        existing_admin = user_repository.get_by_email(
+            admin_email,
+        )
+
+        if existing_admin:
+            print(f"Administrator already exists: {admin_email}")
+            return
 
         admin = User(
             first_name="System",
