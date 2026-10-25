@@ -3,6 +3,7 @@
 .env.development
 .env.test
 .env.production
+.env.sandbox
 
 # Python
 __pycache__/
