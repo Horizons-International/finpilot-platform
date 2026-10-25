@@ -21,6 +21,12 @@ from app.models.customer_risk_assessment_history import (
 )
 from app.models.customer_risk_profile import CustomerRiskProfile  # noqa: F401
 from app.models.customer_status_history import CustomerStatusHistory  # noqa: F401
+from app.models.customer_success import (  # noqa: F401
+    CustomerSuccessHistory,
+    CustomerSuccessProfile,
+    CustomerSuccessSupportInteraction,
+    CustomerSuccessUsageSnapshot,
+)
 from app.models.document import CustomerDocument  # noqa: F401
 from app.models.document_extraction import DocumentExtraction  # noqa: F401
 from app.models.document_extraction_review_log import (
