@@ -28,6 +28,11 @@ from app.models.customer import Customer  # noqa: F401
 from app.models.customer_address import CustomerAddress  # noqa: F401
 from app.models.customer_audit_log import CustomerAuditLog  # noqa: F401
 from app.models.customer_contact import CustomerContact  # noqa: F401
+from app.models.customer_feedback import (  # noqa: F401
+    CustomerFeedback,
+    CustomerFeedbackHistory,
+    ProductRoadmapItem,
+)
 from app.models.customer_risk_assessment_history import (  # noqa: F401
     CustomerRiskAssessmentHistory,
 )
@@ -88,6 +93,7 @@ from app.models.sandbox import (  # noqa: F401
     SandboxWebhook,
     SandboxWebhookEvent,
 )
+from app.models.sandbox_demo import SandboxDemoRecord  # noqa: F401
 from app.models.security_event import SecurityEvent  # noqa: F401
 from app.models.subscription import Subscription, SubscriptionUsageCounter  # noqa: F401
 from app.models.support_ticket import (  # noqa: F401
