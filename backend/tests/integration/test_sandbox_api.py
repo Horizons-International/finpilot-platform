@@ -1,10 +1,14 @@
 """Integration coverage for isolated sandbox account and mock flows."""
 
+from uuid import uuid4
+
 import pytest
 from sqlalchemy import select
 
 from app.core.config import settings
 from app.models.sandbox import SandboxAccount
+from app.utils.enums import UserRole
+from tests.helpers import authenticate_client
 
 
 @pytest.fixture
@@ -28,7 +32,14 @@ def cleanup_sandbox_accounts(db_session):
         db_session.commit()
 
 
-def _create_account(client):
+def _create_account(client, create_test_user):
+    manager = create_test_user(
+        role=UserRole.SALES_DEMO_MANAGER.value,
+        email=f"sandbox-manager-{uuid4().hex}@example.com",
+    )
+
+    authenticate_client(client, manager)
+
     response = client.post(
         "/api/v1/sandbox/accounts",
         json={
@@ -37,10 +48,13 @@ def _create_account(client):
             "developer_email": "developer@example.com",
         },
     )
+
     assert response.status_code == 201, response.text
+
     body = response.json()["data"]
     assert body["api_key"].startswith("fp_test_")
     assert len(body["sample_customers"]) == 3
+
     return body
 
 
@@ -58,9 +72,9 @@ def test_sandbox_is_disabled_by_default(client, monkeypatch):
 
 
 def test_sandbox_sample_customers_and_mock_verification(
-    client, sandbox_enabled, cleanup_sandbox_accounts
+    client, sandbox_enabled, cleanup_sandbox_accounts, create_test_user
 ):
-    account = _create_account(client)
+    account = _create_account(client, create_test_user)
     headers = {"X-API-Key": account["api_key"]}
     response = client.get("/api/v1/sandbox/customers", headers=headers)
     assert response.status_code == 200, response.text
@@ -80,9 +94,9 @@ def test_sandbox_sample_customers_and_mock_verification(
 
 
 def test_sandbox_webhook_is_simulated_without_network_delivery(
-    client, sandbox_enabled, cleanup_sandbox_accounts
+    client, sandbox_enabled, cleanup_sandbox_accounts, create_test_user
 ):
-    account = _create_account(client)
+    account = _create_account(client, create_test_user)
     headers = {"X-API-Key": account["api_key"]}
     response = client.post(
         "/api/v1/sandbox/webhooks",
@@ -111,9 +125,9 @@ def test_sandbox_webhook_is_simulated_without_network_delivery(
 
 
 def test_sandbox_keys_cannot_be_used_on_live_integration_routes(
-    client, sandbox_enabled, cleanup_sandbox_accounts
+    client, sandbox_enabled, cleanup_sandbox_accounts, create_test_user
 ):
-    account = _create_account(client)
+    account = _create_account(client, create_test_user)
     response = client.get(
         "/api/v1/integrations/customers",
         headers={"X-API-Key": account["api_key"]},
@@ -122,10 +136,10 @@ def test_sandbox_keys_cannot_be_used_on_live_integration_routes(
 
 
 def test_sandbox_account_data_isolation(
-    client, sandbox_enabled, cleanup_sandbox_accounts
+    client, sandbox_enabled, cleanup_sandbox_accounts, create_test_user
 ):
-    first = _create_account(client)
-    second = _create_account(client)
+    first = _create_account(client, create_test_user)
+    second = _create_account(client, create_test_user)
     response = client.get(
         f"/api/v1/sandbox/customers/{first['sample_customers'][0]['id']}",
         headers={"X-API-Key": second["api_key"]},
@@ -134,9 +148,9 @@ def test_sandbox_account_data_isolation(
 
 
 def test_sandbox_read_key_cannot_write(
-    client, sandbox_enabled, cleanup_sandbox_accounts
+    client, sandbox_enabled, cleanup_sandbox_accounts, create_test_user
 ):
-    account = _create_account(client)
+    account = _create_account(client, create_test_user)
     admin_headers = {"X-API-Key": account["api_key"]}
     response = client.post(
         "/api/v1/sandbox/account/api-keys",
@@ -159,9 +173,9 @@ def test_sandbox_read_key_cannot_write(
 
 
 def test_sandbox_users_can_be_created_and_listed(
-    client, sandbox_enabled, cleanup_sandbox_accounts
+    client, sandbox_enabled, cleanup_sandbox_accounts, create_test_user
 ):
-    account = _create_account(client)
+    account = _create_account(client, create_test_user)
     headers = {"X-API-Key": account["api_key"]}
     response = client.post(
         "/api/v1/sandbox/users",

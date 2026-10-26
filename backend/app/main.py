@@ -59,6 +59,7 @@ from app.api.reports import router as reports_router
 from app.api.risk_predictions import router as risk_predictions_router
 from app.api.risk_scoring import router as risk_scoring_router
 from app.api.risk_scoring_rules import router as risk_scoring_rules_router
+from app.api.sales_demo import router as sales_demo_router
 from app.api.sandbox import router as sandbox_router
 from app.api.security import router as security_router
 from app.api.subscriptions import router as subscriptions_router
@@ -208,6 +209,7 @@ app.include_router(security_router)
 app.include_router(data_protection_router)
 app.include_router(support_tickets_router)
 app.include_router(sandbox_router)
+app.include_router(sales_demo_router)
 
 app.add_exception_handler(HTTPException, http_exception_handler)
 app.add_exception_handler(RequestValidationError, validation_exception_handler)

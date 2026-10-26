@@ -196,6 +196,8 @@ class UserRole(str, Enum):
 
     PRODUCT_MANAGER = "Product Manager"
 
+    SALES_DEMO_MANAGER = "Sales Demo Manager"
+
 
 class AddressType(str, Enum):
     RESIDENTIAL = "residential"

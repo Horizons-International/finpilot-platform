@@ -1,5 +1,6 @@
 """Sandbox API endpoints. Never call production services from this router."""
 
+from typing import Any
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query, status
@@ -12,6 +13,7 @@ from app.core.sandbox_security import (
     require_sandbox_enabled,
     require_sandbox_permission,
 )
+from app.core.security import require_roles
 from app.schemas.sandbox import (
     SandboxAccountCreate,
     SandboxAccountCreatedResponse,
@@ -32,6 +34,7 @@ from app.schemas.sandbox import (
     SandboxWebhookSimulationRequest,
 )
 from app.services.sandbox_service import SandboxService
+from app.utils.enums import UserRole
 
 router = APIRouter(
     prefix="/api/v1/sandbox",
@@ -49,6 +52,9 @@ router = APIRouter(
 def create_sandbox_account(
     payload: SandboxAccountCreate,
     db: Session = Depends(get_db),
+    _: dict[str, Any] = Depends(
+        require_roles(UserRole.SALES_DEMO_MANAGER, resource_type="sandbox-account")
+    ),
 ) -> APIResponse[SandboxAccountCreatedResponse]:
     created = SandboxService(db).create_account(payload)
     response = SandboxAccountCreatedResponse(
