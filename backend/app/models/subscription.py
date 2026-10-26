@@ -51,6 +51,17 @@ class Subscription(Base):
         index=True,
     )
     plan_name: Mapped[str] = mapped_column(String(32), nullable=False, index=True)
+    # Nullable for legacy built-in plan subscriptions created before billing plans.
+    billing_plan_id: Mapped[UUID | None] = mapped_column(
+        PostgreSQLUUID(as_uuid=True),
+        ForeignKey(
+            "billing_plans.id",
+            ondelete="SET NULL",
+            name="fk_subscriptions_billing_plan_id_billing_plans",
+        ),
+        nullable=True,
+        index=True,
+    )
     status: Mapped[SubscriptionStatus] = mapped_column(
         Enum(
             SubscriptionStatus,

@@ -16,6 +16,7 @@ from app.api.aml_rules import router as aml_rules_router
 from app.api.api_keys import router as api_keys_router
 from app.api.audit_events import router as audit_events_router
 from app.api.auth import router as auth_router
+from app.api.billing import router as billing_router
 from app.api.case_priorities import router as case_priorities_router
 from app.api.compliance_analytics import router as compliance_analytics_router
 from app.api.compliance_cases import router as compliance_cases_router
@@ -147,6 +148,7 @@ app.include_router(users_router)
 app.include_router(tenants_router)
 app.include_router(organizations_router)
 app.include_router(system_configurations_router)
+app.include_router(billing_router)
 app.include_router(dashboard_router)
 app.include_router(executive_dashboard_router)
 app.include_router(metrics_router)
