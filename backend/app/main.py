@@ -50,6 +50,7 @@ from app.api.ocr import router as ocr_router
 from app.api.operations_analytics import router as operations_analytics_router
 from app.api.organizations import router as organizations_router
 from app.api.partner_onboarding import router as partner_onboarding_router
+from app.api.product_usage_analytics import router as product_usage_analytics_router
 from app.api.profile import router as profile_router
 from app.api.rag import router as rag_router
 from app.api.report_exports import router as report_exports_router
@@ -151,6 +152,7 @@ app.include_router(executive_dashboard_router)
 app.include_router(metrics_router)
 app.include_router(reports_router)
 app.include_router(report_exports_router)
+app.include_router(product_usage_analytics_router)
 app.include_router(customer_analytics_router)
 app.include_router(compliance_analytics_router)
 app.include_router(operations_analytics_router)
