@@ -194,6 +194,8 @@ class UserRole(str, Enum):
 
     SUPPORT_AGENT = "Support Agent"
 
+    PRODUCT_MANAGER = "Product Manager"
+
 
 class AddressType(str, Enum):
     RESIDENTIAL = "residential"
