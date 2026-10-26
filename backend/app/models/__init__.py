@@ -13,6 +13,7 @@ from app.models.aml_rule import AMLRule  # noqa: F401
 from app.models.api_key import APIKey, APIKeyUsage  # noqa: F401
 from app.models.audit_event import AuditEvent  # noqa: F401
 from app.models.audit_log import AuditLog  # noqa: F401
+from app.models.billing import BillingPlan, Invoice, InvoiceLineItem  # noqa: F401
 from app.models.case_priority import CasePriority  # noqa: F401
 from app.models.communication_log import CommunicationLog  # noqa: F401
 from app.models.compliance_case import ComplianceCase  # noqa: F401
