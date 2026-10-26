@@ -60,6 +60,7 @@ from app.api.risk_scoring_rules import router as risk_scoring_rules_router
 from app.api.sandbox import router as sandbox_router
 from app.api.security import router as security_router
 from app.api.subscriptions import router as subscriptions_router
+from app.api.support_tickets import router as support_tickets_router
 from app.api.system_configurations import router as system_configurations_router
 from app.api.task_assignment_rules import router as task_assignment_rules_router
 from app.api.tasks import router as tasks_router
@@ -201,6 +202,7 @@ app.include_router(compliance_documents_router)
 app.include_router(implementation_workspaces_router)
 app.include_router(security_router)
 app.include_router(data_protection_router)
+app.include_router(support_tickets_router)
 app.include_router(sandbox_router)
 
 app.add_exception_handler(HTTPException, http_exception_handler)

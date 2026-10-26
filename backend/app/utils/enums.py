@@ -192,6 +192,8 @@ class UserRole(str, Enum):
 
     CUSTOMER_SUCCESS_MANAGER = "Customer Success Manager"
 
+    SUPPORT_AGENT = "Support Agent"
+
 
 class AddressType(str, Enum):
     RESIDENTIAL = "residential"
@@ -598,3 +600,29 @@ class SubscriptionStatus(StrEnum):
     SUSPENDED = "suspended"
     CANCELLED = "cancelled"
     EXPIRED = "expired"
+
+
+class SupportTicketStatus(StrEnum):
+    OPEN = "OPEN"
+    ASSIGNED = "ASSIGNED"
+    IN_PROGRESS = "IN_PROGRESS"
+    WAITING_CUSTOMER = "WAITING_CUSTOMER"
+    RESOLVED = "RESOLVED"
+    CLOSED = "CLOSED"
+
+
+class SupportTicketCategory(StrEnum):
+    API_ISSUE = "API_ISSUE"
+    INTEGRATION_PROBLEM = "INTEGRATION_PROBLEM"
+    SYSTEM_ERROR = "SYSTEM_ERROR"
+    CONFIGURATION_REQUEST = "CONFIGURATION_REQUEST"
+    USER_ACCESS_REQUEST = "USER_ACCESS_REQUEST"
+    REPORTING_REQUEST = "REPORTING_REQUEST"
+    OTHER = "OTHER"
+
+
+class SupportTicketPriority(StrEnum):
+    LOW = "LOW"
+    MEDIUM = "MEDIUM"
+    HIGH = "HIGH"
+    URGENT = "URGENT"
