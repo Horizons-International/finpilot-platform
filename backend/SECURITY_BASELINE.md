@@ -1,8 +1,6 @@
 # FinPilot security baseline
 
-This overlay strengthens the existing API security implementation; it does not
-replace the existing JWT authentication, tenant filtering, RBAC, audit service,
-MFA, API-key permissions, or session-management routes.
+This document describes security controls included in the current backend. It supplements, rather than replaces, the existing JWT authentication, tenant filtering, RBAC, audit service, MFA, API-key permissions, and session-management routes.
 
 ## Controls added or hardened
 
@@ -75,8 +73,7 @@ and monitoring before production rollout.
 
 ## Suggested rollout
 
-1. Overlay files at the matching paths; review the changes and keep secrets out
-   of version control.
+1. Review the current implementation at the paths referenced below. Do not apply a historical ZIP overlay or duplicate middleware/router registrations. Keep secrets out of version control.
 2. Install/update dependencies from the existing lockfile with `uv sync --locked`.
 3. Run focused tests and then the full suite. The application needs a reachable
    PostgreSQL test database for integration tests.
@@ -102,3 +99,10 @@ uv run mypy app/core/config.py app/core/security.py app/middleware/security_moni
 ```
 
 Integration tests require the project's configured PostgreSQL test database.
+
+
+## External evaluation and repository hygiene
+
+The current Git tree includes `docker/.env` even though runtime environment files should not be committed. Its contents have not been reproduced in this document. Before sharing the repository, inspect it privately, remove credentials from tracked files and history, rotate any values that may have been exposed, and replace the file with a safe example template. A clean working tree does not prove that older Git commits contain no secrets.
+
+For an independent review, use [the evaluator guide](../docs/EVALUATOR_GUIDE.md) and [known limitations](../docs/KNOWN_LIMITATIONS.md). In particular, the in-process limiter is not distributed across replicas; a gateway/shared store is still required for multi-instance production traffic. Verify all security claims with current test evidence tied to the exact commit and deployment configuration.
