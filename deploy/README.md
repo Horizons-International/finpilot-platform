@@ -462,3 +462,11 @@ Verify the following:
 - [ ] Deployment results and release evidence are retained for operational review.
 
 Refer to `docs/deployment/DEPLOYMENT_RUNBOOK.md` for the operational release flow, migration strategy, release evidence, and recovery checklist.
+
+## Evaluator handoff notes
+
+For an independent review, begin with [the evaluator guide](../docs/EVALUATOR_GUIDE.md) and [known limitations](../docs/KNOWN_LIMITATIONS.md). The release Compose stack deliberately does not create PostgreSQL; the target environment must supply an isolated PostgreSQL service with required extensions such as pgvector, plus durable storage and backups. The runtime environment file is provisioned separately on the target host.
+
+**Repository credential warning:** the current source tree contains `docker/.env`, despite environment files being excluded by `.gitignore`. Do not use or distribute that file without privately reviewing it. Remove committed secrets, review the Git history, rotate any credential that may have been exposed, and replace the tracked environment with a placeholder-only example before external distribution. GitHub Environment secrets do not remediate a secret that remains in repository history.
+
+The automatic deployment workflow, deployment approvals and successful CI checks should be verified for the exact reviewed commit. The presence of deployment scripts and a local multi-container Compose stack is not evidence of a successful release or multi-host high availability.
