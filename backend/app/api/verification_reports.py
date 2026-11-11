@@ -1,61 +1,51 @@
 from datetime import date
 from typing import Any
+from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query, status
+from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import Session
 
-from app.core.database import get_db
+from app.core.async_security import require_async_roles
+from app.core.database import get_async_db
 from app.core.responses import APIResponse
-from app.core.security import get_current_user, require_roles
-from app.models.user import User
-from app.schemas.report import (
-    DocumentSummaryResponse,
-    VerificationSummaryResponse,
-)
+from app.schemas.report import DocumentSummaryResponse, VerificationSummaryResponse
+from app.services.async_service_bridge import run_sync_in_tenant
 from app.services.report_service import ReportService
 from app.utils.enums import DocumentStatus, UserRole, VerificationStatus
 
-router = APIRouter(
-    prefix="/api/v1/reports",
-    tags=["Reports"],
-)
-
-
-def get_report_service(
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
-) -> ReportService:
-    """Build a report service scoped to the authenticated user's tenant."""
-    return ReportService(db, tenant_id=current_user.tenant_id)
+router = APIRouter(prefix="/api/v1/reports", tags=["Reports"])
 
 
 @router.get(
     "/verification-summary",
     response_model=APIResponse[VerificationSummaryResponse],
     status_code=status.HTTP_200_OK,
-    summary="Get verification summary",
-    description="Retrieve verification summary.",
 )
-def get_verification_summary(
+async def get_verification_summary(
     date_from: date | None = Query(default=None),
     date_to: date | None = Query(default=None),
     status: VerificationStatus | None = Query(default=None),
-    _: dict[str, Any] = Depends(
-        require_roles(
+    db: AsyncSession = Depends(get_async_db),
+    current_user: dict[str, Any] = Depends(
+        require_async_roles(
             UserRole.ADMINISTRATOR,
             UserRole.COMPLIANCE_OFFICER,
             UserRole.AUDITOR,
             resource_type="verification_summary",
         )
     ),
-    service: ReportService = Depends(get_report_service),
 ) -> APIResponse[VerificationSummaryResponse]:
-    summary = service.get_verification_summary(
-        date_from=date_from,
-        date_to=date_to,
-        status=status,
-    )
+    tenant_id = UUID(current_user["tenant_id"])
 
+    def operation(sync_db: Session):
+        return ReportService(sync_db, tenant_id=tenant_id).get_verification_summary(
+            date_from=date_from,
+            date_to=date_to,
+            status=status,
+        )
+
+    summary = await run_sync_in_tenant(db, tenant_id, operation)
     return APIResponse(
         success=True,
         message="Verification summary retrieved successfully.",
@@ -63,32 +53,31 @@ def get_verification_summary(
     )
 
 
-@router.get(
-    "/document-summary",
-    response_model=APIResponse[DocumentSummaryResponse],
-)
-def get_document_summary(
+@router.get("/document-summary", response_model=APIResponse[DocumentSummaryResponse])
+async def get_document_summary(
     date_from: date | None = Query(default=None),
     date_to: date | None = Query(default=None),
     status: DocumentStatus | None = Query(default=None),
-    _: dict[str, Any] = Depends(
-        require_roles(
+    db: AsyncSession = Depends(get_async_db),
+    current_user: dict[str, Any] = Depends(
+        require_async_roles(
             UserRole.ADMINISTRATOR,
             UserRole.COMPLIANCE_OFFICER,
             UserRole.AUDITOR,
             resource_type="verification_summary",
         )
     ),
-    service: ReportService = Depends(get_report_service),
 ) -> APIResponse[DocumentSummaryResponse]:
-    summary = service.get_document_summary(
-        date_from=date_from,
-        date_to=date_to,
-        status=status,
-    )
+    tenant_id = UUID(current_user["tenant_id"])
 
+    def operation(sync_db: Session):
+        return ReportService(sync_db, tenant_id=tenant_id).get_document_summary(
+            date_from=date_from,
+            date_to=date_to,
+            status=status,
+        )
+
+    summary = await run_sync_in_tenant(db, tenant_id, operation)
     return APIResponse(
-        success=True,
-        message="Document summary retrieved successfully.",
-        data=summary,
+        success=True, message="Document summary retrieved successfully.", data=summary
     )

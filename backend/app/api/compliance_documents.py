@@ -5,12 +5,13 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, File, Form, Query, Request, UploadFile, status
 from fastapi.responses import Response
-from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.database import get_async_db
-from app.core.dependencies import get_storage
+from app.core.async_dependencies import (
+    get_async_compliance_document_service,
+    get_async_file_service,
+)
+from app.core.async_security import get_async_current_user, require_async_roles
 from app.core.responses import APIResponse
-from app.core.security import get_current_user, require_roles
 from app.models.compliance_document import ComplianceDocumentStatus
 from app.models.user import User
 from app.schemas.compliance_document import (
@@ -25,7 +26,6 @@ from app.services.async_compliance_document_service import (
     AsyncComplianceDocumentService,
 )
 from app.services.async_file_service import AsyncFileService
-from app.storages.base_storage import BaseStorage
 from app.utils.enums import UserRole
 
 router = APIRouter(
@@ -59,41 +59,6 @@ _EVIDENCE_TYPES = {
 }
 
 
-def get_async_file_service(
-    request: Request,
-    db: AsyncSession = Depends(get_async_db),
-    storage: BaseStorage = Depends(get_storage),
-    current_user: User = Depends(get_current_user),
-) -> AsyncFileService:
-    return AsyncFileService(
-        db=db,
-        storage=storage,
-        tenant_id=current_user.tenant_id,
-        actor_user_id=current_user.id,
-        actor_email=str(current_user.email),
-        ip_address=request.client.host if request.client else None,
-        user_agent=request.headers.get("user-agent"),
-    )
-
-
-def get_compliance_document_service(
-    request: Request,
-    db: AsyncSession = Depends(get_async_db),
-    current_user: User = Depends(get_current_user),
-    file_service: AsyncFileService = Depends(get_async_file_service),
-    storage: BaseStorage = Depends(get_storage),
-) -> AsyncComplianceDocumentService:
-    return AsyncComplianceDocumentService(
-        db,
-        tenant_id=current_user.tenant_id,
-        current_user=current_user,
-        file_service=file_service,
-        storage=storage,
-        ip_address=request.client.host if request.client else None,
-        user_agent=request.headers.get("user-agent"),
-    )
-
-
 @router.post(
     "",
     response_model=APIResponse[ComplianceDocumentResponse],
@@ -106,9 +71,11 @@ async def create_compliance_document(
     file: UploadFile = File(...),
     change_summary: str | None = Form(default="Initial version", max_length=2000),
     _: dict[str, Any] = Depends(
-        require_roles(*_WRITE_ROLES, resource_type="compliance_document")
+        require_async_roles(*_WRITE_ROLES, resource_type="compliance_document")
     ),
-    service: AsyncComplianceDocumentService = Depends(get_compliance_document_service),
+    service: AsyncComplianceDocumentService = Depends(
+        get_async_compliance_document_service
+    ),
 ) -> APIResponse[ComplianceDocumentResponse]:
     document = await service.create_document(
         name=name,
@@ -136,9 +103,11 @@ async def list_compliance_documents(
     limit: int = Query(default=100, ge=1, le=500),
     offset: int = Query(default=0, ge=0),
     _: dict[str, Any] = Depends(
-        require_roles(*_READ_ROLES, resource_type="compliance_document")
+        require_async_roles(*_READ_ROLES, resource_type="compliance_document")
     ),
-    service: AsyncComplianceDocumentService = Depends(get_compliance_document_service),
+    service: AsyncComplianceDocumentService = Depends(
+        get_async_compliance_document_service
+    ),
 ) -> APIResponse[list[ComplianceDocumentResponse]]:
     documents = await service.list_documents(
         category=category,
@@ -161,9 +130,11 @@ async def list_compliance_documents(
 async def get_compliance_document(
     document_id: UUID,
     _: dict[str, Any] = Depends(
-        require_roles(*_READ_ROLES, resource_type="compliance_document")
+        require_async_roles(*_READ_ROLES, resource_type="compliance_document")
     ),
-    service: AsyncComplianceDocumentService = Depends(get_compliance_document_service),
+    service: AsyncComplianceDocumentService = Depends(
+        get_async_compliance_document_service
+    ),
 ) -> APIResponse[ComplianceDocumentResponse]:
     document = await service.get_document(document_id)
     return APIResponse(
@@ -181,9 +152,11 @@ async def get_compliance_document(
 async def list_compliance_document_versions(
     document_id: UUID,
     _: dict[str, Any] = Depends(
-        require_roles(*_READ_ROLES, resource_type="compliance_document")
+        require_async_roles(*_READ_ROLES, resource_type="compliance_document")
     ),
-    service: AsyncComplianceDocumentService = Depends(get_compliance_document_service),
+    service: AsyncComplianceDocumentService = Depends(
+        get_async_compliance_document_service
+    ),
 ) -> APIResponse[list[ComplianceDocumentVersionResponse]]:
     versions = await service.list_versions(document_id)
     return APIResponse(
@@ -206,9 +179,11 @@ async def create_compliance_document_version(
     file: UploadFile = File(...),
     change_summary: str | None = Form(default=None, max_length=2000),
     _: dict[str, Any] = Depends(
-        require_roles(*_WRITE_ROLES, resource_type="compliance_document")
+        require_async_roles(*_WRITE_ROLES, resource_type="compliance_document")
     ),
-    service: AsyncComplianceDocumentService = Depends(get_compliance_document_service),
+    service: AsyncComplianceDocumentService = Depends(
+        get_async_compliance_document_service
+    ),
 ) -> APIResponse[ComplianceDocumentResponse]:
     document = await service.create_version(
         document_id=document_id,
@@ -230,11 +205,13 @@ async def download_compliance_document_version(
     request: Request,
     document_id: UUID,
     version_number: int,
-    service: AsyncComplianceDocumentService = Depends(get_compliance_document_service),
+    service: AsyncComplianceDocumentService = Depends(
+        get_async_compliance_document_service
+    ),
     file_service: AsyncFileService = Depends(get_async_file_service),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_async_current_user),
     _: dict[str, Any] = Depends(
-        require_roles(*_READ_ROLES, resource_type="compliance_document")
+        require_async_roles(*_READ_ROLES, resource_type="compliance_document")
     ),
 ) -> Response:
     versions = await service.list_versions(document_id)
@@ -243,8 +220,7 @@ async def download_compliance_document_version(
         from fastapi import HTTPException
 
         raise HTTPException(
-            status_code=404,
-            detail="Compliance document version not found.",
+            status_code=404, detail="Compliance document version not found."
         )
 
     content, filename, content_type = await file_service.download_file(
@@ -271,9 +247,11 @@ async def submit_compliance_document_for_approval(
     document_id: UUID,
     payload: ComplianceApprovalComment,
     _: dict[str, Any] = Depends(
-        require_roles(*_WRITE_ROLES, resource_type="compliance_document")
+        require_async_roles(*_WRITE_ROLES, resource_type="compliance_document")
     ),
-    service: AsyncComplianceDocumentService = Depends(get_compliance_document_service),
+    service: AsyncComplianceDocumentService = Depends(
+        get_async_compliance_document_service
+    ),
 ) -> APIResponse[ComplianceDocumentResponse]:
     document = await service.submit_for_approval(document_id, payload.comment)
     return APIResponse(
@@ -292,9 +270,13 @@ async def approve_compliance_document(
     document_id: UUID,
     payload: ComplianceApprovalComment,
     _: dict[str, Any] = Depends(
-        require_roles(*_APPROVER_ROLES, resource_type="compliance_document_approval")
+        require_async_roles(
+            *_APPROVER_ROLES, resource_type="compliance_document_approval"
+        )
     ),
-    service: AsyncComplianceDocumentService = Depends(get_compliance_document_service),
+    service: AsyncComplianceDocumentService = Depends(
+        get_async_compliance_document_service
+    ),
 ) -> APIResponse[ComplianceDocumentResponse]:
     document = await service.approve(document_id, payload.comment)
     return APIResponse(
@@ -313,9 +295,13 @@ async def reject_compliance_document(
     document_id: UUID,
     payload: ComplianceApprovalComment,
     _: dict[str, Any] = Depends(
-        require_roles(*_APPROVER_ROLES, resource_type="compliance_document_approval")
+        require_async_roles(
+            *_APPROVER_ROLES, resource_type="compliance_document_approval"
+        )
     ),
-    service: AsyncComplianceDocumentService = Depends(get_compliance_document_service),
+    service: AsyncComplianceDocumentService = Depends(
+        get_async_compliance_document_service
+    ),
 ) -> APIResponse[ComplianceDocumentResponse]:
     document = await service.reject(document_id, payload.comment)
     return APIResponse(
@@ -333,9 +319,11 @@ async def reject_compliance_document(
 async def list_compliance_document_approvals(
     document_id: UUID,
     _: dict[str, Any] = Depends(
-        require_roles(*_READ_ROLES, resource_type="compliance_document")
+        require_async_roles(*_READ_ROLES, resource_type="compliance_document")
     ),
-    service: AsyncComplianceDocumentService = Depends(get_compliance_document_service),
+    service: AsyncComplianceDocumentService = Depends(
+        get_async_compliance_document_service
+    ),
 ) -> APIResponse[list[ComplianceApprovalResponse]]:
     approvals = await service.list_approvals(document_id)
     return APIResponse(
@@ -355,9 +343,11 @@ async def add_compliance_evidence(
     document_id: UUID,
     payload: ComplianceEvidenceCreate,
     _: dict[str, Any] = Depends(
-        require_roles(*_WRITE_ROLES, resource_type="compliance_evidence")
+        require_async_roles(*_WRITE_ROLES, resource_type="compliance_evidence")
     ),
-    service: AsyncComplianceDocumentService = Depends(get_compliance_document_service),
+    service: AsyncComplianceDocumentService = Depends(
+        get_async_compliance_document_service
+    ),
 ) -> APIResponse[ComplianceEvidenceResponse]:
     evidence = await service.add_evidence(
         document_id,
@@ -379,9 +369,11 @@ async def add_compliance_evidence(
 async def list_compliance_evidence(
     document_id: UUID,
     _: dict[str, Any] = Depends(
-        require_roles(*_READ_ROLES, resource_type="compliance_evidence")
+        require_async_roles(*_READ_ROLES, resource_type="compliance_evidence")
     ),
-    service: AsyncComplianceDocumentService = Depends(get_compliance_document_service),
+    service: AsyncComplianceDocumentService = Depends(
+        get_async_compliance_document_service
+    ),
 ) -> APIResponse[list[ComplianceEvidenceResponse]]:
     evidence = await service.list_evidence(document_id)
     return APIResponse(
@@ -399,9 +391,11 @@ async def list_compliance_evidence(
 async def archive_compliance_document(
     document_id: UUID,
     _: dict[str, Any] = Depends(
-        require_roles(*_APPROVER_ROLES, resource_type="compliance_document")
+        require_async_roles(*_APPROVER_ROLES, resource_type="compliance_document")
     ),
-    service: AsyncComplianceDocumentService = Depends(get_compliance_document_service),
+    service: AsyncComplianceDocumentService = Depends(
+        get_async_compliance_document_service
+    ),
 ) -> APIResponse[ComplianceDocumentResponse]:
     document = await service.archive(document_id)
     return APIResponse(

@@ -3,9 +3,9 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, Request, status
 
-from app.core.dependencies import get_verification_service
+from app.core.async_dependencies import get_async_verification_service
+from app.core.async_security import require_async_roles
 from app.core.responses import APIResponse
-from app.core.security import require_roles
 from app.providers.schemas import VerificationResponse
 from app.schemas.verification_case import (
     VerificationCaseCreate,
@@ -13,14 +13,13 @@ from app.schemas.verification_case import (
     VerificationCaseResponse,
     VerificationCaseStatusUpdate,
 )
-from app.services.verification_service import VerificationService
+from app.services.async_verification_service import AsyncVerificationService
 from app.utils.enums import UserRole
 
 router = APIRouter(
     prefix="/api/v1/customers/{customer_id}/verification-cases",
     tags=["Verification Cases"],
 )
-
 verification_router = APIRouter(
     prefix="/api/v1/customers/{customer_id}",
     tags=["Verification"],
@@ -34,28 +33,27 @@ verification_router = APIRouter(
     summary="Create verification case",
     description="Create an identity verification case for a customer.",
 )
-def create_verification_case(
+async def create_verification_case(
     request: Request,
     customer_id: UUID,
     case_data: VerificationCaseCreate,
     current_user: dict[str, Any] = Depends(
-        require_roles(
+        require_async_roles(
             UserRole.ADMINISTRATOR,
             UserRole.COMPLIANCE_OFFICER,
             resource_type="verification_case",
         )
     ),
-    service: VerificationService = Depends(get_verification_service),
+    service: AsyncVerificationService = Depends(get_async_verification_service),
 ) -> APIResponse[VerificationCaseResponse]:
-    case = service.create_case(
+    case = await service.create_case(
         customer_id=customer_id,
         case_data=case_data,
         user_id=UUID(current_user["sub"]),
         email=current_user["email"],
-        ip_address=(request.client.host if request.client else None),
+        ip_address=request.client.host if request.client else None,
         user_agent=request.headers.get("user-agent"),
     )
-
     return APIResponse(
         success=True,
         message="Verification case created successfully.",
@@ -70,20 +68,19 @@ def create_verification_case(
     summary="Get customer verification cases",
     description="Retrieve all verification cases for a customer.",
 )
-def get_verification_cases(
+async def get_verification_cases(
     customer_id: UUID,
     _: dict[str, Any] = Depends(
-        require_roles(
+        require_async_roles(
             UserRole.ADMINISTRATOR,
             UserRole.COMPLIANCE_OFFICER,
             UserRole.REVIEWER,
             resource_type="verification_case",
         )
     ),
-    service: VerificationService = Depends(get_verification_service),
+    service: AsyncVerificationService = Depends(get_async_verification_service),
 ) -> APIResponse[list[VerificationCaseResponse]]:
-    cases = service.get_cases_by_customer(customer_id)
-
+    cases = await service.get_cases_by_customer(customer_id)
     return APIResponse(
         success=True,
         message="Verification cases retrieved successfully.",
@@ -98,30 +95,29 @@ def get_verification_cases(
     summary="Patch verification case status",
     description="Updates verification case status.",
 )
-def update_verification_case_status(
+async def update_verification_case_status(
     customer_id: UUID,
     case_id: UUID,
     request: Request,
     status_data: VerificationCaseStatusUpdate,
     current_user: dict[str, Any] = Depends(
-        require_roles(
+        require_async_roles(
             UserRole.ADMINISTRATOR,
             UserRole.COMPLIANCE_OFFICER,
-            resource_type="verification",
+            resource_type="verification_case",
         )
     ),
-    service: VerificationService = Depends(get_verification_service),
+    service: AsyncVerificationService = Depends(get_async_verification_service),
 ) -> APIResponse[VerificationCaseResponse]:
-    case = service.update_status(
+    case = await service.update_status(
         customer_id=customer_id,
         case_id=case_id,
         status_data=status_data,
         user_id=UUID(current_user["sub"]),
         email=current_user["email"],
-        ip_address=(request.client.host if request.client else None),
+        ip_address=request.client.host if request.client else None,
         user_agent=request.headers.get("user-agent"),
     )
-
     return APIResponse(
         success=True,
         message="Verification case status updated successfully.",
@@ -136,28 +132,27 @@ def update_verification_case_status(
     summary="Initiate verification case",
     description="Initiate verification case by ID.",
 )
-def initiate_verification(
+async def initiate_verification(
     request: Request,
     customer_id: UUID,
     verification_data: VerificationCaseInitiation,
     current_user: dict[str, Any] = Depends(
-        require_roles(
+        require_async_roles(
             UserRole.ADMINISTRATOR,
             UserRole.COMPLIANCE_OFFICER,
             resource_type="verification_case",
         )
     ),
-    service: VerificationService = Depends(get_verification_service),
+    service: AsyncVerificationService = Depends(get_async_verification_service),
 ) -> APIResponse[VerificationCaseResponse]:
-    case = service.initiate_verification(
+    case = await service.initiate_verification(
         customer_id=customer_id,
         verification_data=verification_data,
         user_id=UUID(current_user["sub"]),
         email=current_user["email"],
-        ip_address=(request.client.host if request.client else None),
+        ip_address=request.client.host if request.client else None,
         user_agent=request.headers.get("user-agent"),
     )
-
     return APIResponse(
         success=True,
         message="Verification initiated successfully.",
@@ -172,28 +167,27 @@ def initiate_verification(
     summary="Submit verification case",
     description="Submits verification case to provider.",
 )
-def submit_provider_verification(
+async def submit_provider_verification(
     request: Request,
     customer_id: UUID,
     verification_case_id: UUID,
     current_user: dict[str, Any] = Depends(
-        require_roles(
+        require_async_roles(
             UserRole.ADMINISTRATOR,
             UserRole.COMPLIANCE_OFFICER,
             resource_type="verification_case",
         )
     ),
-    service: VerificationService = Depends(get_verification_service),
+    service: AsyncVerificationService = Depends(get_async_verification_service),
 ) -> APIResponse[VerificationResponse]:
-    result = service.submit_to_provider(
+    result = await service.submit_to_provider(
         user_id=UUID(current_user["sub"]),
         email=current_user["email"],
         customer_id=customer_id,
         verification_case_id=verification_case_id,
-        ip_address=(request.client.host if request.client else None),
+        ip_address=request.client.host if request.client else None,
         user_agent=request.headers.get("user-agent"),
     )
-
     return APIResponse(
         success=True,
         message="Verification submitted to provider.",

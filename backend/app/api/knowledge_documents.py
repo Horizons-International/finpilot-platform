@@ -2,21 +2,24 @@ from typing import Any
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, File, Form, Request, UploadFile, status
-from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.database import get_async_db
-from app.core.dependencies import get_storage
+from app.core.async_dependencies import (
+    get_async_knowledge_document_service,
+    get_async_knowledge_indexing_service,
+)
+from app.core.async_security import require_async_roles
 from app.core.responses import APIResponse
-from app.core.security import get_current_user, require_roles
-from app.models.user import User
 from app.schemas.knowledge_document import (
     KnowledgeDocumentResponse,
     KnowledgeDocumentStatusUpdate,
     KnowledgeDocumentVersionCreate,
 )
-from app.services.async_file_service import AsyncFileService
-from app.services.async_knowledge_document_service import AsyncKnowledgeDocumentService
-from app.storages.base_storage import BaseStorage
+from app.services.async_knowledge_document_service import (
+    AsyncKnowledgeDocumentService,
+)
+from app.services.async_knowledge_indexing_service import (
+    AsyncKnowledgeIndexingService,
+)
 from app.utils.enums import (
     KnowledgeDocumentCategory,
     KnowledgeDocumentStatus,
@@ -27,42 +30,6 @@ router = APIRouter(
     prefix="/api/v1/knowledge-documents",
     tags=["Knowledge Documents"],
 )
-
-
-def get_async_file_service(
-    request: Request,
-    db: AsyncSession = Depends(get_async_db),
-    storage: BaseStorage = Depends(get_storage),
-    current_user: User = Depends(get_current_user),
-) -> AsyncFileService:
-    return AsyncFileService(
-        db=db,
-        storage=storage,
-        tenant_id=current_user.tenant_id,
-        actor_user_id=current_user.id,
-        actor_email=str(current_user.email),
-        ip_address=request.client.host if request.client else None,
-        user_agent=request.headers.get("user-agent"),
-    )
-
-
-def get_async_knowledge_document_service(
-    request: Request,
-    db: AsyncSession = Depends(get_async_db),
-    file_service: AsyncFileService = Depends(get_async_file_service),
-    storage: BaseStorage = Depends(get_storage),
-    current_user: User = Depends(get_current_user),
-) -> AsyncKnowledgeDocumentService:
-    return AsyncKnowledgeDocumentService(
-        db=db,
-        file_service=file_service,
-        tenant_id=current_user.tenant_id,
-        actor_user_id=current_user.id,
-        actor_email=str(current_user.email),
-        ip_address=request.client.host if request.client else None,
-        user_agent=request.headers.get("user-agent"),
-        storage=storage,
-    )
 
 
 @router.post(
@@ -78,7 +45,7 @@ async def create_knowledge_document(
     category: KnowledgeDocumentCategory = Form(...),
     file: UploadFile = File(...),
     current_user: dict[str, Any] = Depends(
-        require_roles(
+        require_async_roles(
             UserRole.ADMINISTRATOR,
             resource_type="knowledge_document",
         )
@@ -116,7 +83,7 @@ async def list_knowledge_documents(
         get_async_knowledge_document_service
     ),
     _: dict[str, Any] = Depends(
-        require_roles(
+        require_async_roles(
             UserRole.ADMINISTRATOR,
             resource_type="knowledge_document",
         )
@@ -144,7 +111,7 @@ async def get_knowledge_document(
         get_async_knowledge_document_service
     ),
     _: dict[str, Any] = Depends(
-        require_roles(
+        require_async_roles(
             UserRole.ADMINISTRATOR,
             resource_type="knowledge_document",
         )
@@ -173,7 +140,7 @@ async def create_knowledge_document_version(
     name: str | None = Form(default=None),
     category: KnowledgeDocumentCategory | None = Form(default=None),
     current_user: dict[str, Any] = Depends(
-        require_roles(
+        require_async_roles(
             UserRole.ADMINISTRATOR,
             resource_type="knowledge_document",
         )
@@ -217,7 +184,7 @@ async def list_knowledge_document_versions(
         get_async_knowledge_document_service
     ),
     _: dict[str, Any] = Depends(
-        require_roles(
+        require_async_roles(
             UserRole.ADMINISTRATOR,
             resource_type="knowledge_document",
         )
@@ -244,7 +211,7 @@ async def update_knowledge_document_status(
     document_id: UUID,
     payload: KnowledgeDocumentStatusUpdate,
     current_user: dict[str, Any] = Depends(
-        require_roles(
+        require_async_roles(
             UserRole.ADMINISTRATOR,
             resource_type="knowledge_document",
         )
@@ -274,4 +241,42 @@ async def update_knowledge_document_status(
         success=True,
         message="Updated status of knowledge document.",
         data=KnowledgeDocumentResponse.model_validate(document),
+    )
+
+
+@router.post(
+    "/{document_id}/index",
+    response_model=APIResponse[dict[str, Any]],
+    status_code=status.HTTP_200_OK,
+    summary="Index an active knowledge document",
+    description=(
+        "Extracts document text, generates embeddings, and replaces the stored "
+        "tenant-scoped retrieval chunks. Only active documents can be indexed."
+    ),
+)
+async def index_knowledge_document(
+    document_id: UUID,
+    current_user: dict[str, Any] = Depends(
+        require_async_roles(
+            UserRole.ADMINISTRATOR,
+            resource_type="knowledge_document",
+        )
+    ),
+    service: AsyncKnowledgeIndexingService = Depends(
+        get_async_knowledge_indexing_service
+    ),
+) -> APIResponse[dict[str, Any]]:
+    chunks = await service.index_document(
+        document_id=document_id,
+        user_id=UUID(current_user["sub"]),
+        email=current_user["email"],
+    )
+
+    return APIResponse(
+        success=True,
+        message="Knowledge document indexed successfully.",
+        data={
+            "document_id": str(document_id),
+            "chunks_indexed": len(chunks),
+        },
     )

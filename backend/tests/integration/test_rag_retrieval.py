@@ -224,7 +224,7 @@ def test_retrieve_knowledge_endpoint(
     user = create_test_user(email="rag-user@example.com", role=UserRole.ADMINISTRATOR)
     authenticate_client(client, user)
 
-    with patch("app.rag.retrieval.EmbeddingService") as embedding_service_class:
+    with patch("app.rag.async_retrieval.EmbeddingService") as embedding_service_class:
         embedding_service = embedding_service_class.return_value
         embedding_service.embed_query.return_value = [0.1] * 1536
         response = client.post(

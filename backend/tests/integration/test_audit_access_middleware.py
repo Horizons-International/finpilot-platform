@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-import threading
+from contextlib import asynccontextmanager
 from typing import Any
 from uuid import UUID, uuid4
 
@@ -17,17 +17,9 @@ class FakeSession:
     def __init__(self) -> None:
         self.info: dict[str, Any] = {}
         self.committed = False
-        self.rolled_back = False
-        self.closed = False
 
-    def commit(self) -> None:
+    async def commit(self) -> None:
         self.committed = True
-
-    def rollback(self) -> None:
-        self.rolled_back = True
-
-    def close(self) -> None:
-        self.closed = True
 
 
 async def _empty_app(scope: Scope, receive: Receive, send: Send) -> None:
@@ -66,27 +58,29 @@ def _make_request(
 
 
 @pytest.mark.anyio
-async def test_protected_read_persists_audit_in_worker_thread(
+async def test_protected_read_records_access_with_async_session(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     session = FakeSession()
-    main_thread_id = threading.get_ident()
     captured: dict[str, Any] = {}
     user_id = uuid4()
     tenant_id = uuid4()
     customer_id = UUID("00000000-0000-0000-0000-000000000001")
 
-    class FakeAuditEventService:
-        def __init__(self, db: FakeSession, supplied_tenant_id: UUID) -> None:
-            captured["service_thread_id"] = threading.get_ident()
-            captured["db"] = db
-            captured["tenant_id"] = supplied_tenant_id
+    @asynccontextmanager
+    async def fake_session_context(request: Request):
+        captured["request"] = request
+        yield session
 
-        def record_data_access(self, **kwargs: Any) -> None:
+    class FakeAsyncAuditService:
+        def __init__(self, db: FakeSession) -> None:
+            captured["db"] = db
+
+        async def record_data_access(self, **kwargs: Any) -> None:
             captured["event"] = kwargs
 
-    monkeypatch.setattr(audit_access, "SessionLocal", lambda: session)
-    monkeypatch.setattr(audit_access, "AuditEventService", FakeAuditEventService)
+    monkeypatch.setattr(audit_access, "middleware_async_session", fake_session_context)
+    monkeypatch.setattr(audit_access, "AsyncAuditService", FakeAsyncAuditService)
 
     middleware = AuditAccessMiddleware(_empty_app)
     request = _make_request(user_id=user_id, tenant_id=tenant_id)
@@ -95,19 +89,11 @@ async def test_protected_read_persists_audit_in_worker_thread(
     async def call_next(_: Request) -> Response:
         return expected_response
 
-    response = await middleware.dispatch(
-        request,
-        call_next,
-    )
+    response = await middleware.dispatch(request, call_next)
 
     assert response is expected_response
-    assert captured["service_thread_id"] != main_thread_id
-    assert captured["tenant_id"] == tenant_id
     assert captured["db"] is session
-    assert session.info == {
-        "tenant_id": tenant_id,
-        "tenant_user_id": user_id,
-    }
+    assert session.info == {"tenant_id": tenant_id, "tenant_user_id": user_id}
     assert captured["event"] == {
         "user_id": user_id,
         "entity_type": "customers",
@@ -121,18 +107,18 @@ async def test_protected_read_persists_audit_in_worker_thread(
         },
     }
     assert session.committed is True
-    assert session.rolled_back is False
-    assert session.closed is True
 
 
 @pytest.mark.anyio
 async def test_audit_database_failure_does_not_change_business_response(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    def fail_to_create_session() -> FakeSession:
+    @asynccontextmanager
+    async def unavailable_session(request: Request):
         raise RuntimeError("database unavailable")
+        yield  # pragma: no cover
 
-    monkeypatch.setattr(audit_access, "SessionLocal", fail_to_create_session)
+    monkeypatch.setattr(audit_access, "middleware_async_session", unavailable_session)
     middleware = AuditAccessMiddleware(_empty_app)
     request = _make_request(user_id=uuid4(), tenant_id=uuid4())
     expected_response = Response(status_code=200)
@@ -140,11 +126,7 @@ async def test_audit_database_failure_does_not_change_business_response(
     async def call_next(_: Request) -> Response:
         return expected_response
 
-    response = await middleware.dispatch(
-        request,
-        call_next,
-    )
-
+    response = await middleware.dispatch(request, call_next)
     assert response is expected_response
     assert response.status_code == 200
 
@@ -166,10 +148,12 @@ async def test_non_qualifying_requests_are_not_audited(
     status_code: int,
     authenticated: bool,
 ) -> None:
-    def unexpected_session() -> FakeSession:
+    @asynccontextmanager
+    async def unexpected_session(request: Request):
         raise AssertionError("Audit session should not be created for this request")
+        yield  # pragma: no cover
 
-    monkeypatch.setattr(audit_access, "SessionLocal", unexpected_session)
+    monkeypatch.setattr(audit_access, "middleware_async_session", unexpected_session)
     middleware = AuditAccessMiddleware(_empty_app)
     request = _make_request(
         method=method,
@@ -182,9 +166,5 @@ async def test_non_qualifying_requests_are_not_audited(
     async def call_next(_: Request) -> Response:
         return expected_response
 
-    response = await middleware.dispatch(
-        request,
-        call_next,
-    )
-
+    response = await middleware.dispatch(request, call_next)
     assert response is expected_response

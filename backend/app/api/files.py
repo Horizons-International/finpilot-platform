@@ -4,40 +4,15 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, Request, UploadFile, status
 from fastapi import File as FastAPIFile
 from fastapi.responses import Response
-from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.database import get_async_db
-from app.core.dependencies import get_storage
+from app.core.async_dependencies import get_async_file_service
+from app.core.async_security import require_async_roles
 from app.core.responses import APIResponse
-from app.core.security import get_current_user, require_roles
-from app.models.user import User
 from app.schemas.file import FileResponse
 from app.services.async_file_service import AsyncFileService
-from app.storages.base_storage import BaseStorage
 from app.utils.enums import UserRole
 
-router = APIRouter(
-    prefix="/api/v1/files",
-    tags=["Files"],
-)
-
-
-def get_async_file_service(
-    request: Request,
-    db: AsyncSession = Depends(get_async_db),
-    storage: BaseStorage = Depends(get_storage),
-    current_user: User = Depends(get_current_user),
-) -> AsyncFileService:
-    """Build a tenant-bound async file service for the current request."""
-    return AsyncFileService(
-        db=db,
-        storage=storage,
-        tenant_id=current_user.tenant_id,
-        actor_user_id=current_user.id,
-        actor_email=str(current_user.email),
-        ip_address=request.client.host if request.client else None,
-        user_agent=request.headers.get("user-agent"),
-    )
+router = APIRouter(prefix="/api/v1/files", tags=["Files"])
 
 
 @router.post(
@@ -53,10 +28,7 @@ async def upload_file(
     module: str = "customers",
     folder: str = "uploads",
     current_user: dict[str, Any] = Depends(
-        require_roles(
-            UserRole.ADMINISTRATOR,
-            resource_type="file",
-        )
+        require_async_roles(UserRole.ADMINISTRATOR, resource_type="file")
     ),
     service: AsyncFileService = Depends(get_async_file_service),
 ) -> APIResponse[FileResponse]:
@@ -66,10 +38,9 @@ async def upload_file(
         email=current_user["email"],
         module=module,
         folder=folder,
-        ip_address=(request.client.host if request.client else None),
+        ip_address=request.client.host if request.client else None,
         user_agent=request.headers.get("user-agent"),
     )
-
     return APIResponse(
         success=True,
         message="File uploaded successfully.",
@@ -88,26 +59,20 @@ async def download_file(
     file_id: UUID,
     service: AsyncFileService = Depends(get_async_file_service),
     current_user: dict[str, Any] = Depends(
-        require_roles(
-            UserRole.ADMINISTRATOR,
-            resource_type="file",
-        )
+        require_async_roles(UserRole.ADMINISTRATOR, resource_type="file")
     ),
 ) -> Response:
     content, filename, content_type = await service.download_file(
         file_id=file_id,
         user_id=UUID(current_user["sub"]),
         email=current_user["email"],
-        ip_address=(request.client.host if request.client else None),
+        ip_address=request.client.host if request.client else None,
         user_agent=request.headers.get("user-agent"),
     )
-
     return Response(
         content=content,
         media_type=content_type,
-        headers={
-            "Content-Disposition": f'attachment; filename="{filename}"',
-        },
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
 
 
@@ -123,20 +88,16 @@ async def delete_file(
     file_id: UUID,
     service: AsyncFileService = Depends(get_async_file_service),
     current_user: dict[str, Any] = Depends(
-        require_roles(
-            UserRole.ADMINISTRATOR,
-            resource_type="file",
-        )
+        require_async_roles(UserRole.ADMINISTRATOR, resource_type="file")
     ),
 ) -> APIResponse[None]:
     await service.delete_file(
         file_id=file_id,
         user_id=UUID(current_user["sub"]),
         email=current_user["email"],
-        ip_address=(request.client.host if request.client else None),
+        ip_address=request.client.host if request.client else None,
         user_agent=request.headers.get("user-agent"),
     )
-
     return APIResponse(
         success=True,
         message="File deleted successfully.",

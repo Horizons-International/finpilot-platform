@@ -146,3 +146,32 @@ class AsyncAuditService:
             resource_id=resource_id,
         )
         await self.db.commit()
+
+    async def record_data_access(
+        self,
+        *,
+        user_id: UUID,
+        entity_type: str,
+        entity_id: UUID | None,
+        access_type: str = "READ",
+        metadata: dict[str, Any] | None = None,
+    ) -> AuditEvent:
+        """Persist a tenant-scoped protected-resource access event."""
+        tenant_id = self.db.info.get("tenant_id")
+        if not isinstance(tenant_id, UUID):
+            raise ValueError(
+                "A tenant context is required for data-access audit events."
+            )
+        payload = dict(metadata or {})
+        payload["access_type"] = access_type.upper()[:32]
+        event = AuditEvent(
+            tenant_id=tenant_id,
+            user_id=user_id,
+            action="DATA_ACCESS",
+            entity_type=entity_type[:100],
+            entity_id=entity_id,
+            event_metadata=sanitize_audit_metadata(payload),
+        )
+        self.db.add(event)
+        await self.db.flush()
+        return event

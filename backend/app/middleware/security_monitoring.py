@@ -1,33 +1,30 @@
-"""Request guardrails, security headers, and security-event persistence.
+"""Async request guardrails, response security headers, and security auditing.
 
-The request limiter is deliberately bounded and process-local: it protects a
-single API process without adding a runtime dependency. Production deployments
-with multiple workers/replicas must also apply shared rate limiting at the API
-gateway or use a shared store.
+The rate limiter is intentionally bounded and process-local. Multi-process and
+multi-replica deployments must also enforce shared quotas at the API gateway or
+through a shared rate-limit store.
 """
+
+from __future__ import annotations
 
 import inspect
 import math
 import time
 from collections import OrderedDict
-from collections.abc import Callable, Generator
 from threading import RLock
-from typing import Any, cast
+from typing import Any
 from uuid import UUID, uuid4
 
-from sqlalchemy.orm import Session
-from starlette.concurrency import run_in_threadpool
-from starlette.requests import Request
+from sqlalchemy import select
+from starlette.requests import Request as StarletteRequest
 from starlette.responses import JSONResponse
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 from app.core.config import settings
-from app.core.database import SessionLocal, get_db
-from app.core.logger import get_logger
-from app.services.security_event_service import record_security_event
+from app.middleware.async_session import middleware_async_session
+from app.models.security_event import SecurityEvent
+from app.models.user_session import UserSession
 from app.utils.date_time import utc_now
-
-logger = get_logger(__name__)
 
 _SECURITY_HEADER_NAMES = {
     b"x-content-type-options",
@@ -44,48 +41,23 @@ _SECURITY_HEADER_NAMES = {
 }
 
 
-def _open_session(request: Request) -> tuple[Session, Callable[[], Any]]:
-    """Use the application's DB override in tests, or a fresh session in prod."""
-    overrides = getattr(request.app, "dependency_overrides", {})
-    override_factory = overrides.get(get_db)
-    if override_factory is not None:
-        provided = override_factory()
-        if inspect.isgenerator(provided):
-            generator = cast(Generator[Session, None, None], provided)
-            db = next(generator)
-            return db, generator.close
-        if isinstance(provided, Session):
-            return provided, provided.close
-    db = SessionLocal()
-    return db, db.close
+def _uuid_or_none(value: Any) -> UUID | None:
+    if isinstance(value, UUID):
+        return value
+    if isinstance(value, str):
+        try:
+            return UUID(value)
+        except ValueError:
+            return None
+    return None
 
 
-def _persist_event(request: Request, response_status: int) -> None:
-    """Record authenticated traffic and denied/limited requests without secrets."""
-    user_id = getattr(request.state, "current_user_id", None)
-    tenant_id = getattr(request.state, "tenant_id", None)
-    api_key_id = getattr(request.state, "api_key_id", None)
-    api_key_tenant_id = getattr(request.state, "api_key_tenant_id", None)
-
-    for variable, value in (
-        ("user_id", user_id),
-        ("tenant_id", tenant_id),
-        ("api_key_id", api_key_id),
-        ("api_key_tenant_id", api_key_tenant_id),
-    ):
-        if isinstance(value, str):
-            try:
-                parsed = UUID(value)
-            except ValueError:
-                parsed = None
-            if variable == "user_id":
-                user_id = parsed
-            elif variable == "tenant_id":
-                tenant_id = parsed
-            elif variable == "api_key_id":
-                api_key_id = parsed
-            else:
-                api_key_tenant_id = parsed
+async def _persist_event(request: StarletteRequest, response_status: int) -> None:
+    """Write a security event and update last-seen session with AsyncSession."""
+    user_id = _uuid_or_none(getattr(request.state, "current_user_id", None))
+    tenant_id = _uuid_or_none(getattr(request.state, "tenant_id", None))
+    api_key_id = _uuid_or_none(getattr(request.state, "api_key_id", None))
+    api_key_tenant_id = _uuid_or_none(getattr(request.state, "api_key_tenant_id", None))
 
     security_event_types = {
         400: "REQUEST_REJECTED",
@@ -98,11 +70,11 @@ def _persist_event(request: Request, response_status: int) -> None:
 
     if response_status in security_event_types:
         event_type = security_event_types[response_status]
-        if isinstance(user_id, UUID) and isinstance(tenant_id, UUID):
-            event_tenant_id: UUID | None = tenant_id
-            event_user_id: UUID | None = user_id
+        if user_id is not None and tenant_id is not None:
+            event_tenant_id = tenant_id
+            event_user_id = user_id
             email = getattr(request.state, "current_user_email", None)
-        elif isinstance(api_key_id, UUID) and isinstance(api_key_tenant_id, UUID):
+        elif api_key_id is not None and api_key_tenant_id is not None:
             event_tenant_id = api_key_tenant_id
             event_user_id = None
             email = None
@@ -110,18 +82,18 @@ def _persist_event(request: Request, response_status: int) -> None:
             event_tenant_id = None
             event_user_id = None
             email = None
-    elif isinstance(user_id, UUID) and isinstance(tenant_id, UUID):
+    elif user_id is not None and tenant_id is not None:
         event_type = "API_ACCESS"
         event_tenant_id = tenant_id
         event_user_id = user_id
         email = getattr(request.state, "current_user_email", None)
-    elif isinstance(api_key_id, UUID) and isinstance(api_key_tenant_id, UUID):
+    elif api_key_id is not None and api_key_tenant_id is not None:
         event_type = "API_KEY_ACCESS"
         event_tenant_id = api_key_tenant_id
         event_user_id = None
         email = None
     else:
-        # Avoid logging every successful anonymous endpoint call.
+        # Do not log every successful anonymous endpoint call.
         return
 
     details: dict[str, Any] = {
@@ -129,55 +101,54 @@ def _persist_event(request: Request, response_status: int) -> None:
         "response_status": response_status,
         "request_id": str(getattr(request.state, "request_id", ""))[:100],
     }
-    if isinstance(api_key_id, UUID):
+    if api_key_id is not None:
         details["api_key_id"] = str(api_key_id)
 
-    db: Session | None = None
-    close_session: Callable[[], Any] | None = None
     try:
-        db, close_session = _open_session(request)
-        # Anonymous rejected requests are intentionally stored as platform-wide
-        # events with tenant_id=NULL; never infer identity from forwarded headers.
-        db.info["tenant_id"] = event_tenant_id
-        record_security_event(
-            db,
-            event_type=event_type,
-            user_id=event_user_id,
-            tenant_id=event_tenant_id,
-            email=email,
-            ip_address=request.client.host if request.client else None,
-            user_agent=request.headers.get("user-agent"),
-            request_path=request.url.path,
-            details=details,
-        )
+        async with middleware_async_session(request) as db:
+            # Bind tenant context for tenant-owned writes. Clear it for anonymous
+            # platform-level events so a reused test session cannot leak prior
+            # request context into a global security event.
+            if event_tenant_id is None:
+                db.info.pop("tenant_id", None)
+            else:
+                db.info["tenant_id"] = event_tenant_id
+            db.add(
+                SecurityEvent(
+                    tenant_id=event_tenant_id,
+                    user_id=event_user_id,
+                    email=email[:255] if isinstance(email, str) else None,
+                    event_type=event_type[:64],
+                    ip_address=request.client.host if request.client else None,
+                    user_agent=request.headers.get("user-agent"),
+                    request_path=request.url.path[:500],
+                    details=details,
+                )
+            )
 
-        session_id = getattr(request.state, "session_id", None)
-        if response_status < 400 and isinstance(session_id, str):
-            try:
-                session_uuid = UUID(session_id)
-                from app.models.user_session import UserSession
-
-                active_session = db.get(UserSession, session_uuid)
-                if (
-                    active_session is not None
-                    and active_session.tenant_id == event_tenant_id
-                    and active_session.revoked_at is None
-                ):
-                    active_session.last_seen_at = utc_now()
-            except ValueError:
-                pass
-        db.commit()
+            session_id = getattr(request.state, "session_id", None)
+            if response_status < 400 and isinstance(session_id, str):
+                session_uuid = _uuid_or_none(session_id)
+                if session_uuid is not None:
+                    active_session = await db.scalar(
+                        select(UserSession).where(UserSession.id == session_uuid)
+                    )
+                    if (
+                        active_session is not None
+                        and active_session.tenant_id == event_tenant_id
+                        and active_session.revoked_at is None
+                    ):
+                        active_session.last_seen_at = utc_now()
+            await db.commit()
     except Exception:
-        if db is not None:
-            db.rollback()
-        logger.exception("Could not persist security event")
-    finally:
-        if close_session is not None:
-            close_session()
+        # Security logging is best-effort and must not hide the API response.
+        import logging
+
+        logging.getLogger(__name__).exception("Could not persist security event")
 
 
 class SecurityMonitoringMiddleware:
-    """Pure ASGI middleware for response headers, request limits, and audit logs."""
+    """Pure ASGI middleware for request limits, headers, and security events."""
 
     def __init__(self, app: ASGIApp) -> None:
         self.app = app
@@ -193,15 +164,13 @@ class SecurityMonitoringMiddleware:
         window_seconds: int,
         now: float | None = None,
     ) -> tuple[bool, int]:
-        """Consume a bounded fixed-window bucket; return allowed and retry seconds."""
         current_time = time.monotonic() if now is None else now
         with self._bucket_lock:
             bucket = self._buckets.get(key)
             if bucket is None or current_time - bucket[0] >= window_seconds:
                 self._buckets[key] = (current_time, 1)
                 self._buckets.move_to_end(key)
-                allowed = True
-                retry_after = 0
+                allowed, retry_after = True, 0
             elif bucket[1] >= limit:
                 self._buckets.move_to_end(key)
                 allowed = False
@@ -211,15 +180,13 @@ class SecurityMonitoringMiddleware:
             else:
                 self._buckets[key] = (bucket[0], bucket[1] + 1)
                 self._buckets.move_to_end(key)
-                allowed = True
-                retry_after = 0
+                allowed, retry_after = True, 0
 
             while len(self._buckets) > settings.RATE_LIMIT_MAX_TRACKED_KEYS:
                 self._buckets.popitem(last=False)
             return allowed, retry_after
 
     def _should_log_rate_limit(self, ip_address: str, path: str) -> bool:
-        """Persist one 429 event per client/route/window, not every blocked hit."""
         now = time.monotonic()
         key = f"{ip_address}:{self._normalized_path(path)}"
         with self._bucket_lock:
@@ -253,13 +220,7 @@ class SecurityMonitoringMiddleware:
             if not segment:
                 normalized.append(segment)
                 continue
-            try:
-                UUID(segment)
-                normalized.append("{id}")
-                continue
-            except ValueError:
-                pass
-            if segment.isdigit():
+            if _uuid_or_none(segment) is not None or segment.isdigit():
                 normalized.append("{id}")
             else:
                 normalized.append(segment[:100])
@@ -276,7 +237,6 @@ class SecurityMonitoringMiddleware:
     def _rate_limit(self, ip_address: str, path: str) -> tuple[bool, int]:
         if not settings.RATE_LIMIT_ENABLED:
             return True, 0
-
         normalized_path = self._normalized_path(path)
         checks = [
             (
@@ -299,8 +259,6 @@ class SecurityMonitoringMiddleware:
                 )
             )
 
-        # Consume every applicable bucket so one exhausted category cannot be
-        # bypassed by switching between another category and the same route.
         denied_retry_after = 0
         allowed = True
         for key, limit, window in checks:
@@ -326,9 +284,6 @@ class SecurityMonitoringMiddleware:
             (b"cache-control", b"no-store"),
             (b"pragma", b"no-cache"),
         ]
-        # The developer portal uses same-origin CSS/JS and makes browser requests
-        # to the configured API base URL. Give only these static portal routes a
-        # policy that supports those resources; keep API routes locked down.
         if path == "/developer-portal" or path.startswith("/developer-portal/"):
             headers.append(
                 (
@@ -341,8 +296,6 @@ class SecurityMonitoringMiddleware:
                     ),
                 )
             )
-        # Swagger/ReDoc load their own scripts/styles; the strict CSP below
-        # continues to apply to regular API responses.
         elif path not in {"/docs", "/redoc", "/openapi.json"}:
             headers.append(
                 (
@@ -365,6 +318,12 @@ class SecurityMonitoringMiddleware:
             )
         return headers
 
+    async def _persist(self, request: StarletteRequest, response_status: int) -> None:
+        """Call async persistence, while tolerating simple sync test stubs."""
+        result = _persist_event(request, response_status)
+        if inspect.isawaitable(result):
+            await result
+
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
         if scope["type"] != "http":
             await self.app(scope, receive, send)
@@ -372,7 +331,7 @@ class SecurityMonitoringMiddleware:
 
         state = scope.setdefault("state", {})
         state.setdefault("request_id", str(uuid4()))
-        request = Request(scope, receive=receive)
+        request = StarletteRequest(scope, receive=receive)
         path = str(scope.get("path", "/"))
         ip_address = self._client_ip(scope)
         response_status = 500
@@ -383,7 +342,6 @@ class SecurityMonitoringMiddleware:
                 response_status = int(message["status"])
                 message = dict(message)
                 current_headers = list(message.get("headers", []))
-                # Replace security headers so app code cannot accidentally weaken them.
                 kept_headers = [
                     (name, value)
                     for name, value in current_headers
@@ -421,7 +379,7 @@ class SecurityMonitoringMiddleware:
             )
             await response(scope, receive, secured_send)
             if code != 429 or self._should_log_rate_limit(ip_address, path):
-                await run_in_threadpool(_persist_event, request, code)
+                await self._persist(request, code)
 
         if scope.get("method") != "OPTIONS":
             allowed, retry_after = self._rate_limit(ip_address, path)
@@ -450,8 +408,6 @@ class SecurityMonitoringMiddleware:
                 )
                 return
 
-        # Buffer only up to the configured limit; this also handles chunked bodies
-        # that do not carry a Content-Length header.
         body = bytearray()
         while True:
             message = await receive()
@@ -485,6 +441,6 @@ class SecurityMonitoringMiddleware:
         try:
             await self.app(scope, replay_receive, secured_send)
         except Exception:
-            await run_in_threadpool(_persist_event, request, 500)
+            await self._persist(request, 500)
             raise
-        await run_in_threadpool(_persist_event, request, response_status)
+        await self._persist(request, response_status)
