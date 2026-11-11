@@ -1,4 +1,6 @@
+import asyncio
 import os
+from collections.abc import AsyncGenerator
 from datetime import date, datetime
 from pathlib import Path
 from typing import Any, Protocol
@@ -7,7 +9,13 @@ from uuid import UUID, uuid4
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine, select
+from sqlalchemy.ext.asyncio import (
+    AsyncSession,
+    async_sessionmaker,
+    create_async_engine,
+)
 from sqlalchemy.orm import sessionmaker
+from sqlalchemy.pool import NullPool
 
 from app.analytics.models.compliance_daily import ComplianceAnalyticsDaily
 from app.analytics.models.compliance_monthly import ComplianceAnalyticsMonthly
@@ -18,7 +26,7 @@ from app.analytics.models.metric_result import MetricResult
 from app.analytics.models.operations_daily import OperationsAnalyticsDaily
 from app.analytics.models.operations_monthly import OperationsAnalyticsMonthly
 from app.core.config import settings
-from app.core.database import get_db
+from app.core.database import get_async_db, get_db
 from app.core.security import hash_password
 from app.extraction.providers.base import ExtractionProvider
 from app.extraction.services.dependencies import get_document_extraction_service
@@ -105,6 +113,22 @@ TestSessionLocal = sessionmaker(
 )
 
 
+test_async_engine = create_async_engine(
+    test_database_url,
+    echo=False,
+    pool_pre_ping=True,
+    poolclass=NullPool,
+)
+
+TestAsyncSessionLocal = async_sessionmaker(
+    bind=test_async_engine,
+    class_=AsyncSession,
+    autoflush=False,
+    expire_on_commit=False,
+    info={"allow_unscoped_tenant_operations": True},
+)
+
+
 class CleanupStorage(Protocol):
     def exists(self, storage_path: str) -> bool: ...
 
@@ -150,9 +174,22 @@ def client():
         finally:
             db.close()
 
-    app.dependency_overrides[get_db] = override_get_db
+    async def override_get_async_db() -> AsyncGenerator[AsyncSession, None]:
+        async with TestAsyncSessionLocal() as db:
+            yield db
 
-    with TestClient(app) as test_client:
+    app.dependency_overrides[get_db] = override_get_db
+    app.dependency_overrides[get_async_db] = override_get_async_db
+
+    backend_options: dict[str, Any] = {}
+
+    if os.name == "nt":
+        backend_options["loop_factory"] = asyncio.SelectorEventLoop
+
+    with TestClient(
+        app,
+        backend_options=backend_options,
+    ) as test_client:
         yield test_client
 
     app.dependency_overrides.clear()

@@ -1,27 +1,43 @@
 from typing import Any
 from uuid import UUID
 
-from fastapi import (
-    APIRouter,
-    Depends,
-    Request,
-    UploadFile,
-    status,
-)
+from fastapi import APIRouter, Depends, Request, UploadFile, status
 from fastapi import File as FastAPIFile
 from fastapi.responses import Response
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.dependencies import get_file_service
+from app.core.database import get_async_db
+from app.core.dependencies import get_storage
 from app.core.responses import APIResponse
-from app.core.security import require_roles
+from app.core.security import get_current_user, require_roles
+from app.models.user import User
 from app.schemas.file import FileResponse
-from app.services.file_service import FileService
+from app.services.async_file_service import AsyncFileService
+from app.storages.base_storage import BaseStorage
 from app.utils.enums import UserRole
 
 router = APIRouter(
     prefix="/api/v1/files",
     tags=["Files"],
 )
+
+
+def get_async_file_service(
+    request: Request,
+    db: AsyncSession = Depends(get_async_db),
+    storage: BaseStorage = Depends(get_storage),
+    current_user: User = Depends(get_current_user),
+) -> AsyncFileService:
+    """Build a tenant-bound async file service for the current request."""
+    return AsyncFileService(
+        db=db,
+        storage=storage,
+        tenant_id=current_user.tenant_id,
+        actor_user_id=current_user.id,
+        actor_email=str(current_user.email),
+        ip_address=request.client.host if request.client else None,
+        user_agent=request.headers.get("user-agent"),
+    )
 
 
 @router.post(
@@ -42,8 +58,8 @@ async def upload_file(
             resource_type="file",
         )
     ),
-    service: FileService = Depends(get_file_service),
-):
+    service: AsyncFileService = Depends(get_async_file_service),
+) -> APIResponse[FileResponse]:
     file_record = await service.upload_file(
         file=file,
         uploaded_by=UUID(current_user["sub"]),
@@ -65,20 +81,20 @@ async def upload_file(
     "/{file_id}",
     status_code=status.HTTP_200_OK,
     summary="Get file",
-    description="Retrieve an file from the storage service by ID.",
+    description="Retrieve a file from the storage service by ID.",
 )
-def download_file(
+async def download_file(
     request: Request,
     file_id: UUID,
-    service: FileService = Depends(get_file_service),
+    service: AsyncFileService = Depends(get_async_file_service),
     current_user: dict[str, Any] = Depends(
         require_roles(
             UserRole.ADMINISTRATOR,
             resource_type="file",
         )
     ),
-):
-    content, filename, content_type = service.download_file(
+) -> Response:
+    content, filename, content_type = await service.download_file(
         file_id=file_id,
         user_id=UUID(current_user["sub"]),
         email=current_user["email"],
@@ -102,18 +118,18 @@ def download_file(
     summary="Delete a file",
     description="Delete a file from storage services by ID.",
 )
-def delete_file(
+async def delete_file(
     request: Request,
     file_id: UUID,
-    service: FileService = Depends(get_file_service),
+    service: AsyncFileService = Depends(get_async_file_service),
     current_user: dict[str, Any] = Depends(
         require_roles(
             UserRole.ADMINISTRATOR,
             resource_type="file",
         )
     ),
-):
-    service.delete_file(
+) -> APIResponse[None]:
+    await service.delete_file(
         file_id=file_id,
         user_id=UUID(current_user["sub"]),
         email=current_user["email"],
