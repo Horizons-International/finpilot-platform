@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+from typing import Any
 from uuid import UUID
 
+from sqlalchemy.orm import Session
+from starlette.concurrency import run_in_threadpool
 from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
 from starlette.requests import Request
 from starlette.responses import Response
@@ -83,6 +86,45 @@ def _resource_from_path(path: str) -> tuple[str, UUID | None]:
     return entity_type, entity_id
 
 
+def _persist_read_audit_event(
+    *,
+    user_id: UUID,
+    tenant_id: UUID,
+    entity_type: str,
+    entity_id: UUID | None,
+    metadata: dict[str, Any],
+) -> None:
+    """Persist an audit event in a worker thread using a synchronous session.
+
+    Keep the complete SQLAlchemy unit of work (session creation, insert, commit,
+    rollback, and close) in this synchronous function. The async middleware calls
+    it through ``run_in_threadpool`` so database I/O does not block the event loop.
+    """
+    db: Session | None = None
+    try:
+        db = SessionLocal()
+        db.info["tenant_id"] = tenant_id
+        db.info["tenant_user_id"] = user_id
+        AuditEventService(db, tenant_id).record_data_access(
+            user_id=user_id,
+            entity_type=entity_type,
+            entity_id=entity_id,
+            access_type="READ",
+            metadata=metadata,
+        )
+        db.commit()
+    except Exception:
+        if db is not None:
+            try:
+                db.rollback()
+            except Exception:
+                logger.exception("Failed to roll back protected-read audit session")
+        raise
+    finally:
+        if db is not None:
+            db.close()
+
+
 class AuditAccessMiddleware(BaseHTTPMiddleware):
     """Record successful GETs on protected resource paths after auth ran.
 
@@ -116,24 +158,25 @@ class AuditAccessMiddleware(BaseHTTPMiddleware):
             route = request.scope.get("route")
             route_template = getattr(route, "path", path)[:500]
             entity_type, entity_id = _resource_from_path(path)
-            with SessionLocal() as db:
-                db.info["tenant_id"] = tenant_id
-                db.info["tenant_user_id"] = user_id
-                AuditEventService(db, tenant_id).record_data_access(
-                    user_id=user_id,
-                    entity_type=entity_type,
-                    entity_id=entity_id,
-                    access_type="READ",
-                    metadata={
-                        "method": "GET",
-                        "route": route_template,
-                        "status_code": response.status_code,
-                        "request_id": getattr(request.state, "request_id", None),
-                    },
-                )
-                db.commit()
+            metadata = {
+                "method": "GET",
+                "route": route_template,
+                "status_code": response.status_code,
+                "request_id": getattr(request.state, "request_id", None),
+            }
+
+            # Follow the APIKeyUsageMiddleware pattern: all synchronous database
+            # work is offloaded, and only immutable request values cross threads.
+            await run_in_threadpool(
+                _persist_read_audit_event,
+                user_id=user_id,
+                tenant_id=tenant_id,
+                entity_type=entity_type,
+                entity_id=entity_id,
+                metadata=metadata,
+            )
         except Exception:
-            # Do not turn a successfully returned business response into a 500,
-            # but do emit a high-signal server log/alert for missing audit writes.
+            # Audit failure must not turn an already successful business response
+            # into a 500, but it must remain visible in server logs.
             logger.exception("Failed to persist protected-read audit event")
         return response

@@ -14,13 +14,12 @@ from fastapi import (
     UploadFile,
     status,
 )
-from fastapi import (
-    File as FastAPIFile,
-)
+from fastapi import File as FastAPIFile
 from fastapi.responses import Response
+from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import Session
 
-from app.core.database import get_db
+from app.core.database import get_async_db, get_db
 from app.core.responses import APIResponse
 from app.core.security import require_platform_admin
 from app.schemas.partner_onboarding import (
@@ -41,6 +40,9 @@ from app.schemas.partner_onboarding import (
     PartnerOnboardingReject,
     PartnerOnboardingResponse,
     PartnerTechnicalSetupUpdate,
+)
+from app.services.async_partner_onboarding_document_service import (
+    AsyncPartnerOnboardingDocumentService,
 )
 from app.services.partner_onboarding_portal_service import (
     PartnerOnboardingPortalService,
@@ -536,10 +538,10 @@ async def upload_portal_document(
     document_type: str = Form(...),
     file: UploadFile = FastAPIFile(...),
     token: str = Header(alias="X-Onboarding-Token"),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
 ) -> APIResponse[PartnerOnboardingDocumentResponse]:
     ip_address, user_agent = _metadata(request)
-    document = await PartnerOnboardingPortalService(db).upload_document(
+    document = await AsyncPartnerOnboardingDocumentService(db).upload_document(
         onboarding_id=onboarding_id,
         token=token,
         document_type=document_type,

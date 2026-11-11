@@ -5,9 +5,10 @@ from urllib.parse import quote
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, File, Query, Response, UploadFile, status
+from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import Session
 
-from app.core.database import get_db
+from app.core.database import get_async_db, get_db
 from app.core.dependencies import get_storage
 from app.core.responses import APIResponse
 from app.core.security import get_current_user
@@ -23,6 +24,9 @@ from app.schemas.support_ticket import (
     SupportTicketStatusUpdate,
     TicketCategory,
     TicketPriority,
+)
+from app.services.async_support_ticket_attachment_service import (
+    AsyncSupportTicketAttachmentService,
 )
 from app.services.support_ticket_service import SupportTicketService
 from app.storages.base_storage import BaseStorage
@@ -227,13 +231,15 @@ def list_ticket_history(
 async def upload_ticket_attachment(
     ticket_id: UUID,
     file: UploadFile = File(...),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     actor: User = Depends(get_current_user),
     storage: BaseStorage = Depends(get_storage),
 ) -> APIResponse[SupportTicketAttachmentResponse]:
-    attachment = await _storage_service(db, actor, storage).add_attachment(
-        ticket_id, file
-    )
+    attachment = await AsyncSupportTicketAttachmentService(
+        db,
+        actor,
+        storage,
+    ).add_attachment(ticket_id, file)
     return APIResponse(
         success=True,
         message="Support ticket attachment uploaded successfully.",

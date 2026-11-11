@@ -9,22 +9,48 @@ from fastapi import (
     UploadFile,
     status,
 )
-from fastapi import File as FastAPIFile
+from fastapi import (
+    File as FastAPIFile,
+)
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.dependencies import get_document_service
+from app.core.database import get_async_db
+from app.core.dependencies import get_storage
 from app.core.responses import APIResponse
-from app.core.security import require_roles
+from app.core.security import get_current_user, require_roles
+from app.models.user import User
 from app.schemas.document import (
     CustomerDocumentListResponse,
     CustomerDocumentResponse,
 )
-from app.services.document_service import DocumentService
+from app.services.async_document_service import (
+    AsyncDocumentService,
+)
+from app.storages.base_storage import BaseStorage
 from app.utils.enums import UserRole
 
 router = APIRouter(
     prefix="/api/v1/customers/{customer_id}/verification-cases/{verification_case_id}/documents",
     tags=["Customer Documents"],
 )
+
+
+def get_async_document_service(
+    request: Request,
+    db: AsyncSession = Depends(get_async_db),
+    storage: BaseStorage = Depends(get_storage),
+    current_user: User = Depends(get_current_user),
+) -> AsyncDocumentService:
+    """Build the async customer-document service using the request session."""
+    return AsyncDocumentService(
+        db=db,
+        storage=storage,
+        tenant_id=current_user.tenant_id,
+        actor_user_id=current_user.id,
+        actor_email=str(current_user.email),
+        ip_address=request.client.host if request.client else None,
+        user_agent=request.headers.get("user-agent"),
+    )
 
 
 @router.post(
@@ -47,7 +73,7 @@ async def upload_document(
             resource_type="customer_document",
         )
     ),
-    service: DocumentService = Depends(get_document_service),
+    service: AsyncDocumentService = Depends(get_async_document_service),
 ) -> APIResponse[CustomerDocumentResponse]:
     document = await service.upload_document(
         customer_id=customer_id,
@@ -74,7 +100,7 @@ async def upload_document(
     summary="Get verification case documents",
     description="Retrieve all documents belonging to a verification case.",
 )
-def get_documents(
+async def get_documents(
     customer_id: UUID,
     verification_case_id: UUID,
     _: dict[str, Any] = Depends(
@@ -85,9 +111,9 @@ def get_documents(
             resource_type="customer_document",
         )
     ),
-    service: DocumentService = Depends(get_document_service),
+    service: AsyncDocumentService = Depends(get_async_document_service),
 ) -> APIResponse[CustomerDocumentListResponse]:
-    documents = service.get_documents_by_case(
+    documents = await service.get_documents_by_case(
         customer_id=customer_id,
         verification_case_id=verification_case_id,
     )
@@ -112,7 +138,7 @@ def get_documents(
     summary="Get verification document metadata",
     description="Retrieve metadata for a verification document.",
 )
-def get_document(
+async def get_document(
     customer_id: UUID,
     verification_case_id: UUID,
     document_id: UUID,
@@ -124,9 +150,9 @@ def get_document(
             resource_type="customer_document",
         )
     ),
-    service: DocumentService = Depends(get_document_service),
+    service: AsyncDocumentService = Depends(get_async_document_service),
 ) -> APIResponse[CustomerDocumentResponse]:
-    document = service.get_document(
+    document = await service.get_document(
         customer_id=customer_id,
         verification_case_id=verification_case_id,
         document_id=document_id,

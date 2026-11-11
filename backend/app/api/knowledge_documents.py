@@ -1,29 +1,22 @@
 from typing import Any
 from uuid import UUID
 
-from fastapi import (
-    APIRouter,
-    Depends,
-    File,
-    Form,
-    Request,
-    UploadFile,
-    status,
-)
+from fastapi import APIRouter, Depends, File, Form, Request, UploadFile, status
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.dependencies import (
-    get_knowledge_document_service,
-)
+from app.core.database import get_async_db
+from app.core.dependencies import get_storage
 from app.core.responses import APIResponse
-from app.core.security import require_roles
+from app.core.security import get_current_user, require_roles
+from app.models.user import User
 from app.schemas.knowledge_document import (
     KnowledgeDocumentResponse,
     KnowledgeDocumentStatusUpdate,
     KnowledgeDocumentVersionCreate,
 )
-from app.services.knowledge_document_service import (
-    KnowledgeDocumentService,
-)
+from app.services.async_file_service import AsyncFileService
+from app.services.async_knowledge_document_service import AsyncKnowledgeDocumentService
+from app.storages.base_storage import BaseStorage
 from app.utils.enums import (
     KnowledgeDocumentCategory,
     KnowledgeDocumentStatus,
@@ -34,6 +27,42 @@ router = APIRouter(
     prefix="/api/v1/knowledge-documents",
     tags=["Knowledge Documents"],
 )
+
+
+def get_async_file_service(
+    request: Request,
+    db: AsyncSession = Depends(get_async_db),
+    storage: BaseStorage = Depends(get_storage),
+    current_user: User = Depends(get_current_user),
+) -> AsyncFileService:
+    return AsyncFileService(
+        db=db,
+        storage=storage,
+        tenant_id=current_user.tenant_id,
+        actor_user_id=current_user.id,
+        actor_email=str(current_user.email),
+        ip_address=request.client.host if request.client else None,
+        user_agent=request.headers.get("user-agent"),
+    )
+
+
+def get_async_knowledge_document_service(
+    request: Request,
+    db: AsyncSession = Depends(get_async_db),
+    file_service: AsyncFileService = Depends(get_async_file_service),
+    storage: BaseStorage = Depends(get_storage),
+    current_user: User = Depends(get_current_user),
+) -> AsyncKnowledgeDocumentService:
+    return AsyncKnowledgeDocumentService(
+        db=db,
+        file_service=file_service,
+        tenant_id=current_user.tenant_id,
+        actor_user_id=current_user.id,
+        actor_email=str(current_user.email),
+        ip_address=request.client.host if request.client else None,
+        user_agent=request.headers.get("user-agent"),
+        storage=storage,
+    )
 
 
 @router.post(
@@ -54,8 +83,10 @@ async def create_knowledge_document(
             resource_type="knowledge_document",
         )
     ),
-    service: KnowledgeDocumentService = Depends(get_knowledge_document_service),
-):
+    service: AsyncKnowledgeDocumentService = Depends(
+        get_async_knowledge_document_service
+    ),
+) -> APIResponse[KnowledgeDocumentResponse]:
     document = await service.create_document(
         name=name,
         category=category,
@@ -69,7 +100,7 @@ async def create_knowledge_document(
     return APIResponse(
         success=True,
         message="Knowledge document uploaded successfully.",
-        data=document,
+        data=KnowledgeDocumentResponse.model_validate(document),
     )
 
 
@@ -80,21 +111,23 @@ async def create_knowledge_document(
     summary="Get knowledge documents",
     description="Retrieves all knowledge documents.",
 )
-def list_knowledge_documents(
-    service: KnowledgeDocumentService = Depends(get_knowledge_document_service),
+async def list_knowledge_documents(
+    service: AsyncKnowledgeDocumentService = Depends(
+        get_async_knowledge_document_service
+    ),
     _: dict[str, Any] = Depends(
         require_roles(
             UserRole.ADMINISTRATOR,
             resource_type="knowledge_document",
         )
     ),
-):
-    documents = service.get_documents()
+) -> APIResponse[list[KnowledgeDocumentResponse]]:
+    documents = await service.get_documents()
 
     return APIResponse(
         success=True,
         message="Retrieved all knowledge documents.",
-        data=documents,
+        data=[KnowledgeDocumentResponse.model_validate(row) for row in documents],
     )
 
 
@@ -105,22 +138,24 @@ def list_knowledge_documents(
     summary="Get knowledge document",
     description="Retrieves knowledge document by ID.",
 )
-def get_knowledge_document(
+async def get_knowledge_document(
     document_id: UUID,
-    service: KnowledgeDocumentService = Depends(get_knowledge_document_service),
+    service: AsyncKnowledgeDocumentService = Depends(
+        get_async_knowledge_document_service
+    ),
     _: dict[str, Any] = Depends(
         require_roles(
             UserRole.ADMINISTRATOR,
             resource_type="knowledge_document",
         )
     ),
-):
-    document = service.get_document(document_id)
+) -> APIResponse[KnowledgeDocumentResponse]:
+    document = await service.get_document(document_id)
 
     return APIResponse(
         success=True,
         message="Retrieved knowledge document successfully.",
-        data=document,
+        data=KnowledgeDocumentResponse.model_validate(document),
     )
 
 
@@ -136,17 +171,17 @@ async def create_knowledge_document_version(
     document_id: UUID,
     file: UploadFile = File(...),
     name: str | None = Form(default=None),
-    category: KnowledgeDocumentCategory | None = Form(
-        default=None,
-    ),
+    category: KnowledgeDocumentCategory | None = Form(default=None),
     current_user: dict[str, Any] = Depends(
         require_roles(
             UserRole.ADMINISTRATOR,
             resource_type="knowledge_document",
         )
     ),
-    service: KnowledgeDocumentService = Depends(get_knowledge_document_service),
-):
+    service: AsyncKnowledgeDocumentService = Depends(
+        get_async_knowledge_document_service
+    ),
+) -> APIResponse[KnowledgeDocumentResponse]:
     data = KnowledgeDocumentVersionCreate(
         name=name,
         category=category,
@@ -165,7 +200,7 @@ async def create_knowledge_document_version(
     return APIResponse(
         success=True,
         message="Created knowledge document version.",
-        data=document,
+        data=KnowledgeDocumentResponse.model_validate(document),
     )
 
 
@@ -176,22 +211,24 @@ async def create_knowledge_document_version(
     summary="Get knowledge document versions",
     description="Retrieves all knowledge document versions.",
 )
-def list_knowledge_document_versions(
+async def list_knowledge_document_versions(
     document_id: UUID,
-    service: KnowledgeDocumentService = Depends(get_knowledge_document_service),
+    service: AsyncKnowledgeDocumentService = Depends(
+        get_async_knowledge_document_service
+    ),
     _: dict[str, Any] = Depends(
         require_roles(
             UserRole.ADMINISTRATOR,
             resource_type="knowledge_document",
         )
     ),
-):
-    versions = service.get_versions(document_id)
+) -> APIResponse[list[KnowledgeDocumentResponse]]:
+    versions = await service.get_versions(document_id)
 
     return APIResponse(
         success=True,
-        message="Retrieved all knowledge document versions",
-        data=versions,
+        message="Retrieved all knowledge document versions.",
+        data=[KnowledgeDocumentResponse.model_validate(row) for row in versions],
     )
 
 
@@ -202,7 +239,7 @@ def list_knowledge_document_versions(
     summary="Update knowledge document status",
     description="Updates knowledge document status.",
 )
-def update_knowledge_document_status(
+async def update_knowledge_document_status(
     request: Request,
     document_id: UUID,
     payload: KnowledgeDocumentStatusUpdate,
@@ -212,10 +249,12 @@ def update_knowledge_document_status(
             resource_type="knowledge_document",
         )
     ),
-    service: KnowledgeDocumentService = Depends(get_knowledge_document_service),
-):
+    service: AsyncKnowledgeDocumentService = Depends(
+        get_async_knowledge_document_service
+    ),
+) -> APIResponse[KnowledgeDocumentResponse]:
     if payload.status == KnowledgeDocumentStatus.ACTIVE:
-        document = service.activate_document(
+        document = await service.activate_document(
             document_id=document_id,
             uploaded_by=UUID(current_user["sub"]),
             email=current_user["email"],
@@ -223,7 +262,7 @@ def update_knowledge_document_status(
             user_agent=request.headers.get("user-agent"),
         )
     else:
-        document = service.deactivate_document(
+        document = await service.deactivate_document(
             document_id=document_id,
             uploaded_by=UUID(current_user["sub"]),
             email=current_user["email"],
@@ -234,5 +273,5 @@ def update_knowledge_document_status(
     return APIResponse(
         success=True,
         message="Updated status of knowledge document.",
-        data=document,
+        data=KnowledgeDocumentResponse.model_validate(document),
     )
