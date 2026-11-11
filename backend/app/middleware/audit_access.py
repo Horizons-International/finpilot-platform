@@ -1,21 +1,20 @@
-"""Capture successful authenticated reads of high-value FinPilot API resources."""
+"""Capture successful authenticated reads of high-value FinPilot resources."""
 
 from __future__ import annotations
 
+import logging
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy.orm import Session
-from starlette.concurrency import run_in_threadpool
 from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
 from starlette.requests import Request
 from starlette.responses import Response
 
-from app.core.database import SessionLocal
-from app.core.logger import get_logger
-from app.services.audit_event_service import AuditEventService
+from app.middleware.async_session import middleware_async_session
+from app.services.async_audit_service import AsyncAuditService
 
-logger = get_logger(__name__)
+logger = logging.getLogger(__name__)
+
 _PROTECTED_PREFIXES = (
     "/api/v1/customers",
     "/api/v1/documents",
@@ -70,7 +69,6 @@ _ENTITY_SEGMENTS = {
 
 
 def _resource_from_path(path: str) -> tuple[str, UUID | None]:
-    """Derive a coarse resource type and an optional UUID without query strings."""
     segments = [segment for segment in path.strip("/").split("/") if segment]
     entity_type = next(
         (segment for segment in segments if segment in _ENTITY_SEGMENTS),
@@ -86,51 +84,30 @@ def _resource_from_path(path: str) -> tuple[str, UUID | None]:
     return entity_type, entity_id
 
 
-def _persist_read_audit_event(
+async def _persist_read_audit_event(
     *,
+    request: Request,
     user_id: UUID,
     tenant_id: UUID,
     entity_type: str,
     entity_id: UUID | None,
     metadata: dict[str, Any],
 ) -> None:
-    """Persist an audit event in a worker thread using a synchronous session.
-
-    Keep the complete SQLAlchemy unit of work (session creation, insert, commit,
-    rollback, and close) in this synchronous function. The async middleware calls
-    it through ``run_in_threadpool`` so database I/O does not block the event loop.
-    """
-    db: Session | None = None
-    try:
-        db = SessionLocal()
+    async with middleware_async_session(request) as db:
         db.info["tenant_id"] = tenant_id
         db.info["tenant_user_id"] = user_id
-        AuditEventService(db, tenant_id).record_data_access(
+        await AsyncAuditService(db).record_data_access(
             user_id=user_id,
             entity_type=entity_type,
             entity_id=entity_id,
             access_type="READ",
             metadata=metadata,
         )
-        db.commit()
-    except Exception:
-        if db is not None:
-            try:
-                db.rollback()
-            except Exception:
-                logger.exception("Failed to roll back protected-read audit session")
-        raise
-    finally:
-        if db is not None:
-            db.close()
+        await db.commit()
 
 
 class AuditAccessMiddleware(BaseHTTPMiddleware):
-    """Record successful GETs on protected resource paths after auth ran.
-
-    Only actor/tenant IDs, route template, status and request ID are saved. The
-    request query string, payload, response body, and credentials are never logged.
-    """
+    """Record protected GETs after the endpoint returns a successful response."""
 
     async def dispatch(
         self,
@@ -164,11 +141,8 @@ class AuditAccessMiddleware(BaseHTTPMiddleware):
                 "status_code": response.status_code,
                 "request_id": getattr(request.state, "request_id", None),
             }
-
-            # Follow the APIKeyUsageMiddleware pattern: all synchronous database
-            # work is offloaded, and only immutable request values cross threads.
-            await run_in_threadpool(
-                _persist_read_audit_event,
+            await _persist_read_audit_event(
+                request=request,
                 user_id=user_id,
                 tenant_id=tenant_id,
                 entity_type=entity_type,
@@ -176,7 +150,6 @@ class AuditAccessMiddleware(BaseHTTPMiddleware):
                 metadata=metadata,
             )
         except Exception:
-            # Audit failure must not turn an already successful business response
-            # into a 500, but it must remain visible in server logs.
+            # Do not turn an already-successful business response into a 500.
             logger.exception("Failed to persist protected-read audit event")
         return response

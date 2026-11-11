@@ -2,11 +2,10 @@ from typing import Any
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Request, status
-from sqlalchemy.orm import Session
 
-from app.core.database import get_db
+from app.core.async_dependencies import get_async_aml_rule_service
+from app.core.async_security import require_async_roles
 from app.core.responses import APIResponse
-from app.core.security import require_roles
 from app.schemas.aml_rule import (
     AMLRuleCreate,
     AMLRuleEvaluationItemResponse,
@@ -16,28 +15,29 @@ from app.schemas.aml_rule import (
     AMLRuleResponse,
     AMLRuleStatusUpdate,
 )
-from app.services.aml_rule_service import AMLRuleService
+from app.services.async_aml_rule_service import AsyncAMLRuleService
 from app.utils.enums import UserRole
 from app.utils.errors import unauthorized
 
-router = APIRouter(
-    prefix="/api/v1/aml-rules",
-    tags=["AML Rules"],
-)
+router = APIRouter(prefix="/api/v1/aml-rules", tags=["AML Rules"])
 
 
 def _get_authenticated_user(current_user: dict[str, Any]) -> tuple[UUID, str]:
-    user_id = UUID(current_user["sub"])
-    email = current_user["email"]
+    try:
+        user_id = UUID(str(current_user["sub"]))
+    except (KeyError, TypeError, ValueError) as exc:
+        raise unauthorized("Invalid authenticated user.") from exc
+    email = current_user.get("email")
     if not isinstance(email, str) or not email:
         raise unauthorized("Authenticated user email is missing.")
     return user_id, email
 
 
 def _request_metadata(request: Request) -> tuple[str | None, str | None]:
-    ip_address = request.client.host if request.client else None
-    user_agent = request.headers.get("user-agent")
-    return ip_address, user_agent
+    return (
+        request.client.host if request.client else None,
+        request.headers.get("user-agent"),
+    )
 
 
 @router.post(
@@ -50,18 +50,17 @@ def _request_metadata(request: Request) -> tuple[str | None, str | None]:
         "Only administrators can create AML rules."
     ),
 )
-def create_aml_rule(
+async def create_aml_rule(
     payload: AMLRuleCreate,
     request: Request,
-    db: Session = Depends(get_db),
     current_user: dict[str, Any] = Depends(
-        require_roles(UserRole.ADMINISTRATOR, resource_type="aml_rule")
+        require_async_roles(UserRole.ADMINISTRATOR, resource_type="aml_rule")
     ),
+    service: AsyncAMLRuleService = Depends(get_async_aml_rule_service),
 ) -> APIResponse[AMLRuleResponse]:
     user_id, email = _get_authenticated_user(current_user)
     ip_address, user_agent = _request_metadata(request)
-    service = AMLRuleService(db, tenant_id=UUID(current_user["tenant_id"]))
-    rule = service.create(
+    rule = await service.create(
         data=payload,
         user_id=user_id,
         email=email,
@@ -85,18 +84,17 @@ def create_aml_rule(
         "Administrators and compliance officers can view rules."
     ),
 )
-def list_aml_rules(
-    db: Session = Depends(get_db),
+async def list_aml_rules(
     current_user: dict[str, Any] = Depends(
-        require_roles(
+        require_async_roles(
             UserRole.ADMINISTRATOR,
             UserRole.COMPLIANCE_OFFICER,
             resource_type="aml_rule",
         )
     ),
+    service: AsyncAMLRuleService = Depends(get_async_aml_rule_service),
 ) -> APIResponse[list[AMLRuleResponse]]:
-    service = AMLRuleService(db, tenant_id=UUID(current_user["tenant_id"]))
-    rules = service.list_all()
+    rules = await service.list_all()
     return APIResponse(
         success=True,
         message="AML rules retrieved successfully.",
@@ -114,22 +112,21 @@ def list_aml_rules(
         "data. Administrators and compliance officers can execute rules."
     ),
 )
-def evaluate_aml_rules(
+async def evaluate_aml_rules(
     payload: AMLRuleEvaluationRequest,
     request: Request,
-    db: Session = Depends(get_db),
     current_user: dict[str, Any] = Depends(
-        require_roles(
+        require_async_roles(
             UserRole.ADMINISTRATOR,
             UserRole.COMPLIANCE_OFFICER,
             resource_type="aml_rule",
         )
     ),
+    service: AsyncAMLRuleService = Depends(get_async_aml_rule_service),
 ) -> APIResponse[AMLRuleEvaluationResponse]:
     user_id, email = _get_authenticated_user(current_user)
     ip_address, user_agent = _request_metadata(request)
-    service = AMLRuleService(db, tenant_id=UUID(current_user["tenant_id"]))
-    result = service.evaluate(
+    result = await service.evaluate(
         rule_type=payload.rule_type,
         data=payload.data,
         user_id=user_id,
@@ -180,19 +177,18 @@ def evaluate_aml_rules(
         "Administrators and compliance officers can view rules."
     ),
 )
-def get_aml_rule(
+async def get_aml_rule(
     rule_id: UUID,
-    db: Session = Depends(get_db),
     current_user: dict[str, Any] = Depends(
-        require_roles(
+        require_async_roles(
             UserRole.ADMINISTRATOR,
             UserRole.COMPLIANCE_OFFICER,
             resource_type="aml_rule",
         )
     ),
+    service: AsyncAMLRuleService = Depends(get_async_aml_rule_service),
 ) -> APIResponse[AMLRuleResponse]:
-    service = AMLRuleService(db, tenant_id=UUID(current_user["tenant_id"]))
-    rule = service.get_by_id(rule_id)
+    rule = await service.get_by_id(rule_id)
     return APIResponse(
         success=True,
         message="AML rule retrieved successfully.",
@@ -205,22 +201,23 @@ def get_aml_rule(
     response_model=APIResponse[AMLRuleResponse],
     status_code=status.HTTP_200_OK,
     summary="Activate or deactivate AML rule",
-    description="Activate or deactivate an AML monitoring "
-    "rule. Only administrators can change rule status.",
+    description=(
+        "Activate or deactivate an AML monitoring rule. "
+        "Only administrators can change rule status."
+    ),
 )
-def update_aml_rule_status(
+async def update_aml_rule_status(
     rule_id: UUID,
     payload: AMLRuleStatusUpdate,
     request: Request,
-    db: Session = Depends(get_db),
     current_user: dict[str, Any] = Depends(
-        require_roles(UserRole.ADMINISTRATOR, resource_type="aml_rule")
+        require_async_roles(UserRole.ADMINISTRATOR, resource_type="aml_rule")
     ),
+    service: AsyncAMLRuleService = Depends(get_async_aml_rule_service),
 ) -> APIResponse[AMLRuleResponse]:
     user_id, email = _get_authenticated_user(current_user)
     ip_address, user_agent = _request_metadata(request)
-    service = AMLRuleService(db, tenant_id=UUID(current_user["tenant_id"]))
-    rule = service.update_status(
+    rule = await service.update_status(
         rule_id=rule_id,
         new_status=payload.status,
         user_id=user_id,

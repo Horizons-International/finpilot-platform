@@ -2,6 +2,7 @@ from uuid import UUID
 
 from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from app.models.knowledge_document import KnowledgeDocument
 from app.models.knowledge_document_chunk import KnowledgeDocumentChunk
@@ -103,6 +104,7 @@ class AsyncKnowledgeDocumentChunkRepository(
                 KnowledgeDocument,
                 KnowledgeDocument.id == KnowledgeDocumentChunk.knowledge_document_id,
             )
+            .options(selectinload(KnowledgeDocumentChunk.knowledge_document))
             .where(
                 KnowledgeDocumentChunk.tenant_id == self.tenant_id,
                 KnowledgeDocument.tenant_id == self.tenant_id,

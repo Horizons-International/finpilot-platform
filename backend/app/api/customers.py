@@ -1,20 +1,12 @@
 from typing import Any
 from uuid import UUID
 
-from fastapi import (
-    APIRouter,
-    Depends,
-    Query,
-    Request,
-    status,
-)
+from fastapi import APIRouter, Depends, Query, Request, status
 from pydantic import EmailStr
-from sqlalchemy.orm import Session
 
-from app.core.database import get_db
-from app.core.dependencies import get_customer_service
+from app.core.async_dependencies import get_async_customer_service
+from app.core.async_security import require_async_roles
 from app.core.responses import APIResponse
-from app.core.security import require_roles
 from app.schemas.customer import (
     CustomerCreate,
     CustomerListResponse,
@@ -23,14 +15,11 @@ from app.schemas.customer import (
     CustomerStatusUpdate,
     CustomerUpdate,
 )
-from app.services.customer_service import CustomerService
+from app.services.async_customer_service import AsyncCustomerService
 from app.utils.constants import DEFAULT_PAGE, DEFAULT_PAGE_SIZE
 from app.utils.enums import CustomerStatus, UserRole
 
-router = APIRouter(
-    prefix="/api/v1/customers",
-    tags=["Customers"],
-)
+router = APIRouter(prefix="/api/v1/customers", tags=["Customers"])
 
 
 @router.post(
@@ -40,28 +29,21 @@ router = APIRouter(
     summary="Create customer",
     description="Creates a new customer.",
 )
-def create_customer(
+async def create_customer(
     request: Request,
     customer_data: CustomerCreate,
-    db: Session = Depends(get_db),
-    service: CustomerService = Depends(
-        get_customer_service,
-    ),
+    service: AsyncCustomerService = Depends(get_async_customer_service),
     current_user: dict[str, Any] = Depends(
-        require_roles(
-            UserRole.ADMINISTRATOR,
-            resource_type="customer",
-        )
+        require_async_roles(UserRole.ADMINISTRATOR, resource_type="customer")
     ),
-):
-    customer = service.create_customer(
+) -> APIResponse[CustomerResponse]:
+    customer = await service.create_customer(
         customer_data=customer_data,
         created_by=UUID(current_user["sub"]),
         email=current_user["email"],
-        ip_address=(request.client.host if request.client else None),
+        ip_address=request.client.host if request.client else None,
         user_agent=request.headers.get("user-agent"),
     )
-
     return APIResponse(
         success=True,
         message="Customer created successfully.",
@@ -76,30 +58,23 @@ def create_customer(
     summary="Update customer",
     description="Updates an existing customer.",
 )
-def update_customer(
+async def update_customer(
     request: Request,
     customer_id: UUID,
     customer_data: CustomerUpdate,
-    service: CustomerService = Depends(
-        get_customer_service,
-    ),
-    db: Session = Depends(get_db),
+    service: AsyncCustomerService = Depends(get_async_customer_service),
     current_user: dict[str, Any] = Depends(
-        require_roles(
-            UserRole.ADMINISTRATOR,
-            resource_type="customer",
-        )
+        require_async_roles(UserRole.ADMINISTRATOR, resource_type="customer")
     ),
-):
-    customer = service.update_customer(
+) -> APIResponse[CustomerResponse]:
+    customer = await service.update_customer(
         customer_id=customer_id,
         customer_data=customer_data,
         updated_by=UUID(current_user["sub"]),
         email=current_user["email"],
-        ip_address=(request.client.host if request.client else None),
+        ip_address=request.client.host if request.client else None,
         user_agent=request.headers.get("user-agent"),
     )
-
     return APIResponse(
         success=True,
         message="Customer updated successfully.",
@@ -112,32 +87,25 @@ def update_customer(
     response_model=APIResponse[CustomerResponse],
     status_code=status.HTTP_200_OK,
     summary="Change customer status",
-    description="Changes the status of a existing customer.",
+    description="Changes the status of an existing customer.",
 )
-def update_customer_status(
+async def update_customer_status(
     request: Request,
     customer_id: UUID,
     status_data: CustomerStatusUpdate,
-    service: CustomerService = Depends(
-        get_customer_service,
-    ),
-    db: Session = Depends(get_db),
+    service: AsyncCustomerService = Depends(get_async_customer_service),
     current_user: dict[str, Any] = Depends(
-        require_roles(
-            UserRole.ADMINISTRATOR,
-            resource_type="customer",
-        )
+        require_async_roles(UserRole.ADMINISTRATOR, resource_type="customer")
     ),
-):
-    customer = service.update_status(
+) -> APIResponse[CustomerResponse]:
+    customer = await service.update_status(
         customer_id=customer_id,
         new_status=status_data.status,
         changed_by=UUID(current_user["sub"]),
         email=current_user["email"],
-        ip_address=(request.client.host if request.client else None),
+        ip_address=request.client.host if request.client else None,
         user_agent=request.headers.get("user-agent"),
     )
-
     return APIResponse(
         success=True,
         message="Customer status updated successfully.",
@@ -155,64 +123,44 @@ def update_customer_status(
         "with pagination, filtering, and sorting."
     ),
 )
-def search_customers(
+async def search_customers(
     customer_id: UUID | None = Query(
-        default=None,
-        description="Filter by customer ID.",
+        default=None, description="Filter by customer ID."
     ),
     name: str | None = Query(
-        default=None,
-        description="Search by first, middle, or last name.",
+        default=None, description="Search by first, middle, or last name."
     ),
     phone_number: str | None = Query(
-        default=None,
-        description="Search by phone number.",
+        default=None, description="Search by phone number."
     ),
     email: EmailStr | None = Query(
-        default=None,
-        description="Filter by email address.",
+        default=None, description="Filter by email address."
     ),
-    status: CustomerStatus | None = Query(
-        default=None,
-        description="Filter by customer status.",
-    ),
-    page: int = Query(
-        default=DEFAULT_PAGE,
-    ),
-    page_size: int = Query(
-        default=DEFAULT_PAGE_SIZE,
-    ),
-    sort_by: str = Query(
-        default=CustomerSortField.CREATED_AT,
-    ),
-    sort_order: str = Query(
-        default="desc",
-        pattern="^(asc|desc)$",
-    ),
-    db: Session = Depends(get_db),
+    status: CustomerStatus | None = Query(default=None),
+    page: int = Query(default=DEFAULT_PAGE),
+    page_size: int = Query(default=DEFAULT_PAGE_SIZE),
+    sort_by: str = Query(default=CustomerSortField.CREATED_AT),
+    sort_order: str = Query(default="desc", pattern="^(asc|desc)$"),
+    service: AsyncCustomerService = Depends(get_async_customer_service),
     _: dict[str, Any] = Depends(
-        require_roles(
+        require_async_roles(
             UserRole.ADMINISTRATOR,
             UserRole.COMPLIANCE_OFFICER,
             resource_type="customer",
         )
     ),
-    service: CustomerService = Depends(
-        get_customer_service,
-    ),
-):
-    result = service.search_customers(
+) -> APIResponse[CustomerListResponse]:
+    result = await service.search_customers(
         customer_id=customer_id,
         name=name,
         phone_number=phone_number,
-        email=email,
+        email=str(email) if email is not None else None,
         status=status,
         page=page,
         page_size=page_size,
         sort_by=sort_by,
         sort_order=sort_order,
     )
-
     return APIResponse(
         success=True,
         message="Customers retrieved successfully.",
@@ -227,25 +175,19 @@ def search_customers(
     summary="Get customer",
     description="Retrieves a customer by ID.",
 )
-def get_customer(
+async def get_customer(
     customer_id: UUID,
-    db: Session = Depends(get_db),
-    service: CustomerService = Depends(
-        get_customer_service,
-    ),
+    service: AsyncCustomerService = Depends(get_async_customer_service),
     _: dict[str, Any] = Depends(
-        require_roles(
+        require_async_roles(
             UserRole.ADMINISTRATOR,
             UserRole.COMPLIANCE_OFFICER,
             UserRole.REVIEWER,
             resource_type="customer",
         )
     ),
-):
-    customer = service.get_customer(
-        customer_id=customer_id,
-    )
-
+) -> APIResponse[CustomerResponse]:
+    customer = await service.get_customer(customer_id)
     return APIResponse(
         success=True,
         message="Customer retrieved successfully.",

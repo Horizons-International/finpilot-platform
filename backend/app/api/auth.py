@@ -1,15 +1,12 @@
 from typing import Any
 
 from fastapi import APIRouter, Depends, Request, status
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.database import get_db
+from app.core.async_security import get_async_current_user, require_async_roles
+from app.core.database import get_async_db
 from app.core.dependencies import get_user_invitation_service
 from app.core.responses import APIResponse
-from app.core.security import (
-    get_current_user,
-    require_roles,
-)
 from app.models.user import User
 from app.schemas.auth import (
     AcceptInvitationRequest,
@@ -19,16 +16,11 @@ from app.schemas.auth import (
     RefreshTokenRequest,
     RefreshTokenResponse,
 )
-from app.services.auth_service import AuthService
-from app.services.user_invitation_service import (
-    UserInvitationService,
-)
+from app.services.async_auth_service import AsyncAuthService
+from app.services.user_invitation_service import UserInvitationService
 from app.utils.enums import UserRole
 
-router = APIRouter(
-    prefix="/api/v1/auth",
-    tags=["Authentication"],
-)
+router = APIRouter(prefix="/api/v1/auth", tags=["Authentication"])
 
 
 @router.post(
@@ -38,21 +30,18 @@ router = APIRouter(
     summary="Authenticate user",
     description="Authenticates a user and returns access and refresh tokens.",
 )
-def login(
+async def login(
     login_data: LoginRequest,
     request: Request,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
 ) -> APIResponse[LoginResponse]:
-    service = AuthService(db)
-
-    result = service.login(
+    result = await AsyncAuthService(db).login(
         email=login_data.email,
         password=login_data.password,
-        ip_address=(request.client.host if request.client else None),
+        ip_address=request.client.host if request.client else None,
         user_agent=request.headers.get("user-agent"),
         mfa_code=login_data.mfa_code,
     )
-
     return APIResponse(success=True, message="Login successful.", data=result)
 
 
@@ -63,16 +52,15 @@ def login(
     summary="Refresh access token",
     description="Generates a new access token using a valid refresh token.",
 )
-def refresh_token(
+async def refresh_token(
     refresh_data: RefreshTokenRequest,
-    db: Session = Depends(get_db),
-):
-    service = AuthService(db)
-
-    result = service.refresh_token(refresh_token=refresh_data.refresh_token)
-
+    db: AsyncSession = Depends(get_async_db),
+) -> APIResponse[RefreshTokenResponse]:
+    result = await AsyncAuthService(db).refresh_token(refresh_data.refresh_token)
     return APIResponse(
-        success=True, message="Access token refreshed successfully.", data=result
+        success=True,
+        message="Access token refreshed successfully.",
+        data=result,
     )
 
 
@@ -82,15 +70,15 @@ def refresh_token(
     status_code=status.HTTP_200_OK,
     summary="For administrators",
     description=(
-        "Endpoint to test out administrator authentication."
-        "Only administrators are able to use this endpoint."
+        "Endpoint to test administrator authentication. "
+        "Only administrators can access this endpoint."
     ),
 )
-def admin_only(
+async def admin_only(
     current_user: dict[str, Any] = Depends(
-        require_roles(UserRole.ADMINISTRATOR, resource_type="Admin_only"),
+        require_async_roles(UserRole.ADMINISTRATOR, resource_type="Admin_only")
     ),
-):
+) -> APIResponse[Any]:
     return APIResponse(
         success=True,
         message="Administrator access granted",
@@ -105,21 +93,18 @@ def admin_only(
     summary="Change password",
     description="Changes the password of the currently authenticated user.",
 )
-def change_password(
+async def change_password(
     password_data: ChangePasswordRequest,
     request: Request,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
-):
-    service = AuthService(db)
-
-    service.change_password(
+    db: AsyncSession = Depends(get_async_db),
+    current_user: User = Depends(get_async_current_user),
+) -> APIResponse[dict[str, str]]:
+    await AsyncAuthService(db).change_password(
         user_id=current_user.id,
         password_data=password_data,
-        ip_address=(request.client.host if request.client else None),
+        ip_address=request.client.host if request.client else None,
         user_agent=request.headers.get("user-agent"),
     )
-
     return APIResponse(
         success=True,
         message="Password changed successfully.",
@@ -127,6 +112,9 @@ def change_password(
     )
 
 
+# Invitation acceptance is intentionally left on its existing synchronous
+# service because its repository and onboarding transaction have not yet been
+# migrated to AsyncSession.
 @router.post(
     "/accept-invitation",
     response_model=APIResponse[dict[str, str]],
@@ -135,20 +123,11 @@ def change_password(
 )
 def accept_invitation(
     payload: AcceptInvitationRequest,
-    service: UserInvitationService = Depends(
-        get_user_invitation_service,
-    ),
+    service: UserInvitationService = Depends(get_user_invitation_service),
 ) -> APIResponse[dict[str, str]]:
-    user = service.accept(
-        token=payload.token,
-        password=payload.password,
-    )
-
+    user = service.accept(token=payload.token, password=payload.password)
     return APIResponse(
         success=True,
         message="Invitation accepted successfully.",
-        data={
-            "user_id": str(user.id),
-            "email": user.email,
-        },
+        data={"user_id": str(user.id), "email": user.email},
     )

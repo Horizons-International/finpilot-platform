@@ -2,17 +2,18 @@ from typing import Any
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Request, status
-from sqlalchemy.orm import Session
 
-from app.core.database import get_db
+from app.core.async_dependencies import get_async_transaction_monitoring_service
+from app.core.async_security import require_async_roles
 from app.core.responses import APIResponse
-from app.core.security import require_roles
 from app.schemas.transaction_monitoring import (
     TransactionMonitoringRequest,
     TransactionMonitoringResponse,
     TransactionMonitoringResultResponse,
 )
-from app.services.transaction_monitoring_service import TransactionMonitoringService
+from app.services.async_transaction_monitoring_service import (
+    AsyncTransactionMonitoringService,
+)
 from app.utils.enums import TransactionMonitoringOutcome, UserRole
 from app.utils.errors import unauthorized
 
@@ -27,16 +28,10 @@ def _get_authenticated_user(current_user: dict[str, Any]) -> tuple[UUID, str]:
         user_id = UUID(str(current_user["sub"]))
     except (KeyError, TypeError, ValueError) as exc:
         raise unauthorized("Invalid authenticated user.") from exc
-
     email = current_user.get("email")
     if not isinstance(email, str) or not email:
         raise unauthorized("Authenticated user email is missing.")
     return user_id, email
-
-
-def _request_metadata(request: Request) -> tuple[str | None, str | None]:
-    client_host = request.client.host if request.client is not None else None
-    return client_host, request.headers.get("user-agent")
 
 
 @router.post(
@@ -49,32 +44,30 @@ def _request_metadata(request: Request) -> tuple[str | None, str | None]:
         "Administrators and compliance officers can execute transaction monitoring."
     ),
 )
-def evaluate_transaction(
+async def evaluate_transaction(
     payload: TransactionMonitoringRequest,
     request: Request,
-    db: Session = Depends(get_db),
     current_user: dict[str, Any] = Depends(
-        require_roles(
+        require_async_roles(
             UserRole.ADMINISTRATOR,
             UserRole.COMPLIANCE_OFFICER,
             resource_type="transaction_monitoring",
         )
     ),
+    service: AsyncTransactionMonitoringService = Depends(
+        get_async_transaction_monitoring_service
+    ),
 ) -> APIResponse[TransactionMonitoringResponse]:
     user_id, email = _get_authenticated_user(current_user)
-    ip_address, user_agent = _request_metadata(request)
-    service = TransactionMonitoringService(
-        db,
-        tenant_id=UUID(current_user["tenant_id"]),
-    )
-    persisted_results = service.monitor_transaction(
+    ip_address = request.client.host if request.client is not None else None
+    user_agent = request.headers.get("user-agent")
+    persisted_results = await service.monitor_transaction(
         payload=payload,
         user_id=user_id,
         email=email,
         ip_address=ip_address,
         user_agent=user_agent,
     )
-
     response_results = [
         TransactionMonitoringResultResponse(
             id=result.id,

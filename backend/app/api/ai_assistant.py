@@ -2,10 +2,13 @@ from typing import Any
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query, Request, status
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import Session
 
 from app.ai.exceptions import AIProviderError
-from app.core.database import get_db
+from app.core.async_security import require_async_roles
+from app.core.database import get_async_db
 from app.core.dependencies import (
     get_ai_analytics_assistant_service,
     get_ai_compliance_service,
@@ -13,6 +16,7 @@ from app.core.dependencies import (
 )
 from app.core.responses import APIResponse
 from app.core.security import require_roles
+from app.models.ai_interaction import AIInteraction
 from app.schemas.ai_analytics_assistant import AIAnalyticsResponse
 from app.schemas.ai_assistant import (
     AIComplianceRequest,
@@ -33,18 +37,13 @@ from app.services.ai_compliance_service import AIComplianceService
 from app.services.ai_decision_explanation_recorder import (
     install_ai_decision_explanation_recorder,
 )
-from app.services.ai_decision_explanation_service import (
-    AIDecisionExplanationService,
-)
+from app.services.ai_decision_explanation_service import AIDecisionExplanationService
+from app.services.async_service_bridge import run_sync_in_tenant
 from app.services.regulatory_assistant_service import RegulatoryAssistantService
 from app.utils.enums import UserRole
-from app.utils.errors import service_unavailable
+from app.utils.errors import bad_request, not_found, service_unavailable
 
-router = APIRouter(
-    prefix="/api/v1/ai-assistant",
-    tags=["AI Assistant"],
-)
-
+router = APIRouter(prefix="/api/v1/ai-assistant", tags=["AI Assistant"])
 
 REGULATORY_ASSISTANT_ROLES = (
     UserRole.ADMINISTRATOR,
@@ -55,12 +54,13 @@ REGULATORY_ASSISTANT_ROLES = (
 )
 
 
+# AI provider calls below intentionally remain synchronous: the configured OpenAI
+# adapter uses the synchronous SDK and FastAPI dispatches these `def` handlers to
+# its worker pool. Database-backed read endpoints use AsyncSession instead.
 @router.post(
     "/ask",
     response_model=APIResponse[AIComplianceResponse],
     status_code=status.HTTP_201_CREATED,
-    summary="Post AI question",
-    description="Sends question to AI assistant.",
 )
 def ask_ai_assistant(
     request: AIComplianceRequest,
@@ -74,16 +74,10 @@ def ask_ai_assistant(
     ),
     service: AIComplianceService = Depends(get_ai_compliance_service),
 ) -> APIResponse[AIComplianceResponse]:
-    user_id = UUID(current_user["sub"])
-
     try:
-        response = service.ask(
-            request,
-            user_id=user_id,
-        )
+        response = service.ask(request, user_id=UUID(current_user["sub"]))
     except AIProviderError as exc:
         raise service_unavailable("AI service is temporarily unavailable.") from exc
-
     return APIResponse(
         success=True,
         message="Question been sent to ai assistant successfully.",
@@ -95,28 +89,29 @@ def ask_ai_assistant(
     "/interactions/{interaction_id}",
     response_model=APIResponse[AIInteractionResponse],
     status_code=status.HTTP_200_OK,
-    summary="Get AI interaction",
-    description="Retrieves AI interaction by ID.",
 )
-def get_ai_interaction(
+async def get_ai_interaction(
     interaction_id: UUID,
+    db: AsyncSession = Depends(get_async_db),
     current_user: dict[str, Any] = Depends(
-        require_roles(
+        require_async_roles(
             UserRole.ADMINISTRATOR,
             UserRole.COMPLIANCE_OFFICER,
             UserRole.REVIEWER,
             resource_type="ai_assistant",
         )
     ),
-    service: AIComplianceService = Depends(get_ai_compliance_service),
 ) -> APIResponse[AIInteractionResponse]:
-    user_id = UUID(current_user["sub"])
-
-    interaction = service.get_interaction(
-        interaction_id,
-        user_id=user_id,
+    interaction = await db.scalar(
+        select(AIInteraction).where(
+            AIInteraction.id == interaction_id,
+            AIInteraction.tenant_id == UUID(current_user["tenant_id"]),
+        )
     )
-
+    if interaction is None:
+        raise not_found("AI interaction")
+    if interaction.user_id != UUID(current_user["sub"]):
+        raise bad_request("You do not have access to this AI interaction.")
     return APIResponse(
         success=True,
         message="ai interaction successfully retrieved.",
@@ -128,33 +123,31 @@ def get_ai_interaction(
     "/interactions",
     response_model=APIResponse[list[AIInteractionResponse]],
     status_code=status.HTTP_200_OK,
-    summary="Get AI interactions",
-    description="Retrieves all AI interactions.",
 )
-def get_my_ai_interactions(
+async def get_my_ai_interactions(
+    db: AsyncSession = Depends(get_async_db),
     current_user: dict[str, Any] = Depends(
-        require_roles(
+        require_async_roles(
             UserRole.ADMINISTRATOR,
             UserRole.COMPLIANCE_OFFICER,
             UserRole.REVIEWER,
             resource_type="ai_assistant",
         )
     ),
-    service: AIComplianceService = Depends(get_ai_compliance_service),
 ) -> APIResponse[list[AIInteractionResponse]]:
-    user_id = UUID(current_user["sub"])
-
-    interactions = service.get_user_interactions(
-        user_id=user_id,
+    result = await db.scalars(
+        select(AIInteraction)
+        .where(
+            AIInteraction.tenant_id == UUID(current_user["tenant_id"]),
+            AIInteraction.user_id == UUID(current_user["sub"]),
+        )
+        .order_by(AIInteraction.created_at.desc())
     )
-
+    interactions = [AIInteractionResponse.model_validate(item) for item in result.all()]
     return APIResponse(
         success=True,
         message="successfully retrived all ai interactions.",
-        data=[
-            AIInteractionResponse.model_validate(interaction)
-            for interaction in interactions
-        ],
+        data=interactions,
     )
 
 
@@ -162,25 +155,11 @@ def get_my_ai_interactions(
     "/analytics/ask",
     response_model=APIResponse[AIAnalyticsResponse],
     status_code=status.HTTP_201_CREATED,
-    summary="Ask analytics AI assistant",
-    description=(
-        "Ask a natural-language business analytics question "
-        "and receive grounded analytics insights."
-    ),
 )
 def ask_analytics_assistant(
     request: Request,
-    question: str = Query(
-        min_length=1,
-        max_length=4000,
-        description="Natural-language analytics question.",
-    ),
-    retrieval_limit: int = Query(
-        default=5,
-        ge=1,
-        le=20,
-        description="Maximum number of RAG results to include.",
-    ),
+    question: str = Query(min_length=1, max_length=4000),
+    retrieval_limit: int = Query(default=5, ge=1, le=20),
     current_user: dict[str, Any] = Depends(
         require_roles(
             UserRole.ADMINISTRATOR,
@@ -189,9 +168,7 @@ def ask_analytics_assistant(
             resource_type="ai-analytics-assistant",
         )
     ),
-    service: AIAnalyticsAssistantService = Depends(
-        get_ai_analytics_assistant_service,
-    ),
+    service: AIAnalyticsAssistantService = Depends(get_ai_analytics_assistant_service),
 ) -> APIResponse[AIAnalyticsResponse]:
     try:
         response = service.ask(
@@ -199,12 +176,8 @@ def ask_analytics_assistant(
             user_id=UUID(current_user["sub"]),
             retrieval_limit=retrieval_limit,
         )
-
     except AIProviderError as exc:
-        raise service_unavailable(
-            "AI service is temporarily unavailable.",
-        ) from exc
-
+        raise service_unavailable("AI service is temporarily unavailable.") from exc
     return APIResponse(
         success=True,
         message="Analytics question answered successfully.",
@@ -216,12 +189,6 @@ def ask_analytics_assistant(
     "/regulatory/ask",
     response_model=APIResponse[RegulatoryAssistantAnswerResponse],
     status_code=status.HTTP_200_OK,
-    summary="Ask the AI regulatory assistant",
-    description=(
-        "Answers a regulatory or compliance question using active tenant-scoped "
-        "compliance policies, internal procedures, and regulatory guidelines. "
-        "The response includes supporting source references."
-    ),
 )
 def ask_regulatory_assistant(
     payload: RegulatoryAssistantRequest,
@@ -236,7 +203,6 @@ def ask_regulatory_assistant(
         raise service_unavailable(
             "AI regulatory assistant is temporarily unavailable."
         ) from exc
-
     return APIResponse(
         success=True,
         message="Regulatory question answered with approved knowledge sources.",
@@ -248,11 +214,6 @@ def ask_regulatory_assistant(
     "/regulatory/search",
     response_model=APIResponse[RegulatoryAssistantSearchResponse],
     status_code=status.HTTP_200_OK,
-    summary="Search regulatory knowledge sources",
-    description=(
-        "Searches active, tenant-scoped compliance policies, internal procedures, "
-        "and regulatory guidelines without generating an AI answer."
-    ),
 )
 def search_regulatory_knowledge(
     payload: RegulatoryAssistantRequest,
@@ -280,8 +241,6 @@ _EXPLANATION_VIEW_ROLES = (
     UserRole.VIEWER,
 )
 
-# Importing the main AI API enables same-transaction explanation capture for
-# completed decisions created by the risk, AML, document, and assistant services.
 install_ai_decision_explanation_recorder()
 
 
@@ -289,28 +248,30 @@ install_ai_decision_explanation_recorder()
     "/decision-explanations/{decision_type}/{decision_id}",
     response_model=APIResponse[AIDecisionExplanationResponse],
     status_code=status.HTTP_200_OK,
-    summary="Get the explanation for an AI decision",
-    description=(
-        "Returns the latest stored decision rationale, contributing factors, "
-        "supporting source references, risk indicators, and confidence metadata."
-    ),
 )
-def get_ai_decision_explanation(
+async def get_ai_decision_explanation(
     decision_type: str,
     decision_id: UUID,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user: dict[str, Any] = Depends(
-        require_roles(*_EXPLANATION_VIEW_ROLES, resource_type="ai_decision_explanation")
+        require_async_roles(
+            *_EXPLANATION_VIEW_ROLES, resource_type="ai_decision_explanation"
+        )
     ),
 ) -> APIResponse[AIDecisionExplanationResponse]:
-    service = AIDecisionExplanationService(
-        db, tenant_id=UUID(current_user["tenant_id"])
-    )
-    explanation = service.get_latest(decision_type, decision_id)
+    tenant_id = UUID(current_user["tenant_id"])
+
+    def operation(sync_db: Session):
+        explanation = AIDecisionExplanationService(
+            sync_db, tenant_id=tenant_id
+        ).get_latest(decision_type, decision_id)
+        return AIDecisionExplanationResponse.model_validate(explanation)
+
+    explanation = await run_sync_in_tenant(db, tenant_id, operation)
     return APIResponse(
         success=True,
         message="AI decision explanation retrieved successfully.",
-        data=AIDecisionExplanationResponse.model_validate(explanation),
+        data=explanation,
     )
 
 
@@ -318,29 +279,32 @@ def get_ai_decision_explanation(
     "/decision-explanations/{decision_type}/{decision_id}/history",
     response_model=APIResponse[AIDecisionExplanationHistoryResponse],
     status_code=status.HTTP_200_OK,
-    summary="Get explanation history for an AI decision",
-    description=(
-        "Returns historical explanation snapshots for one tenant-owned decision, "
-        "newest first."
-    ),
 )
-def get_ai_decision_explanation_history(
+async def get_ai_decision_explanation_history(
     decision_type: str,
     decision_id: UUID,
     limit: int = Query(default=100, ge=1, le=200),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user: dict[str, Any] = Depends(
-        require_roles(*_EXPLANATION_VIEW_ROLES, resource_type="ai_decision_explanation")
+        require_async_roles(
+            *_EXPLANATION_VIEW_ROLES, resource_type="ai_decision_explanation"
+        )
     ),
 ) -> APIResponse[AIDecisionExplanationHistoryResponse]:
-    service = AIDecisionExplanationService(
-        db, tenant_id=UUID(current_user["tenant_id"])
-    )
-    items, total = service.get_history(decision_type, decision_id, limit=limit)
-    data = AIDecisionExplanationHistoryResponse(
-        items=[AIDecisionExplanationResponse.model_validate(item) for item in items],
-        total=total,
-    )
+    tenant_id = UUID(current_user["tenant_id"])
+
+    def operation(sync_db: Session):
+        items, total = AIDecisionExplanationService(
+            sync_db, tenant_id=tenant_id
+        ).get_history(decision_type, decision_id, limit=limit)
+        return AIDecisionExplanationHistoryResponse(
+            items=[
+                AIDecisionExplanationResponse.model_validate(item) for item in items
+            ],
+            total=total,
+        )
+
+    data = await run_sync_in_tenant(db, tenant_id, operation)
     return APIResponse(
         success=True,
         message="AI decision explanation history retrieved successfully.",
