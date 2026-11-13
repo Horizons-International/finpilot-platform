@@ -1,8 +1,8 @@
-# FinPilot Compliance Documentation Module
+# Compliance documentation library
 
-This package adds a tenant-scoped compliance library to FinPilot with immutable file versions, approval history, controlled downloads, and explicit evidence records.
+## Overview
 
-## Included
+The compliance-documentation API provides tenant-scoped document metadata, immutable file versions, approval history and structured evidence records. It uses the existing file/storage services and stores content digests with version metadata.
 
 - `backend/app/models/compliance_document.py`: the requested `compliance_documents` model plus version, approval, and evidence models.
 - `backend/app/repositories/compliance_document_repository.py`: tenant-filtered document/version/approval/evidence queries.
@@ -15,40 +15,47 @@ This package adds a tenant-scoped compliance library to FinPilot with immutable 
 
 ## API operations
 
+Base path: `/api/v1/compliance-documents`.
+
 | Method | Route | Purpose |
 |---|---|---|
-| `POST` | `/api/v1/compliance-documents` | Create a draft and upload its first file version (multipart: `name`, `category`, `file`, optional `change_summary`) |
-| `GET` | `/api/v1/compliance-documents` | List tenant documents; optional `category`, `status`, `limit`, `offset` |
-| `GET` | `/api/v1/compliance-documents/{id}` | Retrieve document metadata |
-| `GET` | `/api/v1/compliance-documents/{id}/versions` | List immutable version metadata and SHA-256 digests |
-| `POST` | `/api/v1/compliance-documents/{id}/versions` | Upload a new file version |
-| `GET` | `/api/v1/compliance-documents/{id}/versions/{version}/download` | Download a version after tenant and role checks |
-| `POST` | `/api/v1/compliance-documents/{id}/submit-for-approval` | Submit current version for review |
-| `POST` | `/api/v1/compliance-documents/{id}/approve` | Approve a pending submission |
-| `POST` | `/api/v1/compliance-documents/{id}/reject` | Reject a pending submission (review comment required) |
-| `GET` | `/api/v1/compliance-documents/{id}/approvals` | Read approval audit history |
-| `POST` | `/api/v1/compliance-documents/{id}/evidence` | Attach a structured evidence record/reference |
-| `GET` | `/api/v1/compliance-documents/{id}/evidence` | List evidence records |
-| `PATCH` | `/api/v1/compliance-documents/{id}/archive` | Archive a document |
+| POST | `/` | Create draft and upload first version (multipart: name, category, file, optional change_summary) |
+| GET | `/` | List tenant documents with category/status/limit/offset filters |
+| GET | `/{id}` | Read document metadata |
+| GET | `/{id}/versions` | List immutable version metadata and SHA-256 digests |
+| POST | `/{id}/versions` | Upload another version |
+| GET | `/{id}/versions/{version}/download` | Download a version after access checks |
+| POST | `/{id}/submit-for-approval` | Submit current version for review |
+| POST | `/{id}/approve` | Approve pending version |
+| POST | `/{id}/reject` | Reject pending version (review comment required) |
+| GET | `/{id}/approvals` | Read approval history |
+| POST | `/{id}/evidence` | Attach an evidence reference |
+| GET | `/{id}/evidence` | List evidence |
+| PATCH | `/{id}/archive` | Archive a document |
 
-Categories are `SECURITY`, `COMPLIANCE`, `OPERATIONS`, and `OTHER`. File uploads use the existing configured maximum file size and are restricted to supported documentation/media types. Evidence source references are metadata only: do not paste credentials, tokens, secret URLs, or customer personal data into them.
+Categories include `SECURITY`, `COMPLIANCE`, `OPERATIONS` and `OTHER`. Confirm enum values, MIME limits and response details in the live OpenAPI schema.
 
-## Roles and access model
+## Roles and lifecycle
 
-- Any authenticated FinPilot role can read documents in its own tenant; repository/service queries enforce the authenticated tenant.
-- `Administrator`, `Organization Admin`, `Compliance Manager`, and `Compliance Officer` can create documents, versions, and evidence.
-- `Administrator`, `Organization Admin`, and `Compliance Manager` can approve/reject submissions and archive documents.
-- A document owner cannot approve their own document.
-- A document in `IN_REVIEW` cannot be versioned or archived. A rejected document can be revised and resubmitted.
+The API uses role-specific read, write and approver groups. The service enforces document ownership/tenant access and separates the owner from the approver. The lifecycle includes `DRAFT`, `IN_REVIEW`, `APPROVED`, `REJECTED` and `ARCHIVED`; see [approval workflow](APPROVAL_WORKFLOW.md) for the expected process.
 
-These are application-level defaults, not a substitute for a bank's approved records-retention, segregation-of-duties, and document-classification policy. Tailor the role matrix to the deployment's governance requirements.
+These application defaults do not replace the bank's approved records-management, retention, legal-hold and segregation-of-duties policies. Validate the role matrix with Compliance and Security before production.
 
-## Setup
+## Evidence catalogue
 
-1. Copy the files into the repository root, preserving paths.
-2. Follow `IMPLEMENTATION_NOTES.md` to register the router and model with the current application and Alembic metadata.
-3. From `backend/`, verify the migration base against the local history, run `uv run alembic upgrade head`, then run tests.
-4. Test with two tenants and at least two roles. Verify that another tenant cannot list, retrieve, download, version, approve, archive, or attach evidence to a document it does not own.
-5. Upload a synthetic PDF/text file, check the stored SHA-256 and `file_id`, perform submit → approve/reject, and confirm version and approval records persist.
+Use [EVIDENCE_CATALOG.md](EVIDENCE_CATALOG.md) to identify evidence categories and recommended proof. Use evidence source references as controlled metadata/identifiers only; do not paste tokens, passwords, private keys, secret URLs or personal customer data.
 
-The ZIP is code preparation, not a claim that a migration or integration test has already passed against your running PostgreSQL instance.
+## Setup and verification
+
+From `backend/`:
+
+```bash
+uv run alembic heads
+uv run alembic current
+uv run alembic upgrade head
+uv run pytest -q
+```
+
+Use a dedicated PostgreSQL test database with pgvector and synthetic documents. Verify list/get/download/version/approve/reject/archive operations for two tenants and multiple roles. Test that cross-tenant IDs do not disclose document metadata or file contents, and that an owner cannot self-approve.
+
+The presence of these files does not certify compliance with a particular regulator or standards framework. Keep independent audit evidence and approvals in the organization's controlled evidence repository.

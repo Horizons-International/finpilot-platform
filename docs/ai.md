@@ -1,298 +1,93 @@
-# AI Framework
+# AI framework and assistant
 
 ## Overview
 
-FinPilot provides a centralized AI service layer for integrating
-AI capabilities across the platform.
+FinPilot provides a provider abstraction for AI-assisted compliance and analytics workflows. The application uses a shared AI service/provider interface so business features are not coupled directly to an external model SDK.
 
-The AI framework separates application logic from individual AI
-providers so that providers can be changed or added without modifying
-business features.
+The current provider factory supports:
+- `mock` — deterministic development/test behavior; does not call an external model.
+- `openai` — the OpenAI Responses API adapter; requires a valid `AI_API_KEY` and `AI_MODEL`.
+
+The checked-in environment template selects `AI_PROVIDER=mock`. Setting a provider name alone does not establish credentials, network access, data-processing approval or production readiness.
 
 ## Architecture
 
 ```text
-Application
-    ↓
+Feature/API route
+      |
+      v
+Feature service / AI context retrieval
+      |
+      v
 AIService
-    ↓
-AIProvider
-    ↓
-LLM Provider
-````
-
-The application communicates with `AIService`.
-
-`AIService` communicates with the provider through the `AIProvider`
-interface.
-
-Individual provider implementations are responsible for communicating
-with external AI systems.
-
-## Package Structure
-
-```text
-app/ai/
-├── __init__.py
-├── exceptions.py
-├── schemas/
-│   ├── __init__.py
-│   ├── requests.py
-│   └── responses.py
-├── providers/
-│   ├── __init__.py
-│   ├── base.py
-│   ├── mock.py
-│   └── factory.py
-└── services/
-    ├── __init__.py
-    ├── ai_service.py
-    └── dependencies.py
+      |
+      v
+AIProvider interface
+     / \
+    v   v
+ Mock  OpenAI
 ```
 
-## AI Requests
-
-The framework currently supports:
-
-* Text requests
-* Document analysis requests
-* Structured responses
-
-Example text request:
-
-```python
-AIRequest(
-    request_type=AIRequestType.TEXT,
-    prompt="Summarize this customer.",
-)
-```
-
-Example document analysis request:
-
-```python
-AIRequest(
-    request_type=AIRequestType.DOCUMENT_ANALYSIS,
-    prompt="Analyze this identity document.",
-    document_id=document_id,
-    structured=True,
-)
-```
-
-## AI Responses
-
-All providers return the standardized `AIResponse` model.
-
-A response contains:
-
-* Provider name
-* Request type
-* Generated content
-* Optional structured data
-* Optional request ID
-
-Example:
-
-```python
-AIResponse(
-    provider_name="mock",
-    request_type="document_analysis",
-    content="Analysis completed.",
-    structured_data={
-        "document_type": "passport",
-        "confidence": 0.98,
-    },
-)
-```
-
-## AI Prompt Management
-
-The platform provides centralized management of AI prompts.
-
-AI prompts are versioned and stored as immutable records. A prompt version
-must be explicitly activated before it can be used.
-
-Supported AI functions include:
-
-- Document extraction
-- Compliance review
-- Risk analysis
-- Customer support
-
-Prompt versions can be:
-
-- Created
-- Activated
-- Deactivated
-- Assigned to an AI function
-
-Only active prompt versions are eligible for AI processing.
-
-Prompt changes and assignments are recorded through the audit logging
-framework.
-
-AI consumers should retrieve prompts through the AI prompt loader rather
-than querying prompt records directly.
-
-## Providers
-
-Providers implement the `AIProvider` interface.
-
-```python
-class AIProvider(ABC):
-    @abstractmethod
-    def generate(self, request: AIRequest) -> AIResponse: ...
-```
-
-The current implementation is:
-
-```text
-MockAIProvider
-```
-
-The mock provider is intended for development and testing.
-
-Future providers can be added without changing the `AIService`.
-
-## Compliance AI Assistant
-
-The platform provides an AI assistant for compliance users.
-
-The assistant retrieves platform data before sending a request to an AI provider.
-
-### Architecture
-
-```text
-Compliance User
-      ↓
-AI Assistant API
-      ↓
-AI Compliance Service
-      ↓
-Compliance Context Service
-      ↓
-Platform Database
-      ↓
-AI Prompt Loader
-      ↓
-AIService
-      ↓
-AIProvider
-      ↓
-LLM
-```
-### Supported capabilities
-- Case summary
-- Customer summary
-- Document review summary
-- Compliance notes
-### AI Functions
-- CASE_SUMMARY
-- CUSTOMER_SUMMARY
-- DOCUMENT_REVIEW_SUMMARY
-- COMPLIANCE_NOTES
-### Interaction storage
-
-Every AI assistant request is stored in `ai_interactions`.
-
-Stored information includes:
-
-- User
-- AI function
-- Prompt version
-- Resource
-- User question
-- AI context
-- AI response
-- Provider
-- Model
-- Provider request ID
-- Status
-- Error information
-- Timestamps
-
-### Context rules
-The AI assistant only supplies platform information retrieved for the
-requested customer, verification case, or document.
-
-The assistant must not invent missing customer information, document
-requirements, compliance policies, or regulatory conclusions.
-
-### Provider
-
-The AI provider is selected using:
-```test
-AI_PROVIDER=mock
-```
-The mock provider is used during automated tests.
-
-Production deployments may configure a real provider through environment
-configuration.
-
-
-## Provider Configuration
-
-The active provider is selected through configuration:
-
-```text
-AI_PROVIDER=mock
-```
-
-The provider factory resolves the configured implementation.
-
-## Error Handling
-
-The framework defines:
-
-```text
-AIError
-├── AIProviderError
-├── AIConfigurationError
-└── AIResponseError
-```
-
-Provider failures are converted to `AIProviderError`.
-
-Invalid provider configuration raises `AIConfigurationError`.
-
-Invalid or unusable provider responses raise `AIResponseError`.
-
-## Logging
-
-AI calls are logged centrally by `AIService`.
-
-The logs include metadata such as:
-
-* Provider
-* Request type
-* Customer ID when available
-* Document ID when available
-* Structured-response flag
-* Request ID
-
-Raw prompts and document contents should not be logged by default.
-
-## Design Principles
-
-The AI framework follows these principles:
-
-1. Application code depends on `AIService`.
-2. `AIService` depends on the `AIProvider` interface.
-3. Provider-specific code remains inside provider adapters.
-4. AI responses are normalized before returning to application code.
-5. Provider failures are handled consistently.
-6. AI calls are logged centrally.
-7. New providers should not require changes to business services.
-
-## AI Configuration
-
-AI provider configuration is loaded from environment variables.
-
-Example:
-
-```env
+Implementation locations:
+- Provider contract and adapters: `backend/app/ai/providers/`
+- Provider factory: `backend/app/ai/providers/factory.py`
+- AI request/response/config schemas: `backend/app/ai/schemas/`
+- AI service and dependencies: `backend/app/ai/services/`
+- Prompt definitions/loader: `backend/app/ai/prompts/`
+- API routes: `backend/app/api/` (assistant, prompt, usage, interaction, RAG, knowledge document and analysis routes).
+
+## Configuration
+
+Example local settings:
+
+```dotenv
 AI_PROVIDER=mock
 AI_API_KEY=
 AI_MODEL=
+AI_MODEL_VERSION=unspecified
 AI_MAX_TOKENS=1000
 AI_TEMPERATURE=0.0
 AI_TIMEOUT=30
+AI_MAX_CONTEXT_CHARACTERS=30000
+```
+
+To select OpenAI, configure `AI_PROVIDER=openai`, provide `AI_API_KEY` and a supported `AI_MODEL`, and set appropriate request timeout and context limits. Use a secret manager for deployed credentials. Review provider terms, jurisdictional/data residency requirements, retention, access, cost and whether the data sent to the model is allowed by policy.
+
+The OpenAI adapter validates its configuration before use and supports the structured request types implemented in `backend/app/ai/providers/openai.py`. Do not assume every AI request accepted by the mock provider is automatically supported by the OpenAI provider; check the provider implementation for the request type.
+
+## Assistant and RAG flows
+
+The compliance and analytics assistant routes combine authenticated platform context with prompt selection and the configured provider. Knowledge documents and retrieval services support retrieval-augmented context where the calling feature uses them.
+
+Supported compliance assistant functions documented in the application include:
+- `CASE_SUMMARY`
+- `CUSTOMER_SUMMARY`
+- `DOCUMENT_REVIEW_SUMMARY`
+- `COMPLIANCE_NOTES`
+- `ANALYTICS_ASSISTANT`
+
+Other API routers expose AML investigation assistance, transaction-risk analysis and document-fraud analysis. Consult the running OpenAPI schema and the route-specific service for exact inputs and roles.
+
+Prompt records are versioned. Feature consumers should use the prompt loader/assignment mechanism rather than hard-code prompt database queries. Prompt activation/assignment and AI interaction history are managed through dedicated APIs/services.
+
+## Data safety and human review
+
+- Treat all generated content as decision-support, not a final regulated decision.
+- Verify outputs against source records, approved policy and qualified staff review.
+- Do not send secrets, authentication material or unnecessary personal/document data to an external model.
+- Retain the correlation between model/provider, prompt version, resource, request and decision record as required by audit policy.
+- Review retrieved context and tenant filtering; an AI prompt must never widen access to another tenant's information.
+- Record provider timeout/error behavior, token/cost usage, rate limits and fallback behavior.
+
+Model confidence or a structured output field is not a calibrated assurance that a compliance conclusion is correct.
+
+## Evaluation checklist
+
+1. Start in mock mode to validate route, prompt, context and interaction lifecycle without external calls.
+2. Confirm unsupported or unavailable requests fail safely and do not leave misleading successful interaction records.
+3. Create two tenants and ensure retrieved customer/case/document context never crosses tenant boundaries.
+4. Inspect prompt activation and version history.
+5. Only in an approved test environment, configure the OpenAI provider and validate supported request types, timeout behavior and cost monitoring.
+6. Compare AI output with ground-truth synthetic scenarios and retain human review evidence.
+
+The live API schema is at `/docs`; inspect `backend/app/ai/providers/factory.py` and the selected adapter for current provider behavior.

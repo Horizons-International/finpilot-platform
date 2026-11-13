@@ -30,3 +30,8 @@ Updated from FinPilot performance test output reported on 2026-10-20. The post-f
 - [ ] Check AI provider latency, quotas, concurrency and cost only during separately approved AI feature tests.
 - [ ] State evidence separately from hypothesis.
 - [ ] Re-run the original profile after each fix and archive both reports.
+
+
+## Evaluator note — evidence freshness
+
+The measurements recorded above include a successful Locust run from 2026-10-20. Treat those results as a historical observation, not as a current capacity certification or proof that the latest checkout passes a smoke test. The repository's [login troubleshooting note](../../performance/AUTH_TROUBLESHOOTING.md) records later smoke/baseline runs that stopped during login initialization before representative API scenarios ran. Recheck the authentication diagnostic and obtain a successful smoke run before starting a new baseline or making throughput/capacity claims. Preserve the commit SHA, credentials profile (without secrets), fixture IDs, environment sizing, Locust report and runtime telemetry with the new evidence.
