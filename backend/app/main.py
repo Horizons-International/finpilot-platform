@@ -4,6 +4,7 @@ from contextlib import asynccontextmanager
 from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.exceptions import RequestValidationError
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
+from starlette.concurrency import run_in_threadpool
 
 from app.api.ai_assistant import router as ai_assistant_router
 from app.api.ai_model_metrics import router as ai_model_metrics_router
@@ -87,6 +88,7 @@ from app.api.webhooks import router as webhooks_router
 from app.api.workflows import router as workflows_router
 from app.core.config import settings
 from app.core.data_protection_startup import validate_data_protection_environment
+from app.core.database import async_engine, engine
 from app.core.exceptions import (
     database_exception_handler,
     http_exception_handler,
@@ -115,8 +117,14 @@ install_tenant_filter()
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     logger.info("FinPilot API starting")
-    yield
-    logger.info("FinPilot API shutting down")
+    try:
+        yield
+    finally:
+        logger.info("FinPilot API shutting down")
+        try:
+            await async_engine.dispose()
+        finally:
+            await run_in_threadpool(engine.dispose)
 
 
 app = FastAPI(
