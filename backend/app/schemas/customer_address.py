@@ -56,6 +56,7 @@ class CustomerAddressUpdate(AddressFieldValidatorMixin, BaseModel):
         max_length=30,
     )
     address_type: AddressType | None = None
+    is_primary: bool | None = None
 
 
 class CustomerAddressResponse(BaseModel):

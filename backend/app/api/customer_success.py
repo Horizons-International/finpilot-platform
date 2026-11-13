@@ -4,11 +4,11 @@ from typing import Any
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query, status
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.database import get_db
+from app.core.async_security import require_async_roles
+from app.core.database import get_async_db
 from app.core.responses import APIResponse
-from app.core.security import require_roles
 from app.schemas.customer_success import (
     AccountStatus,
     CustomerSuccessHistoryResponse,
@@ -24,7 +24,7 @@ from app.schemas.customer_success import (
     CustomerSuccessUsageSnapshotResponse,
     HealthBand,
 )
-from app.services.customer_success_service import CustomerSuccessService
+from app.services.async_customer_success_service import AsyncCustomerSuccessService
 from app.utils.enums import UserRole
 
 router = APIRouter(
@@ -38,8 +38,10 @@ router = APIRouter(
 _CUSTOMER_SUCCESS_ROLES = (UserRole.CUSTOMER_SUCCESS_MANAGER,)
 
 
-def _service(db: Session, current_user: dict[str, Any]) -> CustomerSuccessService:
-    return CustomerSuccessService(db, tenant_id=UUID(current_user["tenant_id"]))
+def _service(
+    db: AsyncSession, current_user: dict[str, Any]
+) -> AsyncCustomerSuccessService:
+    return AsyncCustomerSuccessService(db, tenant_id=UUID(current_user["tenant_id"]))
 
 
 def _actor_id(current_user: dict[str, Any]) -> UUID:
@@ -51,13 +53,13 @@ def _actor_id(current_user: dict[str, Any]) -> UUID:
     response_model=APIResponse[CustomerSuccessSummaryResponse],
     summary="Summarize customer account health for the current tenant",
 )
-def get_customer_success_summary(
-    db: Session = Depends(get_db),
+async def get_customer_success_summary(
+    db: AsyncSession = Depends(get_async_db),
     current_user: dict[str, Any] = Depends(
-        require_roles(*_CUSTOMER_SUCCESS_ROLES, resource_type="customer_success")
+        require_async_roles(*_CUSTOMER_SUCCESS_ROLES, resource_type="customer_success")
     ),
 ) -> APIResponse[CustomerSuccessSummaryResponse]:
-    summary = _service(db, current_user).summary()
+    summary = await _service(db, current_user).summary()
     return APIResponse(
         success=True,
         message="Customer success summary retrieved successfully.",
@@ -70,16 +72,16 @@ def get_customer_success_summary(
     response_model=APIResponse[list[CustomerSuccessProfileResponse]],
     summary="List customer success accounts with lifecycle and health filters",
 )
-def list_customer_success_profiles(
+async def list_customer_success_profiles(
     account_status: AccountStatus | None = Query(default=None),
     health_band: HealthBand | None = Query(default=None),
     assigned_manager_id: UUID | None = Query(default=None),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user: dict[str, Any] = Depends(
-        require_roles(*_CUSTOMER_SUCCESS_ROLES, resource_type="customer_success")
+        require_async_roles(*_CUSTOMER_SUCCESS_ROLES, resource_type="customer_success")
     ),
 ) -> APIResponse[list[CustomerSuccessProfileResponse]]:
-    profiles = _service(db, current_user).list_profiles(
+    profiles = await _service(db, current_user).list_profiles(
         account_status=account_status,
         health_band=health_band,
         assigned_manager_id=assigned_manager_id,
@@ -97,14 +99,14 @@ def list_customer_success_profiles(
     status_code=status.HTTP_201_CREATED,
     summary="Create a customer lifecycle profile for an enterprise tenant",
 )
-def create_customer_success_profile(
+async def create_customer_success_profile(
     payload: CustomerSuccessProfileCreate,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user: dict[str, Any] = Depends(
-        require_roles(*_CUSTOMER_SUCCESS_ROLES, resource_type="customer_success")
+        require_async_roles(*_CUSTOMER_SUCCESS_ROLES, resource_type="customer_success")
     ),
 ) -> APIResponse[CustomerSuccessProfileResponse]:
-    profile = _service(db, current_user).create_profile(
+    profile = await _service(db, current_user).create_profile(
         payload, actor_id=_actor_id(current_user)
     )
     return APIResponse(
@@ -119,14 +121,14 @@ def create_customer_success_profile(
     response_model=APIResponse[CustomerSuccessProfileResponse],
     summary="Get customer lifecycle profile and current health score",
 )
-def get_customer_success_profile(
+async def get_customer_success_profile(
     profile_id: UUID,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user: dict[str, Any] = Depends(
-        require_roles(*_CUSTOMER_SUCCESS_ROLES, resource_type="customer_success")
+        require_async_roles(*_CUSTOMER_SUCCESS_ROLES, resource_type="customer_success")
     ),
 ) -> APIResponse[CustomerSuccessProfileResponse]:
-    profile = _service(db, current_user).get_profile(profile_id)
+    profile = await _service(db, current_user).get_profile(profile_id)
     return APIResponse(
         success=True,
         message="Customer success profile retrieved successfully.",
@@ -139,15 +141,15 @@ def get_customer_success_profile(
     response_model=APIResponse[CustomerSuccessProfileResponse],
     summary="Update account status, implementation stage, manager or success plan",
 )
-def update_customer_success_profile(
+async def update_customer_success_profile(
     profile_id: UUID,
     payload: CustomerSuccessProfileUpdate,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user: dict[str, Any] = Depends(
-        require_roles(*_CUSTOMER_SUCCESS_ROLES, resource_type="customer_success")
+        require_async_roles(*_CUSTOMER_SUCCESS_ROLES, resource_type="customer_success")
     ),
 ) -> APIResponse[CustomerSuccessProfileResponse]:
-    profile = _service(db, current_user).update_profile(
+    profile = await _service(db, current_user).update_profile(
         profile_id, payload, actor_id=_actor_id(current_user)
     )
     return APIResponse(
@@ -163,15 +165,15 @@ def update_customer_success_profile(
     status_code=status.HTTP_201_CREATED,
     summary="Record a time-bounded customer product-usage snapshot",
 )
-def create_usage_snapshot(
+async def create_usage_snapshot(
     profile_id: UUID,
     payload: CustomerSuccessUsageSnapshotCreate,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user: dict[str, Any] = Depends(
-        require_roles(*_CUSTOMER_SUCCESS_ROLES, resource_type="customer_success")
+        require_async_roles(*_CUSTOMER_SUCCESS_ROLES, resource_type="customer_success")
     ),
 ) -> APIResponse[CustomerSuccessUsageSnapshotResponse]:
-    snapshot = _service(db, current_user).add_usage_snapshot(
+    snapshot = await _service(db, current_user).add_usage_snapshot(
         profile_id, payload, actor_id=_actor_id(current_user)
     )
     return APIResponse(
@@ -189,14 +191,14 @@ def create_usage_snapshot(
         "Import current-month usage from the linked customer's subscription records"
     ),
 )
-def import_subscription_usage_snapshot(
+async def import_subscription_usage_snapshot(
     profile_id: UUID,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user: dict[str, Any] = Depends(
-        require_roles(*_CUSTOMER_SUCCESS_ROLES, resource_type="customer_success")
+        require_async_roles(*_CUSTOMER_SUCCESS_ROLES, resource_type="customer_success")
     ),
 ) -> APIResponse[CustomerSuccessUsageSnapshotResponse]:
-    snapshot = _service(db, current_user).capture_subscription_usage(
+    snapshot = await _service(db, current_user).capture_subscription_usage(
         profile_id, actor_id=_actor_id(current_user)
     )
     return APIResponse(
@@ -211,14 +213,14 @@ def import_subscription_usage_snapshot(
     response_model=APIResponse[list[CustomerSuccessUsageSnapshotResponse]],
     summary="List historical usage snapshots for an account",
 )
-def list_usage_snapshots(
+async def list_usage_snapshots(
     profile_id: UUID,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user: dict[str, Any] = Depends(
-        require_roles(*_CUSTOMER_SUCCESS_ROLES, resource_type="customer_success")
+        require_async_roles(*_CUSTOMER_SUCCESS_ROLES, resource_type="customer_success")
     ),
 ) -> APIResponse[list[CustomerSuccessUsageSnapshotResponse]]:
-    snapshots = _service(db, current_user).list_usage(profile_id)
+    snapshots = await _service(db, current_user).list_usage(profile_id)
     return APIResponse(
         success=True,
         message="Customer usage history retrieved successfully.",
@@ -235,15 +237,15 @@ def list_usage_snapshots(
     status_code=status.HTTP_201_CREATED,
     summary="Record a support case or customer interaction",
 )
-def create_support_interaction(
+async def create_support_interaction(
     profile_id: UUID,
     payload: CustomerSuccessSupportInteractionCreate,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user: dict[str, Any] = Depends(
-        require_roles(*_CUSTOMER_SUCCESS_ROLES, resource_type="customer_success")
+        require_async_roles(*_CUSTOMER_SUCCESS_ROLES, resource_type="customer_success")
     ),
 ) -> APIResponse[CustomerSuccessSupportInteractionResponse]:
-    interaction = _service(db, current_user).add_support_interaction(
+    interaction = await _service(db, current_user).add_support_interaction(
         profile_id, payload, actor_id=_actor_id(current_user)
     )
     return APIResponse(
@@ -258,14 +260,16 @@ def create_support_interaction(
     response_model=APIResponse[list[CustomerSuccessSupportInteractionResponse]],
     summary="List support and customer touchpoint history",
 )
-def list_support_interactions(
+async def list_support_interactions(
     profile_id: UUID,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user: dict[str, Any] = Depends(
-        require_roles(*_CUSTOMER_SUCCESS_ROLES, resource_type="customer_success")
+        require_async_roles(*_CUSTOMER_SUCCESS_ROLES, resource_type="customer_success")
     ),
 ) -> APIResponse[list[CustomerSuccessSupportInteractionResponse]]:
-    interactions = _service(db, current_user).list_support_interactions(profile_id)
+    interactions = await _service(db, current_user).list_support_interactions(
+        profile_id
+    )
     return APIResponse(
         success=True,
         message="Customer support history retrieved successfully.",
@@ -281,16 +285,16 @@ def list_support_interactions(
     response_model=APIResponse[CustomerSuccessSupportInteractionResponse],
     summary="Update support severity, status, assignee or resolution details",
 )
-def update_support_interaction(
+async def update_support_interaction(
     profile_id: UUID,
     interaction_id: UUID,
     payload: CustomerSuccessSupportInteractionUpdate,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user: dict[str, Any] = Depends(
-        require_roles(*_CUSTOMER_SUCCESS_ROLES, resource_type="customer_success")
+        require_async_roles(*_CUSTOMER_SUCCESS_ROLES, resource_type="customer_success")
     ),
 ) -> APIResponse[CustomerSuccessSupportInteractionResponse]:
-    interaction = _service(db, current_user).update_support_interaction(
+    interaction = await _service(db, current_user).update_support_interaction(
         profile_id,
         interaction_id,
         payload,
@@ -308,14 +312,14 @@ def update_support_interaction(
     response_model=APIResponse[list[CustomerSuccessHistoryResponse]],
     summary="Get the append-only relationship timeline",
 )
-def list_customer_success_history(
+async def list_customer_success_history(
     profile_id: UUID,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user: dict[str, Any] = Depends(
-        require_roles(*_CUSTOMER_SUCCESS_ROLES, resource_type="customer_success")
+        require_async_roles(*_CUSTOMER_SUCCESS_ROLES, resource_type="customer_success")
     ),
 ) -> APIResponse[list[CustomerSuccessHistoryResponse]]:
-    history = _service(db, current_user).list_history(profile_id)
+    history = await _service(db, current_user).list_history(profile_id)
     return APIResponse(
         success=True,
         message="Customer relationship history retrieved successfully.",
@@ -329,15 +333,15 @@ def list_customer_success_history(
     status_code=status.HTTP_201_CREATED,
     summary="Add an immutable customer relationship note",
 )
-def add_customer_success_note(
+async def add_customer_success_note(
     profile_id: UUID,
     payload: CustomerSuccessNoteCreate,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user: dict[str, Any] = Depends(
-        require_roles(*_CUSTOMER_SUCCESS_ROLES, resource_type="customer_success")
+        require_async_roles(*_CUSTOMER_SUCCESS_ROLES, resource_type="customer_success")
     ),
 ) -> APIResponse[CustomerSuccessHistoryResponse]:
-    event = _service(db, current_user).add_note(
+    event = await _service(db, current_user).add_note(
         profile_id, payload, actor_id=_actor_id(current_user)
     )
     return APIResponse(
@@ -355,14 +359,14 @@ def add_customer_success_note(
         "and support data"
     ),
 )
-def recalculate_customer_health(
+async def recalculate_customer_health(
     profile_id: UUID,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user: dict[str, Any] = Depends(
-        require_roles(*_CUSTOMER_SUCCESS_ROLES, resource_type="customer_success")
+        require_async_roles(*_CUSTOMER_SUCCESS_ROLES, resource_type="customer_success")
     ),
 ) -> APIResponse[CustomerSuccessProfileResponse]:
-    profile = _service(db, current_user).recalculate_health(
+    profile = await _service(db, current_user).recalculate_health(
         profile_id, actor_id=_actor_id(current_user)
     )
     return APIResponse(

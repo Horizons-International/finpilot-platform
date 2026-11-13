@@ -5,7 +5,6 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, Query, status
 from pydantic import ValidationError
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import Session
 
 from app.core.async_security import require_async_roles
 from app.core.database import get_async_db
@@ -16,12 +15,17 @@ from app.schemas.compliance_reports import (
     ComplianceReportFilters,
     CustomerRiskReportResponse,
 )
-from app.services.async_service_bridge import run_sync_in_tenant
-from app.services.compliance_report_service import ComplianceReportService
+from app.services.async_compliance_report_service import AsyncComplianceReportService
 from app.utils.enums import CustomerRiskLevel, UserRole
 from app.utils.errors import bad_request
 
 router = APIRouter(prefix="/api/v1/reports", tags=["Compliance Reports"])
+
+
+def _service(
+    db: AsyncSession, current_user: dict[str, Any]
+) -> AsyncComplianceReportService:
+    return AsyncComplianceReportService(db, UUID(current_user["tenant_id"]))
 
 
 def _build_filters(
@@ -39,21 +43,6 @@ def _build_filters(
         )
     except ValidationError as exc:
         raise bad_request("start_date cannot be later than end_date.") from exc
-
-
-async def _build_report(
-    db: AsyncSession,
-    current_user: dict[str, Any],
-    filters: ComplianceReportFilters,
-    method_name: str,
-) -> Any:
-    tenant_id = UUID(current_user["tenant_id"])
-
-    def operation(sync_db: Session):
-        service = ComplianceReportService(db=sync_db, tenant_id=tenant_id)
-        return getattr(service, method_name)(filters)
-
-    return await run_sync_in_tenant(db, tenant_id, operation)
 
 
 @router.get(
@@ -75,9 +64,8 @@ async def get_compliance_cases_report(
         )
     ),
 ) -> APIResponse[ComplianceCasesReportResponse]:
-    filters = _build_filters(start_date, end_date, country, risk_level)
-    report = await _build_report(
-        db, current_user, filters, "get_compliance_cases_report"
+    report = await _service(db, current_user).get_compliance_cases_report(
+        _build_filters(start_date, end_date, country, risk_level)
     )
     return APIResponse(
         success=True,
@@ -105,8 +93,9 @@ async def get_aml_alerts_report(
         )
     ),
 ) -> APIResponse[AMLAlertsReportResponse]:
-    filters = _build_filters(start_date, end_date, country, risk_level)
-    report = await _build_report(db, current_user, filters, "get_aml_alerts_report")
+    report = await _service(db, current_user).get_aml_alerts_report(
+        _build_filters(start_date, end_date, country, risk_level)
+    )
     return APIResponse(
         success=True, message="AML alert report generated successfully.", data=report
     )
@@ -131,8 +120,9 @@ async def get_customer_risk_report(
         )
     ),
 ) -> APIResponse[CustomerRiskReportResponse]:
-    filters = _build_filters(start_date, end_date, country, risk_level)
-    report = await _build_report(db, current_user, filters, "get_customer_risk_report")
+    report = await _service(db, current_user).get_customer_risk_report(
+        _build_filters(start_date, end_date, country, risk_level)
+    )
     return APIResponse(
         success=True,
         message="Customer risk report generated successfully.",

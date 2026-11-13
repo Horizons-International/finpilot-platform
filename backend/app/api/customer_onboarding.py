@@ -1,16 +1,19 @@
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Request
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.dependencies import get_customer_onboarding_service
+from app.core.async_security import require_async_roles
+from app.core.database import get_async_db
 from app.core.responses import APIResponse
-from app.core.security import require_roles
 from app.schemas.customer_onboarding import (
     CustomerOnboardingAdvanceRequest,
     CustomerOnboardingFailureRequest,
 )
 from app.schemas.workflow import WorkflowExecutionResponse
-from app.services.customer_onboarding import CustomerOnboardingService
+from app.services.async_customer_onboarding_service import (
+    AsyncCustomerOnboardingService,
+)
 from app.utils.enums import UserRole
 
 router = APIRouter(
@@ -23,21 +26,20 @@ router = APIRouter(
     "/{customer_id}/onboarding",
     response_model=APIResponse[WorkflowExecutionResponse],
 )
-def start_onboarding(
+async def start_onboarding(
     customer_id: UUID,
     request: Request,
-    onboarding_service: CustomerOnboardingService = Depends(
-        get_customer_onboarding_service,
-    ),
+    db: AsyncSession = Depends(get_async_db),
     current_user: dict = Depends(
-        require_roles(
+        require_async_roles(
             UserRole.ADMINISTRATOR,
             UserRole.COMPLIANCE_OFFICER,
             UserRole.REVIEWER,
         )
     ),
 ):
-    execution = onboarding_service.start(
+    service = AsyncCustomerOnboardingService(db, UUID(current_user["tenant_id"]))
+    execution = await service.start(
         customer_id=customer_id,
         user_id=UUID(current_user["sub"]),
         email=current_user["email"],
@@ -57,13 +59,19 @@ def start_onboarding(
     "/{customer_id}/onboarding",
     response_model=APIResponse[WorkflowExecutionResponse],
 )
-def get_onboarding(
+async def get_onboarding(
     customer_id: UUID,
-    onboarding_service: CustomerOnboardingService = Depends(
-        get_customer_onboarding_service,
+    db: AsyncSession = Depends(get_async_db),
+    current_user: dict = Depends(
+        require_async_roles(
+            UserRole.ADMINISTRATOR,
+            UserRole.COMPLIANCE_OFFICER,
+            UserRole.REVIEWER,
+        )
     ),
 ):
-    execution = onboarding_service.get(
+    service = AsyncCustomerOnboardingService(db, UUID(current_user["tenant_id"]))
+    execution = await service.get(
         customer_id=customer_id,
     )
 
@@ -78,22 +86,21 @@ def get_onboarding(
     "/{customer_id}/onboarding/advance",
     response_model=APIResponse[WorkflowExecutionResponse],
 )
-def advance_onboarding(
+async def advance_onboarding(
     customer_id: UUID,
     payload: CustomerOnboardingAdvanceRequest,
     request: Request,
-    onboarding_service: CustomerOnboardingService = Depends(
-        get_customer_onboarding_service,
-    ),
+    db: AsyncSession = Depends(get_async_db),
     current_user: dict = Depends(
-        require_roles(
+        require_async_roles(
             UserRole.ADMINISTRATOR,
             UserRole.COMPLIANCE_OFFICER,
             UserRole.REVIEWER,
         )
     ),
 ):
-    execution = onboarding_service.advance(
+    service = AsyncCustomerOnboardingService(db, UUID(current_user["tenant_id"]))
+    execution = await service.advance(
         customer_id=customer_id,
         user_id=UUID(current_user["sub"]),
         email=current_user["email"],
@@ -115,22 +122,21 @@ def advance_onboarding(
     "/{customer_id}/onboarding/fail",
     response_model=APIResponse[WorkflowExecutionResponse],
 )
-def fail_onboarding(
+async def fail_onboarding(
     customer_id: UUID,
     payload: CustomerOnboardingFailureRequest,
     request: Request,
-    onboarding_service: CustomerOnboardingService = Depends(
-        get_customer_onboarding_service,
-    ),
+    db: AsyncSession = Depends(get_async_db),
     current_user: dict = Depends(
-        require_roles(
+        require_async_roles(
             UserRole.ADMINISTRATOR,
             UserRole.COMPLIANCE_OFFICER,
             UserRole.REVIEWER,
         )
     ),
 ):
-    execution = onboarding_service.fail(
+    service = AsyncCustomerOnboardingService(db, UUID(current_user["tenant_id"]))
+    execution = await service.fail(
         customer_id=customer_id,
         user_id=UUID(current_user["sub"]),
         email=current_user["email"],
@@ -151,21 +157,20 @@ def fail_onboarding(
     "/{customer_id}/onboarding/retry",
     response_model=APIResponse[WorkflowExecutionResponse],
 )
-def retry_onboarding(
+async def retry_onboarding(
     customer_id: UUID,
     request: Request,
-    onboarding_service: CustomerOnboardingService = Depends(
-        get_customer_onboarding_service,
-    ),
+    db: AsyncSession = Depends(get_async_db),
     current_user: dict = Depends(
-        require_roles(
+        require_async_roles(
             UserRole.ADMINISTRATOR,
             UserRole.COMPLIANCE_OFFICER,
             UserRole.REVIEWER,
         )
     ),
 ):
-    execution = onboarding_service.retry(
+    service = AsyncCustomerOnboardingService(db, UUID(current_user["tenant_id"]))
+    execution = await service.retry(
         customer_id=customer_id,
         user_id=UUID(current_user["sub"]),
         email=current_user["email"],

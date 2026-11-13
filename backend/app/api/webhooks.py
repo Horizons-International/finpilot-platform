@@ -1,15 +1,14 @@
-"""Tenant-administrator API for managing webhook subscriptions and history."""
+"""Native-async tenant API for webhook subscriptions and delivery history."""
 
 from typing import Any
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query, Request, status
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.database import get_db
+from app.core.async_security import require_async_roles
+from app.core.database import get_async_db
 from app.core.responses import APIResponse
-from app.core.security import get_current_user, require_roles
-from app.models.user import User
 from app.schemas.webhook import (
     WebhookCreate,
     WebhookCreatedResponse,
@@ -18,28 +17,20 @@ from app.schemas.webhook import (
     WebhookStatusUpdate,
     WebhookUpdate,
 )
-from app.services.webhook_service import WebhookService
+from app.services.async_platform_integration_service import AsyncWebhookService
 from app.utils.enums import UserRole, WebhookDeliveryStatus, WebhookStatus
 
 router = APIRouter(prefix="/api/v1/webhooks", tags=["Webhooks"])
 
 
-def get_webhook_service(
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
-) -> WebhookService:
-    return WebhookService(db=db, tenant_id=current_user.tenant_id)
-
-
 def _metadata(request: Request) -> tuple[str | None, str | None]:
-    return (
-        request.client.host if request.client else None,
-        request.headers.get("user-agent"),
+    return request.client.host if request.client else None, request.headers.get(
+        "user-agent"
     )
 
 
-def _audit_actor(current_user: dict[str, Any]) -> tuple[UUID, str]:
-    return UUID(current_user["sub"]), current_user["email"]
+def _service(db: AsyncSession, current_user: dict[str, Any]) -> AsyncWebhookService:
+    return AsyncWebhookService(db, UUID(current_user["tenant_id"]))
 
 
 @router.post(
@@ -52,29 +43,27 @@ def _audit_actor(current_user: dict[str, Any]) -> tuple[UUID, str]:
         "once; save it securely to verify X-FinPilot-Signature headers."
     ),
 )
-def create_webhook(
+async def create_webhook(
     payload: WebhookCreate,
     request: Request,
     current_user: dict[str, Any] = Depends(
-        require_roles(UserRole.ADMINISTRATOR, resource_type="webhook")
+        require_async_roles(UserRole.ADMINISTRATOR, resource_type="webhook")
     ),
-    service: WebhookService = Depends(get_webhook_service),
+    db: AsyncSession = Depends(get_async_db),
 ) -> APIResponse[WebhookCreatedResponse]:
-    user_id, email = _audit_actor(current_user)
-    ip_address, user_agent = _metadata(request)
-    webhook, secret = service.create(
+    ip, agent = _metadata(request)
+    webhook, secret = await _service(db, current_user).create(
         data=payload,
-        user_id=user_id,
-        email=email,
-        ip_address=ip_address,
-        user_agent=user_agent,
+        user_id=UUID(current_user["sub"]),
+        email=current_user["email"],
+        ip_address=ip,
+        user_agent=agent,
     )
     return APIResponse(
         success=True,
         message="Webhook registered successfully. Store the signing secret securely.",
         data=WebhookCreatedResponse(
-            webhook=WebhookResponse.model_validate(webhook),
-            signing_secret=secret,
+            webhook=WebhookResponse.model_validate(webhook), signing_secret=secret
         ),
     )
 
@@ -84,18 +73,18 @@ def create_webhook(
     response_model=APIResponse[list[WebhookResponse]],
     summary="List webhook subscriptions",
 )
-def list_webhooks(
+async def list_webhooks(
     webhook_status: WebhookStatus | None = Query(default=None, alias="status"),
-    _: dict[str, Any] = Depends(
-        require_roles(UserRole.ADMINISTRATOR, resource_type="webhook")
+    current_user: dict[str, Any] = Depends(
+        require_async_roles(UserRole.ADMINISTRATOR, resource_type="webhook")
     ),
-    service: WebhookService = Depends(get_webhook_service),
+    db: AsyncSession = Depends(get_async_db),
 ) -> APIResponse[list[WebhookResponse]]:
-    hooks = service.list_all(status=webhook_status)
+    rows = await _service(db, current_user).list_all(status=webhook_status)
     return APIResponse(
         success=True,
         message="Webhooks retrieved successfully.",
-        data=[WebhookResponse.model_validate(item) for item in hooks],
+        data=[WebhookResponse.model_validate(row) for row in rows],
     )
 
 
@@ -104,18 +93,18 @@ def list_webhooks(
     response_model=APIResponse[WebhookResponse],
     summary="Get webhook subscription",
 )
-def get_webhook(
+async def get_webhook(
     webhook_id: UUID,
-    _: dict[str, Any] = Depends(
-        require_roles(UserRole.ADMINISTRATOR, resource_type="webhook")
+    current_user: dict[str, Any] = Depends(
+        require_async_roles(UserRole.ADMINISTRATOR, resource_type="webhook")
     ),
-    service: WebhookService = Depends(get_webhook_service),
+    db: AsyncSession = Depends(get_async_db),
 ) -> APIResponse[WebhookResponse]:
-    webhook = service.get_by_id(webhook_id)
+    row = await _service(db, current_user).get_by_id(webhook_id)
     return APIResponse(
         success=True,
         message="Webhook retrieved successfully.",
-        data=WebhookResponse.model_validate(webhook),
+        data=WebhookResponse.model_validate(row),
     )
 
 
@@ -124,29 +113,28 @@ def get_webhook(
     response_model=APIResponse[WebhookResponse],
     summary="Update webhook endpoint or event subscriptions",
 )
-def update_webhook(
+async def update_webhook(
     webhook_id: UUID,
     payload: WebhookUpdate,
     request: Request,
     current_user: dict[str, Any] = Depends(
-        require_roles(UserRole.ADMINISTRATOR, resource_type="webhook")
+        require_async_roles(UserRole.ADMINISTRATOR, resource_type="webhook")
     ),
-    service: WebhookService = Depends(get_webhook_service),
+    db: AsyncSession = Depends(get_async_db),
 ) -> APIResponse[WebhookResponse]:
-    user_id, email = _audit_actor(current_user)
-    ip_address, user_agent = _metadata(request)
-    webhook = service.update(
+    ip, agent = _metadata(request)
+    row = await _service(db, current_user).update(
         webhook_id=webhook_id,
         data=payload,
-        user_id=user_id,
-        email=email,
-        ip_address=ip_address,
-        user_agent=user_agent,
+        user_id=UUID(current_user["sub"]),
+        email=current_user["email"],
+        ip_address=ip,
+        user_agent=agent,
     )
     return APIResponse(
         success=True,
         message="Webhook updated successfully.",
-        data=WebhookResponse.model_validate(webhook),
+        data=WebhookResponse.model_validate(row),
     )
 
 
@@ -155,29 +143,28 @@ def update_webhook(
     response_model=APIResponse[WebhookResponse],
     summary="Enable or disable a webhook subscription",
 )
-def update_webhook_status(
+async def update_webhook_status(
     webhook_id: UUID,
     payload: WebhookStatusUpdate,
     request: Request,
     current_user: dict[str, Any] = Depends(
-        require_roles(UserRole.ADMINISTRATOR, resource_type="webhook")
+        require_async_roles(UserRole.ADMINISTRATOR, resource_type="webhook")
     ),
-    service: WebhookService = Depends(get_webhook_service),
+    db: AsyncSession = Depends(get_async_db),
 ) -> APIResponse[WebhookResponse]:
-    user_id, email = _audit_actor(current_user)
-    ip_address, user_agent = _metadata(request)
-    webhook = service.set_status(
+    ip, agent = _metadata(request)
+    row = await _service(db, current_user).set_status(
         webhook_id=webhook_id,
         status=payload.status,
-        user_id=user_id,
-        email=email,
-        ip_address=ip_address,
-        user_agent=user_agent,
+        user_id=UUID(current_user["sub"]),
+        email=current_user["email"],
+        ip_address=ip,
+        user_agent=agent,
     )
     return APIResponse(
         success=True,
         message="Webhook status updated successfully.",
-        data=WebhookResponse.model_validate(webhook),
+        data=WebhookResponse.model_validate(row),
     )
 
 
@@ -186,22 +173,20 @@ def update_webhook_status(
     response_model=APIResponse[list[WebhookDeliveryResponse]],
     summary="List webhook delivery history",
 )
-def list_webhook_deliveries(
+async def list_webhook_deliveries(
     webhook_id: UUID,
     delivery_status: WebhookDeliveryStatus | None = Query(default=None, alias="status"),
     limit: int = Query(default=100, ge=1, le=500),
-    _: dict[str, Any] = Depends(
-        require_roles(UserRole.ADMINISTRATOR, resource_type="webhook")
+    current_user: dict[str, Any] = Depends(
+        require_async_roles(UserRole.ADMINISTRATOR, resource_type="webhook")
     ),
-    service: WebhookService = Depends(get_webhook_service),
+    db: AsyncSession = Depends(get_async_db),
 ) -> APIResponse[list[WebhookDeliveryResponse]]:
-    deliveries = service.list_deliveries(
-        webhook_id,
-        status=delivery_status,
-        limit=limit,
+    rows = await _service(db, current_user).list_deliveries(
+        webhook_id, status=delivery_status, limit=limit
     )
     return APIResponse(
         success=True,
         message="Webhook delivery history retrieved successfully.",
-        data=[WebhookDeliveryResponse.model_validate(item) for item in deliveries],
+        data=[WebhookDeliveryResponse.model_validate(row) for row in rows],
     )

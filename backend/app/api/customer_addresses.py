@@ -2,17 +2,17 @@ from typing import Any
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, status
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.database import get_db
+from app.core.async_security import require_async_roles
+from app.core.database import get_async_db
 from app.core.responses import APIResponse
-from app.core.security import require_roles
 from app.schemas.customer_address import (
     CustomerAddressCreate,
     CustomerAddressResponse,
     CustomerAddressUpdate,
 )
-from app.services.customer_address_service import CustomerAddressService
+from app.services.async_customer_supporting_service import AsyncCustomerAddressService
 from app.utils.enums import UserRole
 
 router = APIRouter(
@@ -28,20 +28,20 @@ router = APIRouter(
     summary="Create customer address",
     description="Creates a new address for a customer.",
 )
-def create_customer_address(
+async def create_customer_address(
     customer_id: UUID,
     data: CustomerAddressCreate,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user: dict[str, Any] = Depends(
-        require_roles(
+        require_async_roles(
             UserRole.ADMINISTRATOR,
             resource_type="customer",
         )
     ),
 ) -> APIResponse[CustomerAddressResponse]:
-    service = CustomerAddressService(db)
+    service = AsyncCustomerAddressService(db, UUID(current_user["tenant_id"]))
 
-    address = service.create_address(
+    address = await service.create_address(
         customer_id=customer_id,
         data=data,
         created_by=UUID(current_user["sub"]),
@@ -61,20 +61,20 @@ def create_customer_address(
     summary="Get customer addresses",
     description="Retrieves all addresses belonging to a customer.",
 )
-def get_customer_addresses(
+async def get_customer_addresses(
     customer_id: UUID,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user: dict[str, Any] = Depends(
-        require_roles(
+        require_async_roles(
             UserRole.ADMINISTRATOR,
             UserRole.COMPLIANCE_OFFICER,
             resource_type="customer",
         )
     ),
 ) -> APIResponse[list[CustomerAddressResponse]]:
-    service = CustomerAddressService(db)
+    service = AsyncCustomerAddressService(db, UUID(current_user["tenant_id"]))
 
-    addresses = service.get_addresses(customer_id=customer_id)
+    addresses = await service.get_addresses(customer_id=customer_id)
 
     return APIResponse(
         success=True,
@@ -90,21 +90,21 @@ def get_customer_addresses(
     summary="Update customer address",
     description="Updates an existing customer address.",
 )
-def update_customer_address(
+async def update_customer_address(
     customer_id: UUID,
     address_id: UUID,
     data: CustomerAddressUpdate,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user: dict[str, Any] = Depends(
-        require_roles(
+        require_async_roles(
             UserRole.ADMINISTRATOR,
             resource_type="customer",
         )
     ),
 ) -> APIResponse[CustomerAddressResponse]:
-    service = CustomerAddressService(db)
+    service = AsyncCustomerAddressService(db, UUID(current_user["tenant_id"]))
 
-    address = service.update_address(
+    address = await service.update_address(
         customer_id=customer_id,
         address_id=address_id,
         data=data,
@@ -125,20 +125,20 @@ def update_customer_address(
     summary="Mark address as primary",
     description="Marks a customer address as the primary address.",
 )
-def set_customer_address_primary(
+async def set_customer_address_primary(
     customer_id: UUID,
     address_id: UUID,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user: dict[str, Any] = Depends(
-        require_roles(
+        require_async_roles(
             UserRole.ADMINISTRATOR,
             resource_type="customer",
         )
     ),
 ) -> APIResponse[CustomerAddressResponse]:
-    service = CustomerAddressService(db)
+    service = AsyncCustomerAddressService(db, UUID(current_user["tenant_id"]))
 
-    address = service.set_primary(
+    address = await service.set_primary(
         customer_id=customer_id,
         address_id=address_id,
         updated_by=UUID(current_user["sub"]),

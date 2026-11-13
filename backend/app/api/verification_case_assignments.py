@@ -2,11 +2,11 @@ from typing import Any
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Request, status
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.database import get_db
+from app.core.async_security import require_async_roles
+from app.core.database import get_async_db
 from app.core.responses import APIResponse
-from app.core.security import require_roles
 from app.schemas.verification_case_assignment import (
     AssignedVerificationCaseResponse,
     AssignedVerificationCasesResponse,
@@ -14,8 +14,8 @@ from app.schemas.verification_case_assignment import (
     VerificationCaseAssignmentRequest,
     VerificationCaseAssignmentResponse,
 )
-from app.services.verification_case_assignment_service import (
-    VerificationCaseAssignmentService,
+from app.services.async_verification_supporting_service import (
+    AsyncVerificationCaseAssignmentService,
 )
 from app.utils.enums import UserRole
 from app.utils.errors import unauthorized
@@ -45,10 +45,10 @@ def _request_metadata(request: Request) -> tuple[str | None, str | None]:
 
 
 def _service_for_tenant(
-    db: Session,
+    db: AsyncSession,
     current_user: dict[str, Any],
-) -> VerificationCaseAssignmentService:
-    return VerificationCaseAssignmentService(
+) -> AsyncVerificationCaseAssignmentService:
+    return AsyncVerificationCaseAssignmentService(
         db,
         tenant_id=UUID(current_user["tenant_id"]),
     )
@@ -64,14 +64,14 @@ def _service_for_tenant(
         "Only administrators and compliance officers can perform assignments."
     ),
 )
-def assign_verification_case(
+async def assign_verification_case(
     customer_id: UUID,
     verification_case_id: UUID,
     payload: VerificationCaseAssignmentRequest,
     request: Request,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user: dict[str, Any] = Depends(
-        require_roles(
+        require_async_roles(
             UserRole.ADMINISTRATOR,
             UserRole.COMPLIANCE_OFFICER,
             resource_type="verification_case",
@@ -80,7 +80,7 @@ def assign_verification_case(
 ) -> APIResponse[VerificationCaseAssignmentResponse]:
     user_id, email = _get_authenticated_user(current_user)
     ip_address, user_agent = _request_metadata(request)
-    history = _service_for_tenant(db, current_user).assign_case(
+    history = await _service_for_tenant(db, current_user).assign_case(
         customer_id=customer_id,
         verification_case_id=verification_case_id,
         reviewer_id=payload.assigned_to,
@@ -110,12 +110,12 @@ def assign_verification_case(
     summary="Get verification case assignment history",
     description="Return assignment and reassignment history for a verification case.",
 )
-def get_verification_case_assignment_history(
+async def get_verification_case_assignment_history(
     customer_id: UUID,
     verification_case_id: UUID,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user: dict[str, Any] = Depends(
-        require_roles(
+        require_async_roles(
             UserRole.ADMINISTRATOR,
             UserRole.COMPLIANCE_OFFICER,
             UserRole.REVIEWER,
@@ -123,7 +123,7 @@ def get_verification_case_assignment_history(
         )
     ),
 ) -> APIResponse[list[VerificationCaseAssignmentHistoryResponse]]:
-    history = _service_for_tenant(db, current_user).get_assignment_history(
+    history = await _service_for_tenant(db, current_user).get_assignment_history(
         customer_id=customer_id,
         verification_case_id=verification_case_id,
     )
@@ -144,10 +144,10 @@ def get_verification_case_assignment_history(
     summary="Get assigned verification cases",
     description="Return verification cases assigned to the authenticated user.",
 )
-def get_my_assigned_verification_cases(
-    db: Session = Depends(get_db),
+async def get_my_assigned_verification_cases(
+    db: AsyncSession = Depends(get_async_db),
     current_user: dict[str, Any] = Depends(
-        require_roles(
+        require_async_roles(
             UserRole.ADMINISTRATOR,
             UserRole.COMPLIANCE_OFFICER,
             UserRole.REVIEWER,
@@ -156,7 +156,7 @@ def get_my_assigned_verification_cases(
     ),
 ) -> APIResponse[AssignedVerificationCasesResponse]:
     user_id, _ = _get_authenticated_user(current_user)
-    cases = _service_for_tenant(db, current_user).get_assigned_cases(user_id)
+    cases = await _service_for_tenant(db, current_user).get_assigned_cases(user_id)
     response_cases = [
         AssignedVerificationCaseResponse(
             verification_case_id=case.id,
@@ -192,17 +192,17 @@ def get_my_assigned_verification_cases(
         "Only administrators and compliance officers can access this endpoint."
     ),
 )
-def get_all_assigned_verification_cases(
-    db: Session = Depends(get_db),
+async def get_all_assigned_verification_cases(
+    db: AsyncSession = Depends(get_async_db),
     current_user: dict[str, Any] = Depends(
-        require_roles(
+        require_async_roles(
             UserRole.ADMINISTRATOR,
             UserRole.COMPLIANCE_OFFICER,
             resource_type="verification_case",
         )
     ),
 ) -> APIResponse[AssignedVerificationCasesResponse]:
-    cases = _service_for_tenant(db, current_user).get_all_assigned_cases()
+    cases = await _service_for_tenant(db, current_user).get_all_assigned_cases()
     response_cases = [
         AssignedVerificationCaseResponse(
             verification_case_id=case.id,

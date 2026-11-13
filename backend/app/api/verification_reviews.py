@@ -2,16 +2,18 @@ from typing import Any
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Request, status
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.dependencies import get_verification_review_service
+from app.core.async_security import require_async_roles
+from app.core.database import get_async_db
 from app.core.responses import APIResponse
-from app.core.security import UserRole, require_roles
+from app.core.security import UserRole
 from app.schemas.verification_review import (
     VerificationReviewCreate,
     VerificationReviewResponse,
 )
-from app.services.verification_review_service import (
-    VerificationReviewService,
+from app.services.async_verification_supporting_service import (
+    AsyncVerificationReviewService,
 )
 
 router = APIRouter(
@@ -30,21 +32,22 @@ router = APIRouter(
     summary="Start verification case review",
     description="Starts verification case review.",
 )
-def start_review(
+async def start_review(
     request: Request,
     customer_id: UUID,
     verification_case_id: UUID,
+    db: AsyncSession = Depends(get_async_db),
     current_user: dict[str, Any] = Depends(
-        require_roles(
+        require_async_roles(
             UserRole.REVIEWER,
             resource_type="verification_case",
         )
     ),
-    service: VerificationReviewService = Depends(get_verification_review_service),
 ) -> APIResponse[None]:
     reviewer_id = UUID(current_user["sub"])
+    service = AsyncVerificationReviewService(db, UUID(current_user["tenant_id"]))
 
-    service.start_review(
+    await service.start_review(
         customer_id=customer_id,
         verification_case_id=verification_case_id,
         reviewer_id=reviewer_id,
@@ -67,22 +70,23 @@ def start_review(
     summary="Review a verification case",
     description="Creates verfication case review",
 )
-def create_review(
+async def create_review(
     request: Request,
     customer_id: UUID,
     verification_case_id: UUID,
     review_data: VerificationReviewCreate,
+    db: AsyncSession = Depends(get_async_db),
     current_user: dict[str, Any] = Depends(
-        require_roles(
+        require_async_roles(
             UserRole.REVIEWER,
             resource_type="verification_case",
         )
     ),
-    service: VerificationReviewService = Depends(get_verification_review_service),
 ) -> APIResponse[VerificationReviewResponse]:
     reviewer_id = UUID(current_user["sub"])
+    service = AsyncVerificationReviewService(db, UUID(current_user["tenant_id"]))
 
-    review = service.create_review(
+    review = await service.create_review(
         customer_id=customer_id,
         verification_case_id=verification_case_id,
         reviewer_id=reviewer_id,

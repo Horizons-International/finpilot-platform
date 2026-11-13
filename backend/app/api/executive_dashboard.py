@@ -4,14 +4,14 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import Session
 
-from app.analytics.services.executive_dashboard_service import ExecutiveDashboardService
+from app.analytics.services.async_executive_dashboard_service import (
+    AsyncExecutiveDashboardService,
+)
 from app.core.async_security import require_async_roles
 from app.core.database import get_async_db
 from app.core.responses import APIResponse
 from app.schemas.executive_dashboard import ExecutiveDashboardResponse
-from app.services.async_service_bridge import run_sync_in_tenant
 from app.utils.enums import UserRole
 
 router = APIRouter(prefix="/api/v1/analytics", tags=["Analytics"])
@@ -30,16 +30,10 @@ async def get_executive_dashboard(
         require_async_roles(*READ_ROLES, resource_type="executive-dashboard")
     ),
 ) -> APIResponse[ExecutiveDashboardResponse]:
-    tenant_id = UUID(current_user["tenant_id"])
-
-    def operation(sync_db: Session):
-        return ExecutiveDashboardService(sync_db, tenant_id).get_dashboard(
-            start_date=start_date,
-            end_date=end_date,
-            department=department,
-        )
-
-    dashboard = await run_sync_in_tenant(db, tenant_id, operation)
+    service = AsyncExecutiveDashboardService(db, UUID(current_user["tenant_id"]))
+    dashboard = await service.get_dashboard(
+        start_date=start_date, end_date=end_date, department=department
+    )
     return APIResponse(
         success=True,
         message="Executive dashboard retrieved successfully.",

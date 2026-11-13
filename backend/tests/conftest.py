@@ -630,7 +630,11 @@ def cleanup_test_documents():
 
 
 @pytest.fixture
-def ocr_service_override(db_session, default_tenant_id):
+def ocr_service_override(
+    db_session,
+    default_tenant_id,
+    monkeypatch,
+):
     def apply(provider: OCRProvider) -> OCRService:
         service = OCRService(
             db=db_session,
@@ -638,7 +642,15 @@ def ocr_service_override(db_session, default_tenant_id):
             tenant_id=default_tenant_id,
         )
 
+        # Preserve the existing synchronous dependency override.
         app.dependency_overrides[get_ocr_service] = lambda: service
+
+        # Configure the provider used by the async OCR endpoint.
+        monkeypatch.setattr(
+            "app.api.ocr.get_ocr_provider",
+            lambda: provider,
+        )
+
         return service
 
     yield apply
@@ -647,7 +659,11 @@ def ocr_service_override(db_session, default_tenant_id):
 
 
 @pytest.fixture
-def extraction_service_override(db_session, default_tenant_id):
+def extraction_service_override(
+    db_session,
+    default_tenant_id,
+    monkeypatch,
+):
     def apply(provider: ExtractionProvider) -> DocumentExtractionService:
         service = DocumentExtractionService(
             db=db_session,
@@ -655,7 +671,15 @@ def extraction_service_override(db_session, default_tenant_id):
             tenant_id=default_tenant_id,
         )
 
+        # Preserve the existing synchronous dependency override.
         app.dependency_overrides[get_document_extraction_service] = lambda: service
+
+        # Override the provider factory used by the new async endpoint.
+        monkeypatch.setattr(
+            "app.api.extraction.get_extraction_provider",
+            lambda: provider,
+        )
+
         return service
 
     yield apply
