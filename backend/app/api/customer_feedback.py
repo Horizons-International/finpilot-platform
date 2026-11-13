@@ -4,11 +4,11 @@ from typing import Any
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query, status
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.database import get_db
+from app.core.async_security import require_async_roles
+from app.core.database import get_async_db
 from app.core.responses import APIResponse
-from app.core.security import require_roles
 from app.schemas.customer_feedback import (
     CustomerFeedbackCreate,
     CustomerFeedbackHistoryResponse,
@@ -22,7 +22,7 @@ from app.schemas.customer_feedback import (
     ProductRoadmapItemResponse,
     ProductRoadmapItemUpdate,
 )
-from app.services.customer_feedback_service import CustomerFeedbackService
+from app.services.async_customer_feedback_service import AsyncCustomerFeedbackService
 from app.utils.enums import UserRole
 from app.utils.errors import forbidden
 
@@ -43,8 +43,10 @@ _CUSTOMER_ROLES = (
 )
 
 
-def _service(db: Session, current_user: dict[str, Any]) -> CustomerFeedbackService:
-    return CustomerFeedbackService(db, tenant_id=UUID(current_user["tenant_id"]))
+def _service(
+    db: AsyncSession, current_user: dict[str, Any]
+) -> AsyncCustomerFeedbackService:
+    return AsyncCustomerFeedbackService(db, tenant_id=UUID(current_user["tenant_id"]))
 
 
 def _actor_id(current_user: dict[str, Any]) -> UUID:
@@ -53,7 +55,7 @@ def _actor_id(current_user: dict[str, Any]) -> UUID:
 
 def _require_product_manager(
     context: dict[str, Any] = Depends(
-        require_roles(UserRole.PRODUCT_MANAGER, resource_type="customer-feedback")
+        require_async_roles(UserRole.PRODUCT_MANAGER, resource_type="customer-feedback")
     ),
 ) -> dict[str, Any]:
     # Role is necessary but not sufficient: cross-tenant product access requires
@@ -72,15 +74,15 @@ def _require_product_manager(
     status_code=status.HTTP_201_CREATED,
     summary="Submit feedback for the current bank tenant",
 )
-def submit_feedback(
+async def submit_feedback(
     payload: CustomerFeedbackCreate,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user: dict[str, Any] = Depends(
-        require_roles(*_CUSTOMER_ROLES, resource_type="customer-feedback")
+        require_async_roles(*_CUSTOMER_ROLES, resource_type="customer-feedback")
     ),
 ) -> APIResponse[CustomerFeedbackResponse]:
     service = _service(db, current_user)
-    feedback = service.create_feedback(payload, actor_id=_actor_id(current_user))
+    feedback = await service.create_feedback(payload, actor_id=_actor_id(current_user))
     return APIResponse(
         success=True,
         message="Customer feedback submitted successfully.",
@@ -95,16 +97,16 @@ def submit_feedback(
     response_model=APIResponse[list[CustomerFeedbackResponse]],
     summary="List feedback submitted within the current tenant",
 )
-def list_feedback(
+async def list_feedback(
     status_value: FeedbackStatus | None = Query(default=None, alias="status"),
     limit: int = Query(default=100, ge=1, le=250),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user: dict[str, Any] = Depends(
-        require_roles(*_CUSTOMER_ROLES, resource_type="customer-feedback")
+        require_async_roles(*_CUSTOMER_ROLES, resource_type="customer-feedback")
     ),
 ) -> APIResponse[list[CustomerFeedbackResponse]]:
     service = _service(db, current_user)
-    items = service.list_tenant_feedback(status_value=status_value, limit=limit)
+    items = await service.list_tenant_feedback(status_value=status_value, limit=limit)
     return APIResponse(
         success=True,
         message="Customer feedback retrieved successfully.",
@@ -120,13 +122,13 @@ def list_feedback(
     response_model=APIResponse[CustomerFeedbackSummaryResponse],
     summary="Get feedback status totals for the current tenant",
 )
-def tenant_feedback_summary(
-    db: Session = Depends(get_db),
+async def tenant_feedback_summary(
+    db: AsyncSession = Depends(get_async_db),
     current_user: dict[str, Any] = Depends(
-        require_roles(*_CUSTOMER_ROLES, resource_type="customer-feedback")
+        require_async_roles(*_CUSTOMER_ROLES, resource_type="customer-feedback")
     ),
 ) -> APIResponse[CustomerFeedbackSummaryResponse]:
-    summary = _service(db, current_user).summary(
+    summary = await _service(db, current_user).summary(
         tenant_id=UUID(current_user["tenant_id"])
     )
     return APIResponse(
@@ -141,13 +143,13 @@ def tenant_feedback_summary(
     response_model=APIResponse[list[ProductRoadmapItemResponse]],
     summary="List public product roadmap items",
 )
-def list_public_roadmap(
-    db: Session = Depends(get_db),
+async def list_public_roadmap(
+    db: AsyncSession = Depends(get_async_db),
     current_user: dict[str, Any] = Depends(
-        require_roles(*_CUSTOMER_ROLES, resource_type="product-roadmap")
+        require_async_roles(*_CUSTOMER_ROLES, resource_type="product-roadmap")
     ),
 ) -> APIResponse[list[ProductRoadmapItemResponse]]:
-    items = _service(db, current_user).list_roadmap_items(product_team=False)
+    items = await _service(db, current_user).list_roadmap_items(product_team=False)
     return APIResponse(
         success=True,
         message="Public product roadmap retrieved successfully.",
@@ -160,12 +162,12 @@ def list_public_roadmap(
     response_model=APIResponse[CustomerFeedbackSummaryResponse],
     summary="Summarize customer feedback across tenants",
 )
-def product_feedback_summary(
+async def product_feedback_summary(
     tenant_id: UUID | None = Query(default=None),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user: dict[str, Any] = Depends(_require_product_manager),
 ) -> APIResponse[CustomerFeedbackSummaryResponse]:
-    summary = _service(db, current_user).summary(tenant_id=tenant_id)
+    summary = await _service(db, current_user).summary(tenant_id=tenant_id)
     return APIResponse(
         success=True,
         message="Product feedback summary retrieved successfully.",
@@ -178,17 +180,17 @@ def product_feedback_summary(
     response_model=APIResponse[list[CustomerFeedbackResponse]],
     summary="List and filter customer feedback across tenants",
 )
-def list_product_feedback(
+async def list_product_feedback(
     tenant_id: UUID | None = Query(default=None),
     status_value: FeedbackStatus | None = Query(default=None, alias="status"),
     category: FeedbackCategory | None = Query(default=None),
     priority: FeedbackPriority | None = Query(default=None),
     limit: int = Query(default=100, ge=1, le=500),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user: dict[str, Any] = Depends(_require_product_manager),
 ) -> APIResponse[list[CustomerFeedbackResponse]]:
     service = _service(db, current_user)
-    items = service.list_product_feedback(
+    items = await service.list_product_feedback(
         tenant_id=tenant_id,
         status_value=status_value,
         category=category,
@@ -212,11 +214,11 @@ def list_product_feedback(
     response_model=APIResponse[list[ProductRoadmapItemResponse]],
     summary="List public and internal roadmap items for the product team",
 )
-def list_product_roadmap(
-    db: Session = Depends(get_db),
+async def list_product_roadmap(
+    db: AsyncSession = Depends(get_async_db),
     current_user: dict[str, Any] = Depends(_require_product_manager),
 ) -> APIResponse[list[ProductRoadmapItemResponse]]:
-    items = _service(db, current_user).list_roadmap_items(product_team=True)
+    items = await _service(db, current_user).list_roadmap_items(product_team=True)
     return APIResponse(
         success=True,
         message="Product roadmap retrieved successfully.",
@@ -230,12 +232,12 @@ def list_product_roadmap(
     status_code=status.HTTP_201_CREATED,
     summary="Create a product roadmap item",
 )
-def create_product_roadmap_item(
+async def create_product_roadmap_item(
     payload: ProductRoadmapItemCreate,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user: dict[str, Any] = Depends(_require_product_manager),
 ) -> APIResponse[ProductRoadmapItemResponse]:
-    item = _service(db, current_user).create_roadmap_item(
+    item = await _service(db, current_user).create_roadmap_item(
         payload, actor_id=_actor_id(current_user)
     )
     return APIResponse(
@@ -250,13 +252,15 @@ def create_product_roadmap_item(
     response_model=APIResponse[ProductRoadmapItemResponse],
     summary="Update roadmap status, visibility or target release",
 )
-def update_product_roadmap_item(
+async def update_product_roadmap_item(
     roadmap_item_id: UUID,
     payload: ProductRoadmapItemUpdate,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user: dict[str, Any] = Depends(_require_product_manager),
 ) -> APIResponse[ProductRoadmapItemResponse]:
-    item = _service(db, current_user).update_roadmap_item(roadmap_item_id, payload)
+    item = await _service(db, current_user).update_roadmap_item(
+        roadmap_item_id, payload
+    )
     return APIResponse(
         success=True,
         message="Product roadmap item updated successfully.",
@@ -269,14 +273,14 @@ def update_product_roadmap_item(
     response_model=APIResponse[CustomerFeedbackResponse],
     summary="Prioritize, triage and link feedback to the product roadmap",
 )
-def update_product_feedback(
+async def update_product_feedback(
     feedback_id: UUID,
     payload: CustomerFeedbackUpdate,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user: dict[str, Any] = Depends(_require_product_manager),
 ) -> APIResponse[CustomerFeedbackResponse]:
     service = _service(db, current_user)
-    feedback = service.update_feedback(
+    feedback = await service.update_feedback(
         feedback_id,
         payload,
         actor_id=_actor_id(current_user),
@@ -296,12 +300,14 @@ def update_product_feedback(
     response_model=APIResponse[list[CustomerFeedbackHistoryResponse]],
     summary="Read feedback history across tenants",
 )
-def product_feedback_history(
+async def product_feedback_history(
     feedback_id: UUID,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user: dict[str, Any] = Depends(_require_product_manager),
 ) -> APIResponse[list[CustomerFeedbackHistoryResponse]]:
-    events = _service(db, current_user).list_history(feedback_id, product_team=True)
+    events = await _service(db, current_user).list_history(
+        feedback_id, product_team=True
+    )
     return APIResponse(
         success=True,
         message="Feedback history retrieved successfully.",
@@ -314,15 +320,15 @@ def product_feedback_history(
     response_model=APIResponse[CustomerFeedbackResponse],
     summary="Get one feedback item owned by the current tenant",
 )
-def get_feedback(
+async def get_feedback(
     feedback_id: UUID,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user: dict[str, Any] = Depends(
-        require_roles(*_CUSTOMER_ROLES, resource_type="customer-feedback")
+        require_async_roles(*_CUSTOMER_ROLES, resource_type="customer-feedback")
     ),
 ) -> APIResponse[CustomerFeedbackResponse]:
     service = _service(db, current_user)
-    item = service.get_feedback(feedback_id)
+    item = await service.get_feedback(feedback_id)
     return APIResponse(
         success=True,
         message="Customer feedback retrieved successfully.",
@@ -335,14 +341,14 @@ def get_feedback(
     response_model=APIResponse[list[CustomerFeedbackHistoryResponse]],
     summary="Read the feedback timeline for the current tenant",
 )
-def feedback_history(
+async def feedback_history(
     feedback_id: UUID,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user: dict[str, Any] = Depends(
-        require_roles(*_CUSTOMER_ROLES, resource_type="customer-feedback")
+        require_async_roles(*_CUSTOMER_ROLES, resource_type="customer-feedback")
     ),
 ) -> APIResponse[list[CustomerFeedbackHistoryResponse]]:
-    events = _service(db, current_user).list_history(feedback_id)
+    events = await _service(db, current_user).list_history(feedback_id)
     return APIResponse(
         success=True,
         message="Feedback history retrieved successfully.",

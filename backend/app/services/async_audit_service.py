@@ -150,7 +150,7 @@ class AsyncAuditService:
     async def record_data_access(
         self,
         *,
-        user_id: UUID,
+        user_id: UUID | None,
         entity_type: str,
         entity_id: UUID | None,
         access_type: str = "READ",

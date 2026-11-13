@@ -2,16 +2,17 @@ from typing import Any
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Request, status
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.dependencies import get_customer_risk_profile_service
+from app.core.async_security import require_async_roles
+from app.core.database import get_async_db
 from app.core.responses import APIResponse
-from app.core.security import require_roles
 from app.schemas.customer_risk_profile import (
     CustomerRiskProfileCreate,
     CustomerRiskProfileResponse,
 )
-from app.services.customer_risk_profile_service import (
-    CustomerRiskProfileService,
+from app.services.async_customer_supporting_service import (
+    AsyncCustomerRiskProfileService,
 )
 from app.utils.enums import UserRole
 
@@ -28,26 +29,27 @@ router = APIRouter(
     summary="Create customer risk profile",
     description="Creates a risk profile for a customer.",
 )
-def create_customer_risk_profile(
+async def create_customer_risk_profile(
     payload: CustomerRiskProfileCreate,
     request: Request,
+    db: AsyncSession = Depends(get_async_db),
     current_user: dict[str, Any] = Depends(
-        require_roles(
+        require_async_roles(
             UserRole.ADMINISTRATOR,
             UserRole.COMPLIANCE_OFFICER,
             resource_type="risk_profiles",
         )
     ),
-    service: CustomerRiskProfileService = Depends(get_customer_risk_profile_service),
 ) -> APIResponse[CustomerRiskProfileResponse]:
-    profile = service.create_profile(
+    service = AsyncCustomerRiskProfileService(db, UUID(current_user["tenant_id"]))
+    profile = await service.create_profile(
         customer_id=payload.customer_id,
         risk_level=payload.risk_level,
         risk_score=payload.risk_score,
         risk_category=payload.risk_category,
         assessed_at=payload.assessed_at,
         assessment_source=payload.assessment_source,
-        user_id=current_user["sub"],
+        user_id=UUID(current_user["sub"]),
         email=current_user["email"],
         ip_address=request.client.host if request.client else None,
         user_agent=request.headers.get("user-agent"),
@@ -67,11 +69,11 @@ def create_customer_risk_profile(
     summary="Get customer risk profile",
     description="Retrieve risk profile for a customer.",
 )
-def get_customer_risk_profile(
+async def get_customer_risk_profile(
     customer_id: UUID,
-    service: CustomerRiskProfileService = Depends(get_customer_risk_profile_service),
+    db: AsyncSession = Depends(get_async_db),
     _: dict[str, Any] = Depends(
-        require_roles(
+        require_async_roles(
             UserRole.ADMINISTRATOR,
             UserRole.COMPLIANCE_OFFICER,
             UserRole.REVIEWER,
@@ -79,7 +81,8 @@ def get_customer_risk_profile(
         )
     ),
 ) -> APIResponse[CustomerRiskProfileResponse]:
-    profile = service.get_by_customer_id(customer_id)
+    service = AsyncCustomerRiskProfileService(db, UUID(_["tenant_id"]))
+    profile = await service.get_by_customer_id(customer_id)
 
     return APIResponse(
         success=True,
@@ -95,11 +98,11 @@ def get_customer_risk_profile(
     summary="Get customer risk profile",
     description="Retrieve risk profile by ID.",
 )
-def get_customer_risk_profile_by_id(
+async def get_customer_risk_profile_by_id(
     profile_id: UUID,
-    service: CustomerRiskProfileService = Depends(get_customer_risk_profile_service),
+    db: AsyncSession = Depends(get_async_db),
     _: dict[str, Any] = Depends(
-        require_roles(
+        require_async_roles(
             UserRole.ADMINISTRATOR,
             UserRole.COMPLIANCE_OFFICER,
             UserRole.REVIEWER,
@@ -107,7 +110,8 @@ def get_customer_risk_profile_by_id(
         )
     ),
 ) -> APIResponse[CustomerRiskProfileResponse]:
-    profile = service.get_by_id(profile_id)
+    service = AsyncCustomerRiskProfileService(db, UUID(_["tenant_id"]))
+    profile = await service.get_by_id(profile_id)
 
     return APIResponse(
         success=True,
@@ -123,10 +127,10 @@ def get_customer_risk_profile_by_id(
     summary="Get customer risk profiles",
     description="Retrieve all customer risk profiles",
 )
-def list_customer_risk_profiles(
-    service: CustomerRiskProfileService = Depends(get_customer_risk_profile_service),
+async def list_customer_risk_profiles(
+    db: AsyncSession = Depends(get_async_db),
     _: dict[str, Any] = Depends(
-        require_roles(
+        require_async_roles(
             UserRole.ADMINISTRATOR,
             UserRole.COMPLIANCE_OFFICER,
             UserRole.REVIEWER,
@@ -134,7 +138,8 @@ def list_customer_risk_profiles(
         )
     ),
 ) -> APIResponse[list[CustomerRiskProfileResponse]]:
-    profiles = service.get_all()
+    service = AsyncCustomerRiskProfileService(db, UUID(_["tenant_id"]))
+    profiles = await service.get_all()
 
     return APIResponse(
         success=True,

@@ -1,14 +1,14 @@
-"""Platform-admin subscription and usage management endpoints."""
+"""Native-async platform subscription and usage administration."""
 
 from typing import Any
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query, status
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.database import get_db
+from app.core.async_security import require_async_platform_admin
+from app.core.database import get_async_db
 from app.core.responses import APIResponse
-from app.core.security import require_platform_admin
 from app.schemas.subscription import (
     SubscriptionCreate,
     SubscriptionPlanResponse,
@@ -16,29 +16,21 @@ from app.schemas.subscription import (
     SubscriptionUpdate,
     SubscriptionUsageResponse,
 )
-from app.services.subscription_service import SubscriptionService
+from app.services.async_subscription_service import AsyncSubscriptionService
 
 router = APIRouter(prefix="/api/v1/subscriptions", tags=["Subscriptions"])
 
 
-def _service(db: Session) -> SubscriptionService:
-    return SubscriptionService(db)
-
-
-@router.get(
-    "/plans",
-    response_model=APIResponse[list[SubscriptionPlanResponse]],
-    summary="List available subscription plans",
-)
-def list_plans(
-    _: dict[str, Any] = Depends(require_platform_admin),
+@router.get("/plans", response_model=APIResponse[list[SubscriptionPlanResponse]])
+async def list_plans(
+    _: dict[str, Any] = Depends(require_async_platform_admin),
 ) -> APIResponse[list[SubscriptionPlanResponse]]:
     return APIResponse(
         success=True,
         message="Subscription plans retrieved successfully.",
         data=[
             SubscriptionPlanResponse.model_validate(item)
-            for item in SubscriptionService.plans()
+            for item in AsyncSubscriptionService.plans()
         ],
     )
 
@@ -47,14 +39,14 @@ def list_plans(
     "",
     response_model=APIResponse[SubscriptionResponse],
     status_code=status.HTTP_201_CREATED,
-    summary="Create an organization subscription",
 )
-def create_subscription(
+async def create_subscription(
     payload: SubscriptionCreate,
-    db: Session = Depends(get_db),
-    _: dict[str, Any] = Depends(require_platform_admin),
+    db: AsyncSession = Depends(get_async_db),
+    _: dict[str, Any] = Depends(require_async_platform_admin),
 ) -> APIResponse[SubscriptionResponse]:
-    subscription = _service(db).create(
+    service = AsyncSubscriptionService(db)
+    item = await service.create(
         tenant_id=payload.tenant_id,
         plan_name=payload.plan_name.value,
         start_date=payload.start_date,
@@ -65,105 +57,85 @@ def create_subscription(
     return APIResponse(
         success=True,
         message="Subscription created successfully.",
-        data=SubscriptionResponse.model_validate(_service(db).serialize(subscription)),
+        data=SubscriptionResponse.model_validate(await service.serialize(item)),
     )
 
 
-@router.get(
-    "",
-    response_model=APIResponse[list[SubscriptionResponse]],
-    summary="List organization subscriptions",
-)
-def list_subscriptions(
+@router.get("", response_model=APIResponse[list[SubscriptionResponse]])
+async def list_subscriptions(
     tenant_id: UUID | None = Query(default=None),
     limit: int = Query(default=100, ge=1, le=500),
-    db: Session = Depends(get_db),
-    _: dict[str, Any] = Depends(require_platform_admin),
+    db: AsyncSession = Depends(get_async_db),
+    _: dict[str, Any] = Depends(require_async_platform_admin),
 ) -> APIResponse[list[SubscriptionResponse]]:
-    service = _service(db)
-    subscriptions = service.list_subscriptions(tenant_id=tenant_id, limit=limit)
+    service = AsyncSubscriptionService(db)
+    rows = await service.list_subscriptions(tenant_id=tenant_id, limit=limit)
     return APIResponse(
         success=True,
         message="Subscriptions retrieved successfully.",
         data=[
-            SubscriptionResponse.model_validate(service.serialize(item))
-            for item in subscriptions
+            SubscriptionResponse.model_validate(await service.serialize(row))
+            for row in rows
         ],
     )
 
 
-@router.get(
-    "/{tenant_id}",
-    response_model=APIResponse[SubscriptionResponse],
-    summary="Get an organization's latest subscription",
-)
-def get_subscription(
+@router.get("/{tenant_id}", response_model=APIResponse[SubscriptionResponse])
+async def get_subscription(
     tenant_id: UUID,
-    db: Session = Depends(get_db),
-    _: dict[str, Any] = Depends(require_platform_admin),
+    db: AsyncSession = Depends(get_async_db),
+    _: dict[str, Any] = Depends(require_async_platform_admin),
 ) -> APIResponse[SubscriptionResponse]:
-    service = _service(db)
-    subscription = service.get_latest(tenant_id)
+    service = AsyncSubscriptionService(db)
+    item = await service.get_latest(tenant_id)
     return APIResponse(
         success=True,
         message="Subscription retrieved successfully.",
-        data=SubscriptionResponse.model_validate(service.serialize(subscription)),
+        data=SubscriptionResponse.model_validate(await service.serialize(item)),
     )
 
 
-@router.patch(
-    "/{tenant_id}",
-    response_model=APIResponse[SubscriptionResponse],
-    summary="Update an organization's subscription",
-)
-def update_subscription(
+@router.patch("/{tenant_id}", response_model=APIResponse[SubscriptionResponse])
+async def update_subscription(
     tenant_id: UUID,
     payload: SubscriptionUpdate,
-    db: Session = Depends(get_db),
-    _: dict[str, Any] = Depends(require_platform_admin),
+    db: AsyncSession = Depends(get_async_db),
+    _: dict[str, Any] = Depends(require_async_platform_admin),
 ) -> APIResponse[SubscriptionResponse]:
     changes = payload.model_dump(exclude_unset=True)
-    if "plan_name" in changes and changes["plan_name"] is not None:
+    if changes.get("plan_name") is not None:
         changes["plan_name"] = changes["plan_name"].value
-    service = _service(db)
-    subscription = service.update(tenant_id, changes)
+    service = AsyncSubscriptionService(db)
+    item = await service.update(tenant_id, changes)
     return APIResponse(
         success=True,
         message="Subscription updated successfully.",
-        data=SubscriptionResponse.model_validate(service.serialize(subscription)),
+        data=SubscriptionResponse.model_validate(await service.serialize(item)),
     )
 
 
-@router.post(
-    "/{tenant_id}/cancel",
-    response_model=APIResponse[SubscriptionResponse],
-    summary="Cancel an organization's subscription",
-)
-def cancel_subscription(
+@router.post("/{tenant_id}/cancel", response_model=APIResponse[SubscriptionResponse])
+async def cancel_subscription(
     tenant_id: UUID,
-    db: Session = Depends(get_db),
-    _: dict[str, Any] = Depends(require_platform_admin),
+    db: AsyncSession = Depends(get_async_db),
+    _: dict[str, Any] = Depends(require_async_platform_admin),
 ) -> APIResponse[SubscriptionResponse]:
-    service = _service(db)
-    subscription = service.cancel(tenant_id)
+    service = AsyncSubscriptionService(db)
+    item = await service.cancel(tenant_id)
     return APIResponse(
         success=True,
         message="Subscription cancelled successfully.",
-        data=SubscriptionResponse.model_validate(service.serialize(subscription)),
+        data=SubscriptionResponse.model_validate(await service.serialize(item)),
     )
 
 
-@router.get(
-    "/{tenant_id}/usage",
-    response_model=APIResponse[SubscriptionUsageResponse],
-    summary="View an organization's subscription usage",
-)
-def get_subscription_usage(
+@router.get("/{tenant_id}/usage", response_model=APIResponse[SubscriptionUsageResponse])
+async def get_subscription_usage(
     tenant_id: UUID,
-    db: Session = Depends(get_db),
-    _: dict[str, Any] = Depends(require_platform_admin),
+    db: AsyncSession = Depends(get_async_db),
+    _: dict[str, Any] = Depends(require_async_platform_admin),
 ) -> APIResponse[SubscriptionUsageResponse]:
-    usage = _service(db).get_usage(tenant_id)
+    usage = await AsyncSubscriptionService(db).get_usage(tenant_id)
     return APIResponse(
         success=True,
         message="Subscription usage retrieved successfully.",

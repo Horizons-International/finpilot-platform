@@ -2,17 +2,17 @@ from typing import Any
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, status
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.database import get_db
+from app.core.async_security import require_async_roles
+from app.core.database import get_async_db
 from app.core.responses import APIResponse
-from app.core.security import require_roles
 from app.schemas.customer_contact import (
     CustomerContactCreate,
     CustomerContactResponse,
     CustomerContactUpdate,
 )
-from app.services.customer_contact_service import CustomerContactService
+from app.services.async_customer_supporting_service import AsyncCustomerContactService
 from app.utils.enums import UserRole
 
 router = APIRouter(
@@ -28,20 +28,20 @@ router = APIRouter(
     summary="Create customer contact",
     description="Creates a new contact record for a customer.",
 )
-def create_customer_contact(
+async def create_customer_contact(
     customer_id: UUID,
     contact_data: CustomerContactCreate,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user: dict[str, Any] = Depends(
-        require_roles(
+        require_async_roles(
             UserRole.ADMINISTRATOR,
             resource_type="customer",
         )
     ),
 ) -> APIResponse[CustomerContactResponse]:
-    service = CustomerContactService(db)
+    service = AsyncCustomerContactService(db, UUID(current_user["tenant_id"]))
 
-    contact = service.create_contact(
+    contact = await service.create_contact(
         customer_id=customer_id,
         data=contact_data,
         created_by=UUID(current_user["sub"]),
@@ -61,20 +61,20 @@ def create_customer_contact(
     summary="Get customer contacts",
     description="Retrieves all contact records belonging to a customer.",
 )
-def get_customer_contacts(
+async def get_customer_contacts(
     customer_id: UUID,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user: dict[str, Any] = Depends(
-        require_roles(
+        require_async_roles(
             UserRole.ADMINISTRATOR,
             UserRole.COMPLIANCE_OFFICER,
             resource_type="customer",
         )
     ),
 ) -> APIResponse[list[CustomerContactResponse]]:
-    service = CustomerContactService(db)
+    service = AsyncCustomerContactService(db, UUID(current_user["tenant_id"]))
 
-    contacts = service.get_contacts(customer_id)
+    contacts = await service.get_contacts(customer_id)
 
     return APIResponse(
         success=True,
@@ -90,21 +90,21 @@ def get_customer_contacts(
     summary="Update customer contact",
     description="Updates an existing customer contact record.",
 )
-def update_customer_contact(
+async def update_customer_contact(
     customer_id: UUID,
     contact_id: UUID,
     contact_data: CustomerContactUpdate,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user: dict[str, Any] = Depends(
-        require_roles(
+        require_async_roles(
             UserRole.ADMINISTRATOR,
             resource_type="customer",
         )
     ),
 ) -> APIResponse[CustomerContactResponse]:
-    service = CustomerContactService(db)
+    service = AsyncCustomerContactService(db, UUID(current_user["tenant_id"]))
 
-    contact = service.update_contact(
+    contact = await service.update_contact(
         customer_id=customer_id,
         contact_id=contact_id,
         data=contact_data,

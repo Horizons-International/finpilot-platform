@@ -1309,7 +1309,7 @@ def test_get_review_fails_without_extraction(
     assert response.status_code == 400
 
     assert response.json()["message"] == (
-        "Document has no extraction result available for review."
+        "Document has no completed extraction result available for review."
     )
 
 

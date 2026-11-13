@@ -2,18 +2,22 @@ from typing import Any
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Request, status
+from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.async_security import require_async_roles
+from app.core.database import get_async_db
 from app.core.responses import APIResponse
-from app.core.security import require_roles
-from app.ocr.services.dependencies import get_ocr_service
-from app.ocr.services.ocr_service import OCRService
+from app.ocr.providers.factory import get_ocr_provider
 from app.schemas.ocr import OCRResultResponse
+from app.services.async_document_processing_service import AsyncOCRService
 from app.utils.enums import UserRole
+from app.utils.errors import not_found
 
-router = APIRouter(
-    prefix="/api/v1/documents",
-    tags=["OCR"],
-)
+router = APIRouter(prefix="/api/v1/documents", tags=["OCR"])
+
+
+def _service(db: AsyncSession, user: dict[str, Any]) -> AsyncOCRService:
+    return AsyncOCRService(db, get_ocr_provider(), UUID(user["tenant_id"]))
 
 
 @router.post(
@@ -23,25 +27,21 @@ router = APIRouter(
     summary="Create OCR",
     description="Creates an OCR for a document.",
 )
-def process_document_ocr(
+async def process_document_ocr(
     request: Request,
     document_id: UUID,
-    ocr_service: OCRService = Depends(get_ocr_service),
+    db: AsyncSession = Depends(get_async_db),
     current_user: dict[str, Any] = Depends(
-        require_roles(
-            UserRole.ADMINISTRATOR,
-            resource_type="OCR",
-        )
+        require_async_roles(UserRole.ADMINISTRATOR, resource_type="OCR")
     ),
 ) -> APIResponse[OCRResultResponse]:
-    result = ocr_service.process_document_by_id(
+    result = await _service(db, current_user).process_document_by_id(
         document_id=document_id,
         requested_by=UUID(current_user["sub"]),
         email=current_user["email"],
-        ip_address=(request.client.host if request.client else None),
+        ip_address=request.client.host if request.client else None,
         user_agent=request.headers.get("user-agent"),
     )
-
     return APIResponse(
         success=True,
         message="OCR created successfully.",
@@ -56,23 +56,16 @@ def process_document_ocr(
     summary="Get OCR",
     description="Retrieve an OCR by document id.",
 )
-def get_document_ocr(
+async def get_document_ocr(
     document_id: UUID,
-    ocr_service: OCRService = Depends(get_ocr_service),
-    _: dict[str, Any] = Depends(
-        require_roles(
-            UserRole.ADMINISTRATOR,
-            resource_type="OCR",
-        )
+    db: AsyncSession = Depends(get_async_db),
+    current_user: dict[str, Any] = Depends(
+        require_async_roles(UserRole.ADMINISTRATOR, resource_type="OCR")
     ),
 ) -> APIResponse[OCRResultResponse]:
-    result = ocr_service.get_latest_result(document_id)
-
+    result = await _service(db, current_user).get_latest_result(document_id)
     if result is None:
-        from app.utils.errors import not_found
-
         raise not_found("OCR result")
-
     return APIResponse(
         success=True,
         message="OCR retrieved successfully.",

@@ -2,17 +2,18 @@ from typing import Any
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Request, status
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.database import get_db
+from app.core.async_security import require_async_roles
+from app.core.database import get_async_db
 from app.core.responses import APIResponse
-from app.core.security import require_roles
 from app.schemas.verification_document_type import (
     VerificationDocumentTypeCreate,
     VerificationDocumentTypeResponse,
     VerificationDocumentTypeUpdate,
 )
-from app.services.verification_document_type_service import (
-    VerificationDocumentTypeService,
+from app.services.async_verification_supporting_service import (
+    AsyncVerificationDocumentTypeService,
 )
 from app.utils.enums import UserRole
 
@@ -22,12 +23,6 @@ router = APIRouter(
 )
 
 
-def get_verification_document_type_service(
-    db=Depends(get_db),
-) -> VerificationDocumentTypeService:
-    return VerificationDocumentTypeService(db)
-
-
 @router.post(
     "",
     response_model=APIResponse[VerificationDocumentTypeResponse],
@@ -35,20 +30,19 @@ def get_verification_document_type_service(
     summary="Post verification document type",
     description="Creates verification document type.",
 )
-def create_verification_document_type(
+async def create_verification_document_type(
     request: Request,
     data: VerificationDocumentTypeCreate,
+    db: AsyncSession = Depends(get_async_db),
     current_user: dict[str, Any] = Depends(
-        require_roles(
+        require_async_roles(
             UserRole.ADMINISTRATOR,
             resource_type="verification_document_type",
         )
     ),
-    service: VerificationDocumentTypeService = Depends(
-        get_verification_document_type_service
-    ),
 ) -> APIResponse[VerificationDocumentTypeResponse]:
-    document_type = service.create(
+    service = AsyncVerificationDocumentTypeService(db, UUID(current_user["tenant_id"]))
+    document_type = await service.create(
         data=data,
         user_id=UUID(current_user["sub"]),
         email=current_user["email"],
@@ -70,19 +64,18 @@ def create_verification_document_type(
     summary="Get verification document types",
     description="Retrieves all verfication document types.",
 )
-def get_verification_document_types(
+async def get_verification_document_types(
+    db: AsyncSession = Depends(get_async_db),
     _: dict[str, Any] = Depends(
-        require_roles(
+        require_async_roles(
             UserRole.ADMINISTRATOR,
             UserRole.COMPLIANCE_OFFICER,
             resource_type="verification_document_type",
         )
     ),
-    service: VerificationDocumentTypeService = Depends(
-        get_verification_document_type_service
-    ),
 ) -> APIResponse[list[VerificationDocumentTypeResponse]]:
-    document_types = service.get_all()
+    service = AsyncVerificationDocumentTypeService(db, UUID(_["tenant_id"]))
+    document_types = await service.get_all()
 
     return APIResponse(
         success=True,
@@ -101,20 +94,19 @@ def get_verification_document_types(
     summary="Get active verfication  document types",
     description="Retrieves all active verification document types.",
 )
-def get_active_verification_document_types(
+async def get_active_verification_document_types(
+    db: AsyncSession = Depends(get_async_db),
     _: dict[str, Any] = Depends(
-        require_roles(
+        require_async_roles(
             UserRole.ADMINISTRATOR,
             UserRole.COMPLIANCE_OFFICER,
             UserRole.REVIEWER,
             resource_type="verification_document_type",
         )
     ),
-    service: VerificationDocumentTypeService = Depends(
-        get_verification_document_type_service
-    ),
 ) -> APIResponse[list[VerificationDocumentTypeResponse]]:
-    document_types = service.get_active()
+    service = AsyncVerificationDocumentTypeService(db, UUID(_["tenant_id"]))
+    document_types = await service.get_active()
 
     return APIResponse(
         success=True,
@@ -133,20 +125,19 @@ def get_active_verification_document_types(
     summary="Get verification document type",
     description="Retrieves verifiaction document type by ID.",
 )
-def get_verification_document_type(
+async def get_verification_document_type(
     document_type_id: UUID,
+    db: AsyncSession = Depends(get_async_db),
     _: dict[str, Any] = Depends(
-        require_roles(
+        require_async_roles(
             UserRole.ADMINISTRATOR,
             UserRole.COMPLIANCE_OFFICER,
             resource_type="verification_document_type",
         )
     ),
-    service: VerificationDocumentTypeService = Depends(
-        get_verification_document_type_service
-    ),
 ) -> APIResponse[VerificationDocumentTypeResponse]:
-    document_type = service.get_by_id(document_type_id)
+    service = AsyncVerificationDocumentTypeService(db, UUID(_["tenant_id"]))
+    document_type = await service.get_by_id(document_type_id)
 
     return APIResponse(
         success=True,
@@ -162,21 +153,20 @@ def get_verification_document_type(
     summary="Patch verification document type",
     description="Updates verification document type by ID.",
 )
-def update_verification_document_type(
+async def update_verification_document_type(
     request: Request,
     document_type_id: UUID,
     data: VerificationDocumentTypeUpdate,
+    db: AsyncSession = Depends(get_async_db),
     current_user: dict[str, Any] = Depends(
-        require_roles(
+        require_async_roles(
             UserRole.ADMINISTRATOR,
             resource_type="verification_document_type",
         )
     ),
-    service: VerificationDocumentTypeService = Depends(
-        get_verification_document_type_service
-    ),
 ) -> APIResponse[VerificationDocumentTypeResponse]:
-    document_type = service.update(
+    service = AsyncVerificationDocumentTypeService(db, UUID(current_user["tenant_id"]))
+    document_type = await service.update(
         document_type_id=document_type_id,
         data=data,
         user_id=UUID(current_user["sub"]),

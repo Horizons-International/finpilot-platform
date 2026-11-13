@@ -25,7 +25,7 @@ from app.models.tenant import Tenant
 from app.models.user import User
 from app.models.user_session import UserSession
 from app.services.async_audit_service import AsyncAuditService
-from app.services.subscription_service import (
+from app.services.async_subscription_service import (
     is_billing_exempt_path,
     record_subscription_usage,
 )
@@ -181,14 +181,9 @@ async def get_async_current_user(
     request.state.current_user_email = user.email
     request.state.tenant_id = user.tenant_id
 
-    # Keep the existing fail-closed metering rule while adapting the legacy
-    # synchronous subscription service through SQLAlchemy's async greenlet bridge.
+    # Meter with native async SQL rather than bridging to the synchronous ORM.
     if not is_billing_exempt_path(request.url.path):
-        await db.run_sync(
-            lambda sync_db: record_subscription_usage(
-                sync_db, user.tenant_id, "api_calls"
-            )
-        )
+        await record_subscription_usage(db, user.tenant_id, "api_calls")
 
     return user
 
@@ -250,3 +245,15 @@ def require_async_roles(
         return _user_claims(current_user)
 
     return role_checker
+
+
+async def require_async_platform_admin(
+    current_user: User = Depends(get_async_current_user),
+) -> dict[str, Any]:
+    """Require an authenticated platform administrator using AsyncSession."""
+    if not current_user.is_platform_admin:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Platform administrator access is required.",
+        )
+    return _user_claims(current_user)
