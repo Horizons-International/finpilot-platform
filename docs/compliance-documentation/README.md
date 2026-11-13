@@ -4,19 +4,14 @@
 
 The compliance-documentation API provides tenant-scoped document metadata, immutable file versions, approval history and structured evidence records. It uses the existing file/storage services and stores content digests with version metadata.
 
-The feature is already present in the current repository; this is not a ZIP overlay or a manual integration task.
-
-## Implementation locations
-
-- API: `backend/app/api/compliance_documents.py`
-- Model: `backend/app/models/compliance_document.py`
-- Repository: `backend/app/repositories/compliance_document_repository.py`
-- Service: `backend/app/services/compliance_document_service.py`
-- Schemas: `backend/app/schemas/compliance_document.py`
-- Migration: `backend/alembic/versions/cbd20261020_compliance_document_library.py`
-- Tests: `backend/tests/` (check the current tree for the specific unit/integration files)
-
-The router is included in the current FastAPI application. Inspect `backend/app/main.py` and `backend/alembic/env.py` if investigating registration or metadata issues; do not add duplicate router/model imports blindly.
+- `backend/app/models/compliance_document.py`: the requested `compliance_documents` model plus version, approval, and evidence models.
+- `backend/app/repositories/compliance_document_repository.py`: tenant-filtered document/version/approval/evidence queries.
+- `backend/app/services/async_compliance_document_service.py`: validation, uploads through the existing encrypted `FileService` storage layer, hashing, version rules, approval separation of duties, and evidence handling.
+- `backend/app/schemas/compliance_document.py`: validated API request/response types.
+- `backend/app/api/compliance_documents.py`: REST routes under `/api/v1/compliance-documents`.
+- `backend/alembic/versions/cbd20261020_compliance_document_library.py`: database migration.
+- `backend/tests/unit/test_compliance_document_models.py`: basic schema/model checks.
+- `docs/compliance-documentation/`: evidence catalog, approval workflow, and integration instructions.
 
 ## API operations
 

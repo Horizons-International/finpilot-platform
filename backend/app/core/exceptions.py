@@ -1,3 +1,4 @@
+from typing import Any
 from uuid import UUID
 
 from fastapi import HTTPException, Request, status
@@ -5,10 +6,10 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 
-from app.core.database import SessionLocal
 from app.core.logger import get_logger
 from app.core.responses import APIResponse, ErrorDetail
-from app.services.audit_service import AuditService
+from app.middleware.async_session import middleware_async_session
+from app.services.async_audit_service import AsyncAuditService
 from app.utils.enums import AuditEventType
 
 logger = get_logger(__name__)
@@ -40,32 +41,57 @@ def _get_resource_context(
     return "tenant_resource", None
 
 
-def _audit_resource_access_denied(request: Request) -> None:
-    user_id = getattr(request.state, "current_user_id", None)
+def _uuid_or_none(value: Any) -> UUID | None:
+    if isinstance(value, UUID):
+        return value
+    if isinstance(value, str):
+        try:
+            return UUID(value)
+        except ValueError:
+            return None
+    return None
 
+
+async def _audit_resource_access_denied(request: Request) -> None:
+    user_id = _uuid_or_none(getattr(request.state, "current_user_id", None))
     # Only log requests for which authentication succeeded.
     if user_id is None:
         return
 
+    tenant_id = _uuid_or_none(getattr(request.state, "tenant_id", None))
     resource_type, resource_id = _get_resource_context(request)
-    db = SessionLocal()
-
     try:
-        AuditService(db).log_event(
-            event_type=AuditEventType.ACCESS_DENIED,
-            user_id=user_id,
-            email=getattr(request.state, "current_user_email", None),
-            ip_address=(request.client.host if request.client else None),
-            user_agent=request.headers.get("user-agent"),
-            resource_type=resource_type,
-            resource_id=resource_id,
-        )
-        db.commit()
+        async with middleware_async_session(request) as db:
+            # Clear stale tenant context in test-overridden sessions. A missing
+            # tenant remains a platform-level audit event, as before.
+            if tenant_id is None:
+                db.info.pop("tenant_id", None)
+            else:
+                db.info["tenant_id"] = tenant_id
+
+            request_id = getattr(request.state, "request_id", None)
+            if isinstance(request_id, str) and request_id:
+                db.info["request_id"] = request_id[:100]
+
+            try:
+                await AsyncAuditService(db).log_event(
+                    event_type=AuditEventType.ACCESS_DENIED,
+                    user_id=user_id,
+                    email=getattr(request.state, "current_user_email", None),
+                    ip_address=(request.client.host if request.client else None),
+                    user_agent=request.headers.get("user-agent"),
+                    resource_type=resource_type,
+                    resource_id=resource_id,
+                )
+                await db.commit()
+            except Exception:
+                try:
+                    await db.rollback()
+                except Exception:
+                    logger.exception("Failed to roll back denied-access audit session")
+                raise
     except Exception:
-        db.rollback()
         logger.exception("Failed to audit denied resource access")
-    finally:
-        db.close()
 
 
 async def http_exception_handler(
@@ -76,7 +102,7 @@ async def http_exception_handler(
         raise exc
 
     if exc.status_code == status.HTTP_404_NOT_FOUND:
-        _audit_resource_access_denied(request)
+        await _audit_resource_access_denied(request)
 
     logger.warning(
         "HTTP exception: %s %s - %s",
