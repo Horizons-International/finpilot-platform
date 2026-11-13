@@ -97,8 +97,8 @@ and monitoring before production rollout.
 ```powershell
 uv run pytest tests/unit/test_security_baseline.py -q
 uv run pytest tests/integration/test_security_controls.py tests/integration/test_auth.py tests/integration/test_password.py tests/integration/test_security_baseline.py -q
-uv run ruff check app/core/config.py app/core/security.py app/middleware/security_monitoring.py app/schemas/auth.py app/services/auth_service.py tests/unit/test_security_baseline.py
-uv run mypy app/core/config.py app/core/security.py app/middleware/security_monitoring.py app/schemas/auth.py app/services/auth_service.py
+uv run ruff check app/core/config.py app/core/security.py app/middleware/security_monitoring.py app/schemas/auth.py app/services/async_auth_service.py tests/unit/test_security_baseline.py
+uv run mypy app/core/config.py app/core/security.py app/middleware/security_monitoring.py app/schemas/auth.py app/services/async_auth_service.py
 ```
 
 Integration tests require the project's configured PostgreSQL test database.

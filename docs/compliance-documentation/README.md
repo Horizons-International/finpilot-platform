@@ -6,7 +6,7 @@ This package adds a tenant-scoped compliance library to FinPilot with immutable 
 
 - `backend/app/models/compliance_document.py`: the requested `compliance_documents` model plus version, approval, and evidence models.
 - `backend/app/repositories/compliance_document_repository.py`: tenant-filtered document/version/approval/evidence queries.
-- `backend/app/services/compliance_document_service.py`: validation, uploads through the existing encrypted `FileService` storage layer, hashing, version rules, approval separation of duties, and evidence handling.
+- `backend/app/services/async_compliance_document_service.py`: validation, uploads through the existing encrypted `FileService` storage layer, hashing, version rules, approval separation of duties, and evidence handling.
 - `backend/app/schemas/compliance_document.py`: validated API request/response types.
 - `backend/app/api/compliance_documents.py`: REST routes under `/api/v1/compliance-documents`.
 - `backend/alembic/versions/cbd20261020_compliance_document_library.py`: database migration.
