@@ -21,9 +21,9 @@ from starlette.concurrency import run_in_threadpool
 
 from app.ai.config import get_ai_config
 from app.ai.exceptions import AIConfigurationError, AIProviderError
-from app.ai.providers.factory import get_ai_provider
+from app.ai.providers.async_factory import get_async_ai_provider
 from app.ai.schemas.requests import AIRequest, AIRequestType
-from app.ai.services.ai_service import AIService
+from app.ai.services.async_ai_service import AsyncAIService
 from app.core.logger import get_logger
 from app.extraction.exceptions import ExtractionProviderError, ExtractionResponseError
 from app.extraction.providers.base import ExtractionProvider
@@ -807,21 +807,22 @@ class AsyncDocumentFraudAnalysisService(_AsyncDocumentService):
         ai_started_at = monotonic()
         if use_ai:
             try:
-                ai_service = AIService(provider=get_ai_provider())
                 context = base._context(
                     document, customer, document_type, extraction, ocr
                 )
                 prompt = base._build_prompt(context)
-                response = await run_in_threadpool(
-                    ai_service.generate,
-                    AIRequest(
-                        request_type=AIRequestType.DOCUMENT_FRAUD_ANALYSIS,
-                        prompt=prompt,
-                        customer_id=customer.id,
-                        document_id=document.id,
-                        structured=True,
-                    ),
-                )
+                async with AsyncAIService(
+                    provider=get_async_ai_provider()
+                ) as ai_service:
+                    response = await ai_service.generate(
+                        AIRequest(
+                            request_type=AIRequestType.DOCUMENT_FRAUD_ANALYSIS,
+                            prompt=prompt,
+                            customer_id=customer.id,
+                            document_id=document.id,
+                            structured=True,
+                        )
+                    )
                 ai_response = response
                 if response.structured_data is None:
                     raise AIProviderError(
