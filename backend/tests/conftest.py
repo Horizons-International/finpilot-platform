@@ -271,18 +271,24 @@ def create_test_user():
     db = TestSessionLocal()
 
     try:
-        for user_id in created_user_ids:
-            db.query(AuditLog).filter(AuditLog.user_id == user_id).delete(
+        if created_user_ids:
+            db.query(AIUsageLog).filter(
+                AIUsageLog.user_id.in_(created_user_ids)
+            ).delete(synchronize_session=False)
+
+            # Remove audit logs referencing the test users.
+            db.query(AuditLog).filter(AuditLog.user_id.in_(created_user_ids)).delete(
                 synchronize_session=False
             )
 
-            user = db.query(User).filter(User.id == user_id).first()
+            # Delete the test users.
+            for user_id in created_user_ids:
+                user = db.query(User).filter(User.id == user_id).first()
 
-            if user:
-                db.delete(user)
+                if user:
+                    db.delete(user)
 
         db.commit()
-
     finally:
         db.close()
 

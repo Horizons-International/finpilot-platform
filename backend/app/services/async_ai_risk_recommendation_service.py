@@ -11,6 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.ai.config import get_ai_config
 from app.ai.providers.async_factory import get_async_ai_provider
 from app.ai.schemas.requests import AIRequest, AIRequestType
+from app.ai.schemas.responses import AIResponse
 from app.ai.services.async_ai_service import AsyncAIService
 from app.core.logger import get_logger
 from app.models.ai_risk_recommendation import AIRiskRecommendation
@@ -32,6 +33,8 @@ from app.services.ai_risk_recommendation_service import (
     risk_level_for_score,
     suggested_action_for_score,
 )
+from app.services.async_ai_usage_service import AsyncAIUsageService
+from app.services.async_subscription_service import record_subscription_usage
 from app.services.audit_event_service import sanitize_audit_metadata
 from app.utils.errors import not_found
 
@@ -50,6 +53,7 @@ class AsyncAIRiskRecommendationService:
         self.repository = AsyncAIRiskRecommendationRepository(
             db, tenant_id=resolved_tenant_id
         )
+        self.usage_service = AsyncAIUsageService(db, tenant_id=resolved_tenant_id)
 
     async def _build_snapshot(
         self, customer_id: UUID, selected_case: ComplianceCase | None
@@ -223,7 +227,9 @@ class AsyncAIRiskRecommendationService:
         ai_result: TransactionRiskAIOutput | None = None
         provider_name = "deterministic_rules"
         model_name: str | None = None
-        started_at = monotonic()
+        ai_config = get_ai_config()
+        response: AIResponse | None = None
+        ai_error_message: str | None = None
         response_time_ms = 0
 
         ai_context = self._transaction_ai_context(snapshot)
@@ -240,6 +246,12 @@ class AsyncAIRiskRecommendationService:
             "TRANSACTION_RISK_CONTEXT_JSON:\n"
             + json.dumps(ai_context, ensure_ascii=False, separators=(",", ":"))
         )
+
+        # Reserve the tenant's AI allowance before creating or invoking the provider.
+        # The reservation commits independently and is not charged again when the
+        # AI usage log is written below.
+        await record_subscription_usage(self.db, self.tenant_id, "ai_requests")
+        started_at = monotonic()
         try:
             async with AsyncAIService(provider=get_async_ai_provider()) as ai_service:
                 response = await ai_service.generate(
@@ -254,16 +266,40 @@ class AsyncAIRiskRecommendationService:
                 raise ValueError("AI provider returned no structured recommendation.")
             ai_result = TransactionRiskAIOutput.model_validate(response.structured_data)
             provider_name = response.provider_name
-            model_name = get_ai_config().model or None
+            model_name = ai_config.model or None
         except Exception as exc:
             # Keep the deterministic evidence floor usable when AI is offline or
-            # returns invalid data. The source snapshot remains available for review.
+            # returns invalid data. The failed provider attempt is still metered.
+            ai_error_message = (
+                f"{type(exc).__name__}: AI risk recommendation provider attempt failed."
+            )
             logger.warning(
                 "AI risk recommendation used deterministic fallback: %s",
                 type(exc).__name__,
             )
         finally:
             response_time_ms = max(0, int((monotonic() - started_at) * 1000))
+
+        # Persist model usage separately from the recommendation transaction so a
+        # later recommendation/audit persistence failure does not erase the AI call.
+        usage_model = (
+            model_name
+            or ai_config.model
+            or (response.provider_name if response is not None else None)
+            or ai_config.provider
+            or "unknown"
+        )
+        await self.usage_service.record(
+            user_id=user_id,
+            feature="AI_RISK_RECOMMENDATION",
+            model=usage_model,
+            input_tokens=response.input_tokens if response is not None else 0,
+            output_tokens=response.output_tokens if response is not None else 0,
+            response_time=response_time_ms,
+            error_message=ai_error_message,
+            commit=True,
+            meter_subscription=False,
+        )
 
         final_score = max(
             deterministic_score,

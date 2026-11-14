@@ -27,8 +27,9 @@ class TaskAssignmentRule(Base):
 
     __table_args__ = (
         UniqueConstraint(
+            "tenant_id",
             "name",
-            name="uq_task_assignment_rules_name",
+            name="uq_task_assignment_rules_tenant_name",
         ),
     )
 

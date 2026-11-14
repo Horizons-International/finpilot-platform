@@ -32,6 +32,7 @@ from app.schemas.aml_investigation_assistant import (
     AMLInvestigationSource,
 )
 from app.services.async_ai_usage_service import AsyncAIUsageService
+from app.services.async_subscription_service import record_subscription_usage
 from app.utils.date_time import utc_now
 
 logger = get_logger(__name__)
@@ -113,7 +114,18 @@ class AsyncAMLInvestigationAssistantService:
 
         prompt = self._build_prompt(request.question, context)
         started_at = monotonic()
+        provider_attempted = False
+        input_tokens = 0
+        output_tokens = 0
+        model_name = ""
         try:
+            # Reserve the subscription allowance before making a billable
+            # external provider request. A denied request never reaches AI.
+            await record_subscription_usage(self.db, self.tenant_id, "ai_requests")
+            # From this point, the accepted request is counted as an AI
+            # attempt, including provider/configuration failures.
+            provider_attempted = True
+            model_name = get_ai_config().model or ""
             async with AsyncAIService(provider=get_async_ai_provider()) as ai_service:
                 response = await ai_service.generate(
                     AIRequest(
@@ -123,6 +135,8 @@ class AsyncAMLInvestigationAssistantService:
                         structured=True,
                     )
                 )
+            input_tokens = response.input_tokens
+            output_tokens = response.output_tokens
             if response.structured_data is None:
                 raise HTTPException(
                     status_code=status.HTTP_502_BAD_GATEWAY,
@@ -135,7 +149,7 @@ class AsyncAMLInvestigationAssistantService:
             analysis.status = "COMPLETED"
             analysis.result = result.model_dump(mode="json")
             analysis.provider_name = response.provider_name
-            analysis.model_name = get_ai_config().model
+            analysis.model_name = model_name
             analysis.completed_at = utc_now()
             analysis.error_message = None
             await self.repository.update(analysis)
@@ -143,15 +157,37 @@ class AsyncAMLInvestigationAssistantService:
                 user_id=user_id,
                 feature="AML_INVESTIGATION_ASSISTANT",
                 model=analysis.model_name or "",
-                input_tokens=response.input_tokens,
-                output_tokens=response.output_tokens,
+                input_tokens=input_tokens,
+                output_tokens=output_tokens,
                 response_time=max(0, int((monotonic() - started_at) * 1000)),
+                meter_subscription=False,
             )
             await self.db.commit()
             await self.db.refresh(analysis)
             return self._response(analysis)
         except Exception as exc:
             await self.db.rollback()
+            if provider_attempted:
+                try:
+                    # The subscription allowance was already reserved above.
+                    # Persist this failed attempt without charging it again.
+                    await self.usage_service.record(
+                        user_id=user_id,
+                        feature="AML_INVESTIGATION_ASSISTANT",
+                        model=model_name,
+                        input_tokens=input_tokens,
+                        output_tokens=output_tokens,
+                        response_time=max(0, int((monotonic() - started_at) * 1000)),
+                        error_message=(_clean_text(exc, 2000) or type(exc).__name__),
+                        commit=True,
+                        meter_subscription=False,
+                    )
+                except Exception:
+                    await self.db.rollback()
+                    logger.exception(
+                        "Could not persist failed AML AI usage attempt: %s",
+                        analysis_id,
+                    )
             try:
                 persisted = await self.repository.get_analysis(analysis_id)
                 if persisted is not None:
