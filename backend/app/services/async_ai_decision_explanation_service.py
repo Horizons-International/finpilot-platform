@@ -1,14 +1,14 @@
-"""Tenant-scoped reads for persisted AI decision explanations."""
+"""Tenant-scoped asynchronous reads for persisted AI decision explanations."""
 
 from uuid import UUID
 
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.ai_decision_explanation import AIDecisionExplanation
-from app.repositories.ai_decision_explanation_repository import (
-    AIDecisionExplanationRepository,
+from app.repositories.async_ai_decision_explanation_repository import (
+    AsyncAIDecisionExplanationRepository,
 )
-from app.services.tenant_context import resolve_tenant_context
+from app.repositories.async_tenant_scoped_repository import resolve_async_tenant_id
 from app.utils.errors import bad_request, not_found
 
 SUPPORTED_DECISION_TYPES = frozenset(
@@ -23,13 +23,15 @@ SUPPORTED_DECISION_TYPES = frozenset(
 )
 
 
-class AIDecisionExplanationService:
-    def __init__(self, db: Session, *, tenant_id: UUID) -> None:
-        self.db = db
-        self.tenant_id = resolve_tenant_context(
-            db, tenant_id, resource_name="AI decision explanations"
+class AsyncAIDecisionExplanationService:
+    def __init__(self, db: AsyncSession, *, tenant_id: UUID) -> None:
+        resolved_tenant_id = resolve_async_tenant_id(db, tenant_id)
+        assert resolved_tenant_id is not None
+        db.info["tenant_id"] = resolved_tenant_id
+        self.tenant_id = resolved_tenant_id
+        self.repository = AsyncAIDecisionExplanationRepository(
+            db, tenant_id=self.tenant_id
         )
-        self.repository = AIDecisionExplanationRepository(db, tenant_id=self.tenant_id)
 
     @staticmethod
     def _validate_decision_type(decision_type: str) -> str:
@@ -42,16 +44,16 @@ class AIDecisionExplanationService:
             )
         return value
 
-    def get_latest(
+    async def get_latest(
         self, decision_type: str, decision_id: UUID
     ) -> AIDecisionExplanation:
         kind = self._validate_decision_type(decision_type)
-        explanation = self.repository.get_latest(kind, decision_id)
+        explanation = await self.repository.get_latest(kind, decision_id)
         if explanation is None:
             raise not_found("AI decision explanation")
         return explanation
 
-    def get_history(
+    async def get_history(
         self,
         decision_type: str,
         decision_id: UUID,
@@ -59,7 +61,8 @@ class AIDecisionExplanationService:
         limit: int = 100,
     ) -> tuple[list[AIDecisionExplanation], int]:
         kind = self._validate_decision_type(decision_type)
-        items = self.repository.get_history(kind, decision_id, limit=limit)
+        items = await self.repository.get_history(kind, decision_id, limit=limit)
         if not items:
             raise not_found("AI decision explanation history")
-        return items, self.repository.count_history(kind, decision_id)
+        total = await self.repository.count_history(kind, decision_id)
+        return items, total

@@ -4,7 +4,6 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, Query, Request, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import Session
 
 from app.ai.exceptions import AIProviderError
 from app.core.async_security import require_async_roles
@@ -37,8 +36,9 @@ from app.services.ai_compliance_service import AIComplianceService
 from app.services.ai_decision_explanation_recorder import (
     install_ai_decision_explanation_recorder,
 )
-from app.services.ai_decision_explanation_service import AIDecisionExplanationService
-from app.services.async_service_bridge import run_sync_in_tenant
+from app.services.async_ai_decision_explanation_service import (
+    AsyncAIDecisionExplanationService,
+)
 from app.services.regulatory_assistant_service import RegulatoryAssistantService
 from app.utils.enums import UserRole
 from app.utils.errors import bad_request, not_found, service_unavailable
@@ -260,18 +260,13 @@ async def get_ai_decision_explanation(
     ),
 ) -> APIResponse[AIDecisionExplanationResponse]:
     tenant_id = UUID(current_user["tenant_id"])
-
-    def operation(sync_db: Session):
-        explanation = AIDecisionExplanationService(
-            sync_db, tenant_id=tenant_id
-        ).get_latest(decision_type, decision_id)
-        return AIDecisionExplanationResponse.model_validate(explanation)
-
-    explanation = await run_sync_in_tenant(db, tenant_id, operation)
+    explanation = await AsyncAIDecisionExplanationService(
+        db, tenant_id=tenant_id
+    ).get_latest(decision_type, decision_id)
     return APIResponse(
         success=True,
         message="AI decision explanation retrieved successfully.",
-        data=explanation,
+        data=AIDecisionExplanationResponse.model_validate(explanation),
     )
 
 
@@ -292,19 +287,13 @@ async def get_ai_decision_explanation_history(
     ),
 ) -> APIResponse[AIDecisionExplanationHistoryResponse]:
     tenant_id = UUID(current_user["tenant_id"])
-
-    def operation(sync_db: Session):
-        items, total = AIDecisionExplanationService(
-            sync_db, tenant_id=tenant_id
-        ).get_history(decision_type, decision_id, limit=limit)
-        return AIDecisionExplanationHistoryResponse(
-            items=[
-                AIDecisionExplanationResponse.model_validate(item) for item in items
-            ],
-            total=total,
-        )
-
-    data = await run_sync_in_tenant(db, tenant_id, operation)
+    items, total = await AsyncAIDecisionExplanationService(
+        db, tenant_id=tenant_id
+    ).get_history(decision_type, decision_id, limit=limit)
+    data = AIDecisionExplanationHistoryResponse(
+        items=[AIDecisionExplanationResponse.model_validate(item) for item in items],
+        total=total,
+    )
     return APIResponse(
         success=True,
         message="AI decision explanation history retrieved successfully.",

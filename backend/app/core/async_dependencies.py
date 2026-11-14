@@ -9,7 +9,6 @@ services receive the same AsyncSession and tenant context.
 from fastapi import Depends, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.ai.exceptions import AIConfigurationError
 from app.core.async_security import get_async_current_user
 from app.core.config import settings
 from app.core.database import get_async_db
@@ -29,12 +28,6 @@ from app.services.async_knowledge_document_service import (
 )
 from app.services.async_knowledge_indexing_service import (
     AsyncKnowledgeIndexingService,
-)
-from app.services.async_partner_onboarding_document_service import (
-    AsyncPartnerOnboardingDocumentService,
-)
-from app.services.async_support_ticket_attachment_service import (
-    AsyncSupportTicketAttachmentService,
 )
 from app.services.async_transaction_monitoring_service import (
     AsyncTransactionMonitoringService,
@@ -164,24 +157,6 @@ def get_async_retrieval_service(
     )
 
 
-def get_optional_async_retrieval_service(
-    db: AsyncSession = Depends(get_async_db),
-    current_user: User = Depends(get_async_current_user),
-) -> AsyncRetrievalService | None:
-    """Return no retriever when embeddings are not configured.
-
-    This mirrors the existing synchronous optional-retriever dependency for
-    callers that can operate without knowledge retrieval.
-    """
-    try:
-        return AsyncRetrievalService(
-            db=db,
-            tenant_id=current_user.tenant_id,
-        )
-    except AIConfigurationError:
-        return None
-
-
 def get_async_compliance_document_service(
     request: Request,
     db: AsyncSession = Depends(get_async_db),
@@ -198,21 +173,3 @@ def get_async_compliance_document_service(
         ip_address=request.client.host if request.client else None,
         user_agent=request.headers.get("user-agent"),
     )
-
-
-def get_async_support_ticket_attachment_service(
-    db: AsyncSession = Depends(get_async_db),
-    current_user: User = Depends(get_async_current_user),
-    storage: BaseStorage = Depends(get_async_storage),
-) -> AsyncSupportTicketAttachmentService:
-    return AsyncSupportTicketAttachmentService(
-        db=db,
-        actor=current_user,
-        storage=storage,
-    )
-
-
-def get_async_partner_onboarding_document_service(
-    db: AsyncSession = Depends(get_async_db),
-) -> AsyncPartnerOnboardingDocumentService:
-    return AsyncPartnerOnboardingDocumentService(db)
