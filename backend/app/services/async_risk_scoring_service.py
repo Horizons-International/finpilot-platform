@@ -42,10 +42,12 @@ class AsyncRiskScoringService:
         user_agent: str | None = None,
     ) -> CustomerRiskProfile:
         customer_id_row = await self.db.scalar(
-            select(Customer.id).where(
+            select(Customer.id)
+            .where(
                 Customer.id == customer_id,
                 Customer.tenant_id == self.tenant_id,
             )
+            .with_for_update()
         )
         if customer_id_row is None:
             raise not_found("Customer")

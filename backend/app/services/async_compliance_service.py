@@ -16,8 +16,8 @@ from app.repositories.async_compliance_case_repository import (
 )
 from app.schemas.compliance_case import ComplianceCaseCreate, ComplianceCaseUpdate
 from app.services.async_audit_service import AsyncAuditService
+from app.services.async_case_priority_service import AsyncCasePriorityService
 from app.services.async_notification_service import AsyncNotificationService
-from app.services.case_priority_service import CasePriorityService
 from app.services.compliance_workflow import compliance_workflow_validator
 from app.utils.date_time import utc_now
 from app.utils.enums import (
@@ -119,11 +119,9 @@ class AsyncComplianceService:
         )
 
     async def _refresh_case_priority(self, case_id: UUID) -> None:
-        await self.db.run_sync(
-            lambda sync_db: CasePriorityService(
-                sync_db, tenant_id=self.tenant_id
-            ).prioritize_case(case_id)
-        )
+        await AsyncCasePriorityService(
+            self.db, tenant_id=self.tenant_id
+        ).prioritize_case(case_id)
 
     async def create_case(
         self,

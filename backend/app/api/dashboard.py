@@ -1,13 +1,17 @@
+"""Native-async operations dashboard API."""
+
 from datetime import date
 from typing import Any
+from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.dependencies import get_dashboard_service
+from app.analytics.services.async_dashboard_service import AsyncDashboardService
+from app.core.async_security import require_async_roles
+from app.core.database import get_async_db
 from app.core.responses import APIResponse
-from app.core.security import require_roles
 from app.schemas.dashboard import OperationsDashboardResponse
-from app.services.dashboard_service import DashboardService
 from app.utils.enums import UserRole
 
 router = APIRouter(
@@ -22,7 +26,7 @@ router = APIRouter(
     summary="Get operations dashboard",
     description="Retrieve operational dashboard metrics.",
 )
-def get_operations_dashboard(
+async def get_operations_dashboard(
     start_date: date | None = Query(
         default=None,
         description="Inclusive start date in UTC.",
@@ -41,22 +45,23 @@ def get_operations_dashboard(
         default=None,
         description="Filter assigned/started operational work by user role.",
     ),
-    _: dict[str, Any] = Depends(
-        require_roles(
+    db: AsyncSession = Depends(get_async_db),
+    current_user: dict[str, Any] = Depends(
+        require_async_roles(
             UserRole.ADMINISTRATOR,
             UserRole.COMPLIANCE_OFFICER,
             resource_type="dashboard",
         )
     ),
-    service: DashboardService = Depends(get_dashboard_service),
 ) -> APIResponse[OperationsDashboardResponse]:
-    dashboard = service.get_operations_dashboard(
+    dashboard = await AsyncDashboardService(
+        db, UUID(current_user["tenant_id"])
+    ).get_operations_dashboard(
         start_date=start_date,
         end_date=end_date,
         country=country,
         user_role=user_role,
     )
-
     return APIResponse(
         success=True,
         message="Operations dashboard retrieved successfully.",

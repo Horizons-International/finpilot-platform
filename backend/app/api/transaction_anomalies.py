@@ -1,20 +1,22 @@
-"""Tenant-scoped transaction-anomaly analysis and history endpoints."""
+"""Native-async tenant-scoped transaction anomaly endpoints."""
 
 from typing import Any
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query, status
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.database import get_db
+from app.core.async_security import require_async_roles
+from app.core.database import get_async_db
 from app.core.responses import APIResponse
-from app.core.security import require_roles
 from app.schemas.transaction_anomaly import (
     TransactionAnomalyAnalysisRequest,
     TransactionAnomalyAnalysisResponse,
     TransactionAnomalyResponse,
 )
-from app.services.transaction_anomaly_service import TransactionAnomalyService
+from app.services.async_transaction_anomaly_service import (
+    AsyncTransactionAnomalyService,
+)
 from app.utils.enums import UserRole
 
 router = APIRouter(
@@ -30,26 +32,26 @@ router = APIRouter(
     summary="Analyze customer transaction activity for anomalies",
     description=(
         "Compare a new transaction batch with retained and caller-supplied "
-        "historical activity. Findings are "
-        "investigative signals, not proof of wrongdoing."
+        "historical activity. Findings are investigative signals, not proof "
+        "of wrongdoing."
     ),
 )
-def analyze_transaction_anomalies(
+async def analyze_transaction_anomalies(
     payload: TransactionAnomalyAnalysisRequest,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user: dict[str, Any] = Depends(
-        require_roles(
+        require_async_roles(
             UserRole.ADMINISTRATOR,
             UserRole.COMPLIANCE_OFFICER,
             resource_type="transaction_anomaly",
         )
     ),
 ) -> APIResponse[TransactionAnomalyAnalysisResponse]:
-    service = TransactionAnomalyService(
+    service = AsyncTransactionAnomalyService(
         db,
         tenant_id=UUID(current_user["tenant_id"]),
     )
-    anomalies, message = service.analyze(payload)
+    anomalies, message = await service.analyze(payload)
     data = TransactionAnomalyAnalysisResponse(
         customer_id=payload.customer_id,
         transactions_analyzed=len(payload.transactions),
@@ -67,12 +69,12 @@ def analyze_transaction_anomalies(
     response_model=APIResponse[list[TransactionAnomalyResponse]],
     summary="List transaction anomaly history",
 )
-def list_transaction_anomalies(
+async def list_transaction_anomalies(
     customer_id: UUID | None = Query(default=None),
     limit: int = Query(default=100, ge=1, le=500),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user: dict[str, Any] = Depends(
-        require_roles(
+        require_async_roles(
             UserRole.ADMINISTRATOR,
             UserRole.COMPLIANCE_OFFICER,
             UserRole.REVIEWER,
@@ -80,8 +82,10 @@ def list_transaction_anomalies(
         )
     ),
 ) -> APIResponse[list[TransactionAnomalyResponse]]:
-    service = TransactionAnomalyService(db, tenant_id=UUID(current_user["tenant_id"]))
-    anomalies = service.list_anomalies(customer_id=customer_id, limit=limit)
+    service = AsyncTransactionAnomalyService(
+        db, tenant_id=UUID(current_user["tenant_id"])
+    )
+    anomalies = await service.list_anomalies(customer_id=customer_id, limit=limit)
     return APIResponse(
         success=True,
         message="Transaction anomaly history retrieved successfully.",
@@ -94,11 +98,11 @@ def list_transaction_anomalies(
     response_model=APIResponse[TransactionAnomalyResponse],
     summary="Retrieve a transaction anomaly",
 )
-def get_transaction_anomaly(
+async def get_transaction_anomaly(
     anomaly_id: UUID,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user: dict[str, Any] = Depends(
-        require_roles(
+        require_async_roles(
             UserRole.ADMINISTRATOR,
             UserRole.COMPLIANCE_OFFICER,
             UserRole.REVIEWER,
@@ -106,7 +110,7 @@ def get_transaction_anomaly(
         )
     ),
 ) -> APIResponse[TransactionAnomalyResponse]:
-    anomaly = TransactionAnomalyService(
+    anomaly = await AsyncTransactionAnomalyService(
         db, tenant_id=UUID(current_user["tenant_id"])
     ).get_anomaly(anomaly_id)
     return APIResponse(

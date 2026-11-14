@@ -2,9 +2,10 @@
 
 from datetime import date, datetime
 from decimal import Decimal
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from sqlalchemy import select
+from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.analytics.models.metric_definition import MetricDefinition
@@ -90,29 +91,42 @@ class AsyncMetricRepository:
     ) -> MetricResult:
         if await self.get_definition(definition_id) is None:
             raise ValueError("Metric definition was not found for this tenant.")
-        row = await self.db.scalar(
-            select(MetricResult)
-            .where(
-                MetricResult.tenant_id == self.tenant_id,
-                MetricResult.metric_definition_id == definition_id,
-                MetricResult.period_start == start,
-                MetricResult.period_end == end,
-            )
-            .with_for_update()
-        )
-        if row is None:
-            row = MetricResult(
+        metric_value = None if value is None else Decimal(str(value))
+        statement = (
+            insert(MetricResult)
+            .values(
+                id=uuid4(),
                 tenant_id=self.tenant_id,
                 metric_definition_id=definition_id,
                 period_start=start,
                 period_end=end,
+                value=metric_value,
+                calculated_at=calculated_at,
             )
-            self.db.add(row)
-        elif row.tenant_id != self.tenant_id:
-            raise ValueError("Cannot update a metric result owned by another tenant.")
-        row.value = None if value is None else Decimal(str(value))
-        row.calculated_at = calculated_at
-        await self.db.flush()
+            .on_conflict_do_update(
+                constraint="uq_metric_results_definition_period",
+                set_={
+                    "value": metric_value,
+                    "calculated_at": calculated_at,
+                },
+                where=MetricResult.tenant_id == self.tenant_id,
+            )
+            .returning(MetricResult)
+            .execution_options(populate_existing=True)
+        )
+        result = await self.db.execute(
+            statement.execution_options(
+                skip_tenant_filter=True,
+                tenant_scope_reason=(
+                    "Atomic metric result upsert. The metric definition ownership "
+                    "is verified before execution, and tenant_id is explicitly "
+                    "bound to the repository tenant."
+                ),
+            )
+        )
+        row = result.scalar_one_or_none()
+        if row is None:
+            raise ValueError("Metric result conflict belongs to another tenant.")
         return row
 
     async def list_results(
