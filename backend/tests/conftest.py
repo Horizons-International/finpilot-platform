@@ -181,7 +181,7 @@ def client():
     app.dependency_overrides[get_db] = override_get_db
     app.dependency_overrides[get_async_db] = override_get_async_db
 
-    backend_options: dict[str, Any] = {}
+    backend_options = {}
 
     if os.name == "nt":
         backend_options["loop_factory"] = asyncio.SelectorEventLoop

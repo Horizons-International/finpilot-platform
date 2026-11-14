@@ -15,7 +15,7 @@ from app.repositories.async_transaction_monitoring_result_repository import (
 from app.schemas.transaction_monitoring import TransactionMonitoringRequest
 from app.services.aml_rule_engine import AMLRuleEngine
 from app.services.async_audit_service import AsyncAuditService
-from app.services.subscription_service import record_subscription_usage
+from app.services.async_subscription_service import record_subscription_usage
 from app.utils.enums import AMLRuleType, AuditEventType, TransactionMonitoringOutcome
 from app.utils.errors import not_found
 
@@ -52,11 +52,7 @@ class AsyncTransactionMonitoringService:
 
         # Keep subscription metering identical to the existing service while
         # moving the caller and all monitoring persistence to AsyncSession.
-        await self.db.run_sync(
-            lambda sync_db: record_subscription_usage(
-                sync_db, self.tenant_id, "transactions"
-            )
-        )
+        await record_subscription_usage(self.db, self.tenant_id, "transactions")
         rules = await self.rule_repository.get_active_by_type(AMLRuleType.TRANSACTION)
         evaluation_data: dict[str, Any] = {
             "customer_id": payload.customer_id,

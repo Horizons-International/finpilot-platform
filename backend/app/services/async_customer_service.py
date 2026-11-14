@@ -80,17 +80,13 @@ class AsyncCustomerService:
         await self.db.flush()
 
     async def _enqueue_webhook(self, event_type: str, data: dict[str, Any]) -> None:
-        # This existing helper is synchronous ORM code. run_sync adapts its SQL
-        # operations to the AsyncSession's connection without blocking the loop.
-        from app.webhooks.events import enqueue_webhook_event
+        from app.webhooks.async_events import enqueue_webhook_event_async
 
-        await self.db.run_sync(
-            lambda sync_db: enqueue_webhook_event(
-                sync_db,
-                tenant_id=self.tenant_id,
-                event_type=event_type,
-                data=data,
-            )
+        await enqueue_webhook_event_async(
+            self.db,
+            tenant_id=self.tenant_id,
+            event_type=event_type,
+            data=data,
         )
 
     async def create_customer(

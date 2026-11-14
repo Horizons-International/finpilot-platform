@@ -23,8 +23,8 @@ from app.schemas.verification_case import (
     VerificationCaseStatusUpdate,
 )
 from app.services.async_audit_service import AsyncAuditService
-from app.services.notification_service import NotificationService
-from app.services.subscription_service import record_subscription_usage
+from app.services.async_notification_service import AsyncNotificationService
+from app.services.async_subscription_service import record_subscription_usage
 from app.services.workflow_validation_service import WorkflowValidationService
 from app.utils.audit import serialize_audit_value
 from app.utils.date_time import utc_now
@@ -121,11 +121,7 @@ class AsyncVerificationService:
         await self.db.flush()
 
     async def _record_verification_usage(self) -> None:
-        await self.db.run_sync(
-            lambda sync_db: record_subscription_usage(
-                sync_db, self.tenant_id, "verification_checks"
-            )
-        )
+        await record_subscription_usage(self.db, self.tenant_id, "verification_checks")
 
     async def _notify_assignee(
         self,
@@ -134,36 +130,30 @@ class AsyncVerificationService:
         case: IdentityVerificationCase,
         status: VerificationStatus,
     ) -> None:
-        await self.db.run_sync(
-            lambda sync_db: NotificationService(
-                sync_db, self.tenant_id
-            ).create_notification(
-                user_id=user_id,
-                title="Verification completed",
-                message=f"Your verification case has been {status.value.lower()}.",
-                event_type=NotificationEventType.VERIFICATION_COMPLETED,
-                resource_type="verification_case",
-                resource_id=case.id,
-                channels=(NotificationChannel.IN_APP,),
-            )
+        await AsyncNotificationService(self.db, self.tenant_id).create_notification(
+            user_id=user_id,
+            title="Verification completed",
+            message=f"Your verification case has been {status.value.lower()}.",
+            event_type=NotificationEventType.VERIFICATION_COMPLETED,
+            resource_type="verification_case",
+            resource_id=case.id,
+            channels=(NotificationChannel.IN_APP,),
         )
 
     async def _enqueue_webhook(
         self, event_type: str, *, case: IdentityVerificationCase, customer_id: UUID
     ) -> None:
-        from app.webhooks.events import enqueue_webhook_event
+        from app.webhooks.async_events import enqueue_webhook_event_async
 
-        await self.db.run_sync(
-            lambda sync_db: enqueue_webhook_event(
-                sync_db,
-                tenant_id=self.tenant_id,
-                event_type=event_type,
-                data={
-                    "verification_case_id": str(case.id),
-                    "customer_id": str(customer_id),
-                    "status": case.status.value,
-                },
-            )
+        await enqueue_webhook_event_async(
+            self.db,
+            tenant_id=self.tenant_id,
+            event_type=event_type,
+            data={
+                "verification_case_id": str(case.id),
+                "customer_id": str(customer_id),
+                "status": case.status.value,
+            },
         )
 
     async def create_case(

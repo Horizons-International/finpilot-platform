@@ -4,14 +4,12 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import Session
 
 from app.core.async_security import require_async_roles
 from app.core.database import get_async_db
 from app.core.responses import APIResponse
 from app.schemas.report import DocumentSummaryResponse, VerificationSummaryResponse
-from app.services.async_service_bridge import run_sync_in_tenant
-from app.services.report_service import ReportService
+from app.services.async_report_service import AsyncReportService
 from app.utils.enums import DocumentStatus, UserRole, VerificationStatus
 
 router = APIRouter(prefix="/api/v1/reports", tags=["Reports"])
@@ -37,15 +35,13 @@ async def get_verification_summary(
     ),
 ) -> APIResponse[VerificationSummaryResponse]:
     tenant_id = UUID(current_user["tenant_id"])
-
-    def operation(sync_db: Session):
-        return ReportService(sync_db, tenant_id=tenant_id).get_verification_summary(
-            date_from=date_from,
-            date_to=date_to,
-            status=status,
-        )
-
-    summary = await run_sync_in_tenant(db, tenant_id, operation)
+    summary = await AsyncReportService(
+        db, tenant_id=tenant_id
+    ).get_verification_summary(
+        date_from=date_from,
+        date_to=date_to,
+        status=status,
+    )
     return APIResponse(
         success=True,
         message="Verification summary retrieved successfully.",
@@ -69,15 +65,11 @@ async def get_document_summary(
     ),
 ) -> APIResponse[DocumentSummaryResponse]:
     tenant_id = UUID(current_user["tenant_id"])
-
-    def operation(sync_db: Session):
-        return ReportService(sync_db, tenant_id=tenant_id).get_document_summary(
-            date_from=date_from,
-            date_to=date_to,
-            status=status,
-        )
-
-    summary = await run_sync_in_tenant(db, tenant_id, operation)
+    summary = await AsyncReportService(db, tenant_id=tenant_id).get_document_summary(
+        date_from=date_from,
+        date_to=date_to,
+        status=status,
+    )
     return APIResponse(
         success=True, message="Document summary retrieved successfully.", data=summary
     )

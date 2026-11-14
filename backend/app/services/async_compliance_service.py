@@ -16,8 +16,9 @@ from app.repositories.async_compliance_case_repository import (
 )
 from app.schemas.compliance_case import ComplianceCaseCreate, ComplianceCaseUpdate
 from app.services.async_audit_service import AsyncAuditService
+from app.services.async_notification_service import AsyncNotificationService
+from app.services.case_priority_service import CasePriorityService
 from app.services.compliance_workflow import compliance_workflow_validator
-from app.services.notification_service import NotificationService
 from app.utils.date_time import utc_now
 from app.utils.enums import (
     AuditEventType,
@@ -97,37 +98,27 @@ class AsyncComplianceService:
         event_type: NotificationEventType,
         case_id: UUID,
     ) -> None:
-        await self.db.run_sync(
-            lambda sync_db: NotificationService(
-                sync_db, self.tenant_id
-            ).create_notification(
-                user_id=user_id,
-                title=title,
-                message=message,
-                event_type=event_type,
-                resource_type="compliance_case",
-                resource_id=case_id,
-                channels=(NotificationChannel.IN_APP,),
-            )
+        await AsyncNotificationService(self.db, self.tenant_id).create_notification(
+            user_id=user_id,
+            title=title,
+            message=message,
+            event_type=event_type,
+            resource_type="compliance_case",
+            resource_id=case_id,
+            channels=(NotificationChannel.IN_APP,),
         )
 
     async def _enqueue_webhook(self, event_type: str, case: ComplianceCase) -> None:
-        from app.webhooks.events import enqueue_webhook_event
+        from app.webhooks.async_events import enqueue_webhook_event_async
 
-        await self.db.run_sync(
-            lambda sync_db: enqueue_webhook_event(
-                sync_db,
-                tenant_id=self.tenant_id,
-                event_type=event_type,
-                data={"case_id": str(case.id), "status": case.status.value},
-            )
+        await enqueue_webhook_event_async(
+            self.db,
+            tenant_id=self.tenant_id,
+            event_type=event_type,
+            data={"case_id": str(case.id), "status": case.status.value},
         )
 
     async def _refresh_case_priority(self, case_id: UUID) -> None:
-        # The scoring engine remains sync-only. This bridge keeps its DB work on
-        # the same async connection while the priority module is migrated.
-        from app.services.case_priority_service import CasePriorityService
-
         await self.db.run_sync(
             lambda sync_db: CasePriorityService(
                 sync_db, tenant_id=self.tenant_id
