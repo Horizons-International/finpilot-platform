@@ -9,6 +9,7 @@ from starlette.concurrency import run_in_threadpool
 from app.api.ai_assistant import router as ai_assistant_router
 from app.api.ai_model_metrics import router as ai_model_metrics_router
 from app.api.ai_prompts import router as ai_prompts_router
+from app.api.ai_risk_recommendations import router as ai_risk_recommendations_router
 from app.api.ai_usage import router as ai_usage_router
 from app.api.aml_investigation_assistant import (
     router as aml_investigation_assistant_router,
@@ -198,6 +199,7 @@ app.include_router(verification_reviews_router)
 app.include_router(verification_document_type_router)
 app.include_router(ai_prompts_router)
 app.include_router(ai_assistant_router)
+app.include_router(ai_risk_recommendations_router)
 app.include_router(ai_model_metrics_router)
 app.include_router(case_priorities_router)
 app.include_router(document_fraud_analysis_router)

@@ -1,7 +1,7 @@
-"""Integration tests for AI transaction-risk analysis and stored history."""
+"""Integration tests for async AI transaction-risk analysis and stored history."""
 
 from datetime import timedelta
-from unittest.mock import patch
+from unittest.mock import AsyncMock, patch
 from uuid import uuid4
 
 from app.ai.schemas.responses import AIResponse
@@ -19,6 +19,23 @@ def _observation(transaction_id, amount, when, destination="GB"):
         "transaction_type": "TRANSFER",
         "occurred_at": when.isoformat(),
     }
+
+
+def _async_provider_response(response: AIResponse):
+    return (
+        patch(
+            "app.services.async_transaction_risk_analysis_service.get_async_ai_provider",
+            return_value=object(),
+        ),
+        patch(
+            "app.ai.services.async_ai_service.AsyncAIService.generate",
+            new=AsyncMock(return_value=response),
+        ),
+        patch(
+            "app.ai.services.async_ai_service.AsyncAIService.aclose",
+            new=AsyncMock(),
+        ),
+    )
 
 
 def test_ai_transaction_risk_analysis_persists_history_and_opens_case(
@@ -54,7 +71,7 @@ def test_ai_transaction_risk_analysis_persists_history_and_opens_case(
     ai_response = AIResponse(
         provider_name="mock-test",
         request_type="transaction_risk_analysis",
-        content="Ten transfers show a material deviation from the supplied baseline.",
+        content=("Ten transfers show a material deviation from the supplied baseline."),
         structured_data={
             "risk_score": 92,
             "reason": (
@@ -72,16 +89,8 @@ def test_ai_transaction_risk_analysis_persists_history_and_opens_case(
         input_tokens=100,
         output_tokens=40,
     )
-    with (
-        patch(
-            "app.services.transaction_risk_analysis_service.get_ai_provider",
-            return_value=object(),
-        ),
-        patch(
-            "app.services.transaction_risk_analysis_service.AIService.generate",
-            return_value=ai_response,
-        ),
-    ):
+    provider_patch, generate_patch, close_patch = _async_provider_response(ai_response)
+    with provider_patch, generate_patch, close_patch:
         response = client.post(
             "/api/v1/transaction-risk-analysis/analyze",
             json={
@@ -131,8 +140,7 @@ def test_ai_transaction_risk_rejects_duplicate_transaction_ids(
     assert customer_response.status_code == 201, customer_response.text
     customer_id = customer_response.json()["data"]["id"]
     authenticate_client(client, officer)
-    shared_id = uuid4()
-    observation = _observation(shared_id, "100.00", utc_now())
+    observation = _observation(uuid4(), "100.00", utc_now())
     ai_response = AIResponse(
         provider_name="mock-test",
         request_type="transaction_risk_analysis",
@@ -145,16 +153,8 @@ def test_ai_transaction_risk_rejects_duplicate_transaction_ids(
             "confidence": 0.5,
         },
     )
-    with (
-        patch(
-            "app.services.transaction_risk_analysis_service.get_ai_provider",
-            return_value=object(),
-        ),
-        patch(
-            "app.services.transaction_risk_analysis_service.AIService.generate",
-            return_value=ai_response,
-        ),
-    ):
+    provider_patch, generate_patch, close_patch = _async_provider_response(ai_response)
+    with provider_patch, generate_patch, close_patch:
         first = client.post(
             "/api/v1/transaction-risk-analysis/analyze",
             json={"customer_id": customer_id, "transactions": [observation]},
