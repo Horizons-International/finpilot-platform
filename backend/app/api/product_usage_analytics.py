@@ -1,22 +1,23 @@
-"""Product usage dashboard and filterable feature reports."""
+"""Async product usage dashboard and filterable feature reports."""
 
-from datetime import date, datetime, timedelta, timezone
+from datetime import date, timedelta
 from typing import Any
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.analytics.services.product_usage_analytics_service import (
-    ProductUsageAnalyticsService,
+from app.analytics.services.async_product_usage_analytics_service import (
+    AsyncProductUsageAnalyticsService,
 )
-from app.core.database import get_db
+from app.core.async_security import require_async_roles
+from app.core.database import get_async_db
 from app.core.responses import APIResponse
-from app.core.security import require_roles
 from app.schemas.product_usage_analytics import (
     ProductUsageDashboardResponse,
     ProductUsageFeatureReport,
 )
+from app.utils.date_time import utc_now
 from app.utils.enums import UserRole
 from app.utils.errors import forbidden
 
@@ -40,19 +41,16 @@ READ_ROLES = (
 
 
 def _service(
-    db: Session,
+    db: AsyncSession,
     current_user: dict[str, Any],
     selected_tenant_id: UUID | None,
-) -> ProductUsageAnalyticsService:
+) -> AsyncProductUsageAnalyticsService:
     owner_tenant_id = UUID(current_user["tenant_id"])
-    is_platform_admin = current_user.get("is_platform_admin") is True
-    # A role label by itself must never grant cross-tenant visibility: bank-level
-    # user-management flows may also assign ordinary roles. Use the trusted flag.
-    cross_tenant_access = is_platform_admin
+    cross_tenant_access = current_user.get("is_platform_admin") is True
     if not cross_tenant_access and selected_tenant_id not in (None, owner_tenant_id):
         raise forbidden("You can only view product usage for your own tenant.")
     filter_tenant_id = selected_tenant_id if cross_tenant_access else owner_tenant_id
-    return ProductUsageAnalyticsService(
+    return AsyncProductUsageAnalyticsService(
         db,
         owner_tenant_id=owner_tenant_id,
         cross_tenant_access=cross_tenant_access,
@@ -60,11 +58,8 @@ def _service(
     )
 
 
-def _date_defaults(
-    start_date: date | None,
-    end_date: date | None,
-) -> tuple[date, date]:
-    today = datetime.now(timezone.utc).date()
+def _date_defaults(start_date: date | None, end_date: date | None) -> tuple[date, date]:
+    today = utc_now().date()
     resolved_end = end_date or today
     resolved_start = start_date or max(today - timedelta(days=29), date(2000, 1, 1))
     return resolved_start, resolved_end
@@ -75,13 +70,12 @@ def _date_defaults(
     response_model=APIResponse[ProductUsageDashboardResponse],
     summary="Get date-filtered customer product usage dashboard",
     description=(
-        "Shows active users, login frequency, API calls, verification requests, "
-        "AI requests, workflow runs, report exports, and most/unused features. "
-        "Cross-tenant queries require the trusted platform-admin flag; ordinary "
-        "users, including Product Managers without that flag, remain tenant-scoped."
+        "Shows active users, login frequency, API calls, verification requests, AI "
+        "requests, workflow runs, report exports, and most/unused features. "
+        "Cross-tenant queries require the trusted platform-admin flag."
     ),
 )
-def get_product_usage_dashboard(
+async def get_product_usage_dashboard(
     start_date: date | None = Query(
         default=None, description="Inclusive UTC calendar date."
     ),
@@ -94,14 +88,15 @@ def get_product_usage_dashboard(
             "Optional tenant filter; cross-tenant filtering requires elevated access."
         ),
     ),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user: dict[str, Any] = Depends(
-        require_roles(*READ_ROLES, resource_type="product-analytics")
+        require_async_roles(*READ_ROLES, resource_type="product-analytics")
     ),
 ) -> APIResponse[ProductUsageDashboardResponse]:
     start, end = _date_defaults(start_date, end_date)
-    service = _service(db, current_user, tenant_id)
-    data = service.dashboard(start_date=start, end_date=end)
+    data = await _service(db, current_user, tenant_id).dashboard(
+        start_date=start, end_date=end
+    )
     return APIResponse(
         success=True,
         message="Product usage dashboard retrieved successfully.",
@@ -114,7 +109,7 @@ def get_product_usage_dashboard(
     response_model=APIResponse[ProductUsageFeatureReport],
     summary="Get most-used and unused product features",
 )
-def get_product_feature_report(
+async def get_product_feature_report(
     start_date: date | None = Query(
         default=None, description="Inclusive UTC calendar date."
     ),
@@ -127,14 +122,15 @@ def get_product_feature_report(
             "Optional tenant filter; cross-tenant filtering requires elevated access."
         ),
     ),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user: dict[str, Any] = Depends(
-        require_roles(*READ_ROLES, resource_type="product-analytics")
+        require_async_roles(*READ_ROLES, resource_type="product-analytics")
     ),
 ) -> APIResponse[ProductUsageFeatureReport]:
     start, end = _date_defaults(start_date, end_date)
-    service = _service(db, current_user, tenant_id)
-    data = service.feature_report(start_date=start, end_date=end)
+    data = await _service(db, current_user, tenant_id).feature_report(
+        start_date=start, end_date=end
+    )
     return APIResponse(
         success=True,
         message="Product feature usage report retrieved successfully.",
