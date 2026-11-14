@@ -1,7 +1,11 @@
 """Integration coverage for AI AML investigation assistance and history."""
 
+from unittest.mock import AsyncMock, Mock, patch
 from uuid import uuid4
 
+from fastapi import HTTPException
+
+from app.ai.exceptions import AIProviderError
 from app.utils.enums import UserRole
 from tests.helpers import authenticate_client, create_customer_with_data
 
@@ -115,3 +119,140 @@ def test_aml_investigation_history_is_tenant_scoped(
     authenticate_client(client, other_investigator)
     response = client.get(f"/api/v1/ai-assistant/aml-investigations/{analysis_id}")
     assert response.status_code == 404
+
+
+def test_aml_investigation_checks_subscription_before_provider(
+    client,
+    create_test_user,
+    cleanup_test_customers,
+    cleanup_aml_investigation_analyses,
+):
+    admin = create_test_user(
+        email=f"aml-quota-admin-{uuid4()}@example.com",
+        role=UserRole.ADMINISTRATOR,
+    )
+    investigator = create_test_user(
+        email=f"aml-quota-investigator-{uuid4()}@example.com",
+        role=UserRole.COMPLIANCE_OFFICER,
+    )
+    authenticate_client(client, admin)
+    customer_response = create_customer_with_data(
+        client, email=f"aml-quota-customer-{uuid4()}@example.com"
+    )
+    assert customer_response.status_code == 201, customer_response.text
+    customer_id = customer_response.json()["data"]["id"]
+    authenticate_client(client, investigator)
+
+    quota_check = AsyncMock(
+        side_effect=HTTPException(status_code=429, detail="Subscription limit reached.")
+    )
+    provider_factory = Mock(return_value=object())
+    generate = AsyncMock()
+    usage_record = AsyncMock()
+    with (
+        patch(
+            "app.services.async_aml_investigation_assistant_service.record_subscription_usage",
+            new=quota_check,
+        ),
+        patch(
+            "app.services.async_aml_investigation_assistant_service.get_async_ai_provider",
+            new=provider_factory,
+        ),
+        patch(
+            "app.ai.services.async_ai_service.AsyncAIService.generate",
+            new=generate,
+        ),
+        patch(
+            "app.services.async_ai_usage_service.AsyncAIUsageService.record",
+            new=usage_record,
+        ),
+    ):
+        response = client.post(
+            "/api/v1/ai-assistant/aml-investigations/analyze",
+            json={
+                "question": "Review this customer for AML risk.",
+                "customer_id": customer_id,
+            },
+        )
+
+    assert response.status_code == 429, response.text
+    quota_check.assert_awaited_once()
+    provider_factory.assert_not_called()
+    generate.assert_not_awaited()
+    usage_record.assert_not_awaited()
+
+
+def test_aml_investigation_records_failed_provider_attempt(
+    client,
+    create_test_user,
+    cleanup_test_customers,
+    cleanup_aml_investigation_analyses,
+):
+    admin = create_test_user(
+        email=f"aml-provider-error-admin-{uuid4()}@example.com",
+        role=UserRole.ADMINISTRATOR,
+    )
+    investigator = create_test_user(
+        email=f"aml-provider-error-investigator-{uuid4()}@example.com",
+        role=UserRole.COMPLIANCE_OFFICER,
+    )
+    authenticate_client(client, admin)
+    customer_response = create_customer_with_data(
+        client, email=f"aml-provider-error-customer-{uuid4()}@example.com"
+    )
+    assert customer_response.status_code == 201, customer_response.text
+    customer_id = customer_response.json()["data"]["id"]
+    authenticate_client(client, investigator)
+
+    call_order = []
+
+    async def reserve_allowance(*args, **kwargs):
+        call_order.append("quota")
+
+    async def fail_provider(*args, **kwargs):
+        call_order.append("provider")
+        raise AIProviderError("Mock provider failure.")
+
+    quota_check = AsyncMock(side_effect=reserve_allowance)
+    generate = AsyncMock(side_effect=fail_provider)
+    usage_record = AsyncMock()
+    with (
+        patch(
+            "app.services.async_aml_investigation_assistant_service.record_subscription_usage",
+            new=quota_check,
+        ),
+        patch(
+            "app.services.async_aml_investigation_assistant_service.get_async_ai_provider",
+            new=Mock(return_value=object()),
+        ),
+        patch(
+            "app.ai.services.async_ai_service.AsyncAIService.generate",
+            new=generate,
+        ),
+        patch(
+            "app.ai.services.async_ai_service.AsyncAIService.aclose",
+            new=AsyncMock(),
+        ),
+        patch(
+            "app.services.async_ai_usage_service.AsyncAIUsageService.record",
+            new=usage_record,
+        ),
+    ):
+        response = client.post(
+            "/api/v1/ai-assistant/aml-investigations/analyze",
+            json={
+                "question": "Review this customer for AML risk.",
+                "customer_id": customer_id,
+            },
+        )
+
+    assert response.status_code == 503, response.text
+    assert call_order == ["quota", "provider"]
+    quota_check.assert_awaited_once()
+    generate.assert_awaited_once()
+    usage_record.assert_awaited_once()
+    usage_arguments = usage_record.await_args.kwargs
+    assert usage_arguments["feature"] == "AML_INVESTIGATION_ASSISTANT"
+    assert usage_arguments["error_message"]
+    assert usage_arguments["meter_subscription"] is False
+    assert usage_arguments["commit"] is True

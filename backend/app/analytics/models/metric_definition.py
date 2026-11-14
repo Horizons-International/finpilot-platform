@@ -20,8 +20,9 @@ class MetricDefinition(Base):
 
     __table_args__ = (
         UniqueConstraint(
+            "tenant_id",
             "key",
-            name="uq_metric_definitions_key",
+            name="uq_metric_definitions_tenant_key",
         ),
     )
 
