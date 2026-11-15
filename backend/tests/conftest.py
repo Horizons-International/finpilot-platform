@@ -1,5 +1,6 @@
 import asyncio
 import os
+import sys
 from collections.abc import AsyncGenerator
 from datetime import date, datetime
 from pathlib import Path
@@ -95,6 +96,9 @@ os.environ.setdefault(
     "TEST_DATABASE_URL",
     "postgresql+psycopg://user:123789@localhost:5432/testdb",
 )
+
+if sys.platform == "win32":
+    asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
 
 # Prevent shared TestClient IPs from exhausting the global API rate limiter.
 # Dedicated rate-limit tests explicitly enable it when needed.

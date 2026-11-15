@@ -1,16 +1,19 @@
-from uuid import UUID
+import asyncio
+from uuid import UUID, uuid4
 
 import pytest
 
 from app.models.audit_log import AuditLog
 from app.models.customer_risk_profile import CustomerRiskProfile
 from app.models.risk_scoring_rule import RiskScoringRule
+from app.services.async_risk_scoring_service import AsyncRiskScoringService
 from app.utils.enums import (
     AuditEventType,
     CustomerRiskLevel,
     RiskRuleOperator,
     UserRole,
 )
+from tests.conftest import TestAsyncSessionLocal
 from tests.helpers import (
     authenticate_client,
     create_customer_with_data,
@@ -771,3 +774,59 @@ def test_risk_score_calculation_is_audited(
     assert audit_log is not None
     assert audit_log.resource_id is not None
     assert str(audit_log.resource_id) == profile_id
+
+
+def test_concurrent_first_risk_scores_create_one_profile(
+    client,
+    create_test_user,
+    cleanup_test_customers,
+    cleanup_risk_scoring_configuration,
+    configured_risk_thresholds,
+    configured_risk_rules,
+    db_session,
+):
+    admin = create_test_user(
+        email=f"risk-score-concurrent-{uuid4()}@example.com",
+        role=UserRole.ADMINISTRATOR,
+    )
+    authenticate_client(client, admin)
+
+    customer_response = create_customer_with_data(
+        client,
+        email=f"risk-score-concurrent-customer-{uuid4()}@example.com",
+    )
+    assert customer_response.status_code == 201, customer_response.text
+    customer_id = UUID(customer_response.json()["data"]["id"])
+
+    async def score_once():
+        async with TestAsyncSessionLocal() as async_db:
+            service = AsyncRiskScoringService(async_db, admin.tenant_id)
+            return await service.calculate_and_store(
+                customer_id=customer_id,
+                factors={
+                    "country": "HIGH_RISK",
+                    "verification_status": "PENDING",
+                    "previous_compliance_cases": 2,
+                },
+                risk_category="AUTOMATED",
+                assessment_source="RISK_SCORING_ENGINE",
+                user_id=admin.id,
+                email=admin.email,
+            )
+
+    async def score_concurrently():
+        return await asyncio.gather(score_once(), score_once())
+
+    profiles = asyncio.run(score_concurrently())
+    assert profiles[0].id == profiles[1].id
+
+    db_session.expire_all()
+    stored_profiles = (
+        db_session.query(CustomerRiskProfile)
+        .filter(
+            CustomerRiskProfile.tenant_id == admin.tenant_id,
+            CustomerRiskProfile.customer_id == customer_id,
+        )
+        .all()
+    )
+    assert len(stored_profiles) == 1

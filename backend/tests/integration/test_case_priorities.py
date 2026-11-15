@@ -84,3 +84,32 @@ def test_priority_refreshes_when_customer_risk_profile_changes(
     history = client.get(f"/api/v1/case-priorities/{case_id}/history")
     assert history.status_code == 200, history.text
     assert len(history.json()["data"]) == 2
+
+
+def test_async_priority_list_endpoint_returns_prioritized_cases(
+    client,
+    create_test_user,
+    cleanup_test_customers,
+    cleanup_compliance_cases,
+):
+    admin = create_test_user(
+        email=f"case-priority-list-{uuid4()}@example.com",
+        role=UserRole.ADMINISTRATOR,
+    )
+    authenticate_client(client, admin)
+    customer_response = create_customer_with_data(
+        client, email=f"priority-list-{uuid4()}@example.com"
+    )
+    assert customer_response.status_code == 201, customer_response.text
+    customer_id = customer_response.json()["data"]["id"]
+    case_id = _create_compliance_case(client, customer_id, priority="HIGH")
+
+    response = client.get("/api/v1/case-priorities", params={"limit": 25})
+
+    assert response.status_code == 200, response.text
+    rows = response.json()["data"]
+    matching = [item for item in rows if item["case_id"] == case_id]
+    assert len(matching) == 1
+    assert matching[0]["risk_snapshot"]["case_id"] == case_id
+    scores = [float(item["priority_score"]) for item in rows]
+    assert scores == sorted(scores, reverse=True)

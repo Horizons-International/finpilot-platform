@@ -1,14 +1,14 @@
-"""Entity-intelligence graph and relationship-risk endpoints."""
+"""Async entity-intelligence graph and relationship-risk endpoints."""
 
 from typing import Any
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query, status
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.database import get_db
+from app.core.async_security import require_async_roles
+from app.core.database import get_async_db
 from app.core.responses import APIResponse
-from app.core.security import require_roles
 from app.schemas.entity_intelligence import (
     EntityGraphResponse,
     EntityIntelligenceSyncResponse,
@@ -17,7 +17,9 @@ from app.schemas.entity_intelligence import (
     EntityRelationshipCreate,
     EntityRelationshipResponse,
 )
-from app.services.entity_intelligence_service import EntityIntelligenceService
+from app.services.async_entity_intelligence_service import (
+    AsyncEntityIntelligenceService,
+)
 from app.utils.enums import UserRole
 
 router = APIRouter(
@@ -41,8 +43,10 @@ _WRITE_ROLES = (
 )
 
 
-def _service(db: Session, current_user: dict[str, Any]) -> EntityIntelligenceService:
-    return EntityIntelligenceService(db, tenant_id=UUID(current_user["tenant_id"]))
+def _service(
+    db: AsyncSession, current_user: dict[str, Any]
+) -> AsyncEntityIntelligenceService:
+    return AsyncEntityIntelligenceService(db, tenant_id=UUID(current_user["tenant_id"]))
 
 
 @router.post(
@@ -51,14 +55,14 @@ def _service(db: Session, current_user: dict[str, Any]) -> EntityIntelligenceSer
     status_code=status.HTTP_201_CREATED,
     summary="Create or update an investigation entity",
 )
-def create_entity(
+async def create_entity(
     payload: EntityNodeCreate,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user: dict[str, Any] = Depends(
-        require_roles(*_WRITE_ROLES, resource_type="entity_intelligence")
+        require_async_roles(*_WRITE_ROLES, resource_type="entity_intelligence")
     ),
 ) -> APIResponse[EntityNodeResponse]:
-    node = _service(db, current_user).create_node(payload)
+    node = await _service(db, current_user).create_node(payload)
     return APIResponse(
         success=True,
         message="Entity stored successfully.",
@@ -72,14 +76,14 @@ def create_entity(
     status_code=status.HTTP_201_CREATED,
     summary="Create or update an entity relationship",
 )
-def create_relationship(
+async def create_relationship(
     payload: EntityRelationshipCreate,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user: dict[str, Any] = Depends(
-        require_roles(*_WRITE_ROLES, resource_type="entity_intelligence")
+        require_async_roles(*_WRITE_ROLES, resource_type="entity_intelligence")
     ),
 ) -> APIResponse[EntityRelationshipResponse]:
-    relationship = _service(db, current_user).create_relationship(payload)
+    relationship = await _service(db, current_user).create_relationship(payload)
     return APIResponse(
         success=True,
         message="Entity relationship stored successfully.",
@@ -97,14 +101,14 @@ def create_relationship(
         "recipient and country nodes. Shared recipients create risk signals for review."
     ),
 )
-def synchronize_customer_graph(
+async def synchronize_customer_graph(
     customer_id: UUID,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user: dict[str, Any] = Depends(
-        require_roles(*_WRITE_ROLES, resource_type="entity_intelligence")
+        require_async_roles(*_WRITE_ROLES, resource_type="entity_intelligence")
     ),
 ) -> APIResponse[EntityIntelligenceSyncResponse]:
-    result = _service(db, current_user).sync_customer_activity(customer_id)
+    result = await _service(db, current_user).sync_customer_activity(customer_id)
     return APIResponse(
         success=True,
         message="Customer entity graph synchronized successfully.",
@@ -117,14 +121,14 @@ def synchronize_customer_graph(
     response_model=APIResponse[EntityNodeResponse],
     summary="Get an entity in the current tenant's graph",
 )
-def get_entity(
+async def get_entity(
     entity_id: UUID,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user: dict[str, Any] = Depends(
-        require_roles(*_VIEW_ROLES, resource_type="entity_intelligence")
+        require_async_roles(*_VIEW_ROLES, resource_type="entity_intelligence")
     ),
 ) -> APIResponse[EntityNodeResponse]:
-    node = _service(db, current_user).get_node(entity_id)
+    node = await _service(db, current_user).get_node(entity_id)
     return APIResponse(
         success=True,
         message="Entity retrieved successfully.",
@@ -141,16 +145,16 @@ def get_entity(
         "returned separately for highlighting in an investigation UI."
     ),
 )
-def get_entity_graph(
+async def get_entity_graph(
     entity_id: UUID,
     depth: int = Query(default=2, ge=1, le=3),
     max_nodes: int = Query(default=200, ge=1, le=500),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user: dict[str, Any] = Depends(
-        require_roles(*_VIEW_ROLES, resource_type="entity_intelligence")
+        require_async_roles(*_VIEW_ROLES, resource_type="entity_intelligence")
     ),
 ) -> APIResponse[EntityGraphResponse]:
-    graph = _service(db, current_user).get_graph(
+    graph = await _service(db, current_user).get_graph(
         entity_id, depth=depth, max_nodes=max_nodes
     )
     return APIResponse(
@@ -165,15 +169,15 @@ def get_entity_graph(
     response_model=APIResponse[list[EntityRelationshipResponse]],
     summary="List potentially risky entity relationships",
 )
-def list_risk_relationships(
+async def list_risk_relationships(
     min_risk_score: int = Query(default=40, ge=0, le=100),
     limit: int = Query(default=100, ge=1, le=500),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user: dict[str, Any] = Depends(
-        require_roles(*_VIEW_ROLES, resource_type="entity_intelligence")
+        require_async_roles(*_VIEW_ROLES, resource_type="entity_intelligence")
     ),
 ) -> APIResponse[list[EntityRelationshipResponse]]:
-    relationships = _service(db, current_user).list_risk_relationships(
+    relationships = await _service(db, current_user).list_risk_relationships(
         min_risk_score=min_risk_score, limit=limit
     )
     return APIResponse(

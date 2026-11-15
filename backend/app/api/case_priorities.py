@@ -1,14 +1,16 @@
+"""Async API endpoints for explainable compliance case priorities."""
+
 from typing import Any
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query, status
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.database import get_db
+from app.core.async_security import require_async_roles
+from app.core.database import get_async_db
 from app.core.responses import APIResponse
-from app.core.security import require_roles
 from app.schemas.case_priority import CasePriorityResponse
-from app.services.case_priority_service import CasePriorityService
+from app.services.async_case_priority_service import AsyncCasePriorityService
 from app.utils.enums import UserRole
 
 router = APIRouter(prefix="/api/v1/case-priorities", tags=["Case Priorities"])
@@ -30,13 +32,15 @@ _ALLOWED_ROLES = (
         "returns open cases ordered by priority score."
     ),
 )
-def list_case_priorities(
+async def list_case_priorities(
     limit: int = Query(default=100, ge=1, le=500),
-    current_user: dict[str, Any] = Depends(require_roles(*_ALLOWED_ROLES)),
-    db: Session = Depends(get_db),
+    current_user: dict[str, Any] = Depends(
+        require_async_roles(*_ALLOWED_ROLES, resource_type="case_priorities")
+    ),
+    db: AsyncSession = Depends(get_async_db),
 ) -> APIResponse[list[CasePriorityResponse]]:
-    service = CasePriorityService(db, tenant_id=UUID(current_user["tenant_id"]))
-    priorities = service.list_open_case_priorities(limit=limit)
+    service = AsyncCasePriorityService(db, tenant_id=UUID(current_user["tenant_id"]))
+    priorities = await service.list_open_case_priorities(limit=limit)
     return APIResponse(
         success=True,
         message="Compliance case priorities retrieved successfully.",
@@ -49,13 +53,15 @@ def list_case_priorities(
     response_model=APIResponse[CasePriorityResponse],
     summary="Get latest priority for a compliance case",
 )
-def get_case_priority(
+async def get_case_priority(
     case_id: UUID,
-    current_user: dict[str, Any] = Depends(require_roles(*_ALLOWED_ROLES)),
-    db: Session = Depends(get_db),
+    current_user: dict[str, Any] = Depends(
+        require_async_roles(*_ALLOWED_ROLES, resource_type="compliance_case")
+    ),
+    db: AsyncSession = Depends(get_async_db),
 ) -> APIResponse[CasePriorityResponse]:
-    service = CasePriorityService(db, tenant_id=UUID(current_user["tenant_id"]))
-    priority = service.prioritize_case(case_id)
+    service = AsyncCasePriorityService(db, tenant_id=UUID(current_user["tenant_id"]))
+    priority = await service.prioritize_case(case_id)
     return APIResponse(
         success=True,
         message="Compliance case priority retrieved successfully.",
@@ -73,13 +79,15 @@ def get_case_priority(
         "when inputs changed."
     ),
 )
-def recalculate_case_priority(
+async def recalculate_case_priority(
     case_id: UUID,
-    current_user: dict[str, Any] = Depends(require_roles(*_ALLOWED_ROLES)),
-    db: Session = Depends(get_db),
+    current_user: dict[str, Any] = Depends(
+        require_async_roles(*_ALLOWED_ROLES, resource_type="compliance_case")
+    ),
+    db: AsyncSession = Depends(get_async_db),
 ) -> APIResponse[CasePriorityResponse]:
-    service = CasePriorityService(db, tenant_id=UUID(current_user["tenant_id"]))
-    priority = service.prioritize_case(case_id)
+    service = AsyncCasePriorityService(db, tenant_id=UUID(current_user["tenant_id"]))
+    priority = await service.prioritize_case(case_id)
     return APIResponse(
         success=True,
         message="Compliance case priority recalculated successfully.",
@@ -92,13 +100,15 @@ def recalculate_case_priority(
     response_model=APIResponse[list[CasePriorityResponse]],
     summary="Get priority history for a compliance case",
 )
-def get_case_priority_history(
+async def get_case_priority_history(
     case_id: UUID,
-    current_user: dict[str, Any] = Depends(require_roles(*_ALLOWED_ROLES)),
-    db: Session = Depends(get_db),
+    current_user: dict[str, Any] = Depends(
+        require_async_roles(*_ALLOWED_ROLES, resource_type="compliance_case")
+    ),
+    db: AsyncSession = Depends(get_async_db),
 ) -> APIResponse[list[CasePriorityResponse]]:
-    service = CasePriorityService(db, tenant_id=UUID(current_user["tenant_id"]))
-    history = service.get_history(case_id)
+    service = AsyncCasePriorityService(db, tenant_id=UUID(current_user["tenant_id"]))
+    history = await service.get_history(case_id)
     return APIResponse(
         success=True,
         message="Compliance case priority history retrieved successfully.",

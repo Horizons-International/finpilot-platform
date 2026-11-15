@@ -1,8 +1,10 @@
+import asyncio
 from datetime import date, datetime, timedelta, timezone
 from uuid import uuid4
 
 from app.analytics.models.metric_definition import MetricDefinition
 from app.analytics.models.metric_result import MetricResult
+from app.analytics.repositories.async_metric_repository import AsyncMetricRepository
 from app.analytics.services.metric_service import MetricService
 from app.models.compliance_case import ComplianceCase
 from app.models.customer import Customer
@@ -17,6 +19,7 @@ from app.utils.enums import (
     MetricValueType,
     UserRole,
 )
+from tests.conftest import TestAsyncSessionLocal
 from tests.helpers import authenticate_client
 
 
@@ -526,3 +529,59 @@ def test_reviewer_can_read_metric_definitions(
 
     assert isinstance(data, list)
     assert len(data) >= 8
+
+
+def test_concurrent_metric_result_writes_are_atomic(
+    db_session,
+    default_tenant_id,
+    cleanup_metric_definitions,
+    cleanup_metric_results,
+):
+    metric = MetricDefinition(
+        tenant_id=default_tenant_id,
+        key=f"concurrent_metric_{uuid4().hex}",
+        name="Concurrent metric write test",
+        description="Ensures concurrent calculations upsert one result row.",
+        category=MetricCategory.OPERATIONS,
+        value_type=MetricValueType.PERCENTAGE,
+        definition={"type": "ratio", "numerator": "x", "denominator": "y"},
+        status=MetricStatus.ACTIVE,
+    )
+    db_session.add(metric)
+    db_session.commit()
+    metric_id = metric.id
+
+    period_start = date(2040, 1, 1)
+    period_end = date(2040, 1, 31)
+
+    async def save_result(value: float):
+        async with TestAsyncSessionLocal() as async_db:
+            repository = AsyncMetricRepository(async_db, default_tenant_id)
+            row = await repository.save_result(
+                definition_id=metric_id,
+                start=period_start,
+                end=period_end,
+                value=value,
+                calculated_at=datetime.now(timezone.utc),
+            )
+            await async_db.commit()
+            return row.id
+
+    async def save_concurrently():
+        return await asyncio.gather(save_result(12.5), save_result(15.0))
+
+    result_ids = asyncio.run(save_concurrently())
+    assert result_ids[0] == result_ids[1]
+
+    stored_results = (
+        db_session.query(MetricResult)
+        .filter(
+            MetricResult.tenant_id == default_tenant_id,
+            MetricResult.metric_definition_id == metric_id,
+            MetricResult.period_start == period_start,
+            MetricResult.period_end == period_end,
+        )
+        .all()
+    )
+    assert len(stored_results) == 1
+    assert float(stored_results[0].value) in {12.5, 15.0}
