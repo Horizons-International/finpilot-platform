@@ -1,4 +1,9 @@
-"""Compliance-admin endpoints for tenant-scoped protection controls."""
+"""Tenant-scoped data-protection APIs.
+
+Read-heavy list endpoints use AsyncSession. Policy/hold/deletion mutations remain
+synchronous because they are short transactional workflows; physical deletion
+also coordinates database commits with external storage cleanup.
+"""
 
 from __future__ import annotations
 
@@ -6,12 +11,16 @@ import uuid
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import Session
 
-from app.core.dependencies import get_db, get_storage
+from app.core.async_security import require_async_roles
+from app.core.database import get_async_db, get_db
+from app.core.dependencies import get_storage
 from app.core.security import require_roles
-from app.models.data_protection import DataLegalHold
+from app.repositories.async_data_protection_read_repository import (
+    AsyncDataProtectionReadRepository,
+)
 from app.schemas.data_protection import (
     DataProtectionPolicyResponse,
     DeletionRequestCreate,
@@ -29,27 +38,35 @@ ADMIN_ROLES = (UserRole.ADMINISTRATOR, UserRole.COMPLIANCE_OFFICER)
 READ_ROLES = (*ADMIN_ROLES, UserRole.AUDITOR)
 
 
-def _service(
-    db: Session, current_user: dict[str, Any], storage: BaseStorage | None = None
-) -> DataProtectionService:
+def _tenant_and_actor(current_user: dict[str, Any]) -> tuple[uuid.UUID, uuid.UUID]:
     try:
-        tenant_id = uuid.UUID(str(current_user["tenant_id"]))
+        return (
+            uuid.UUID(str(current_user["tenant_id"])),
+            uuid.UUID(str(current_user["sub"])),
+        )
     except (KeyError, TypeError, ValueError) as exc:
         raise HTTPException(
             status_code=403, detail="Tenant context is required"
         ) from exc
+
+
+def _sync_service(
+    db: Session, current_user: dict[str, Any], storage: BaseStorage | None = None
+) -> DataProtectionService:
+    tenant_id, _actor_id = _tenant_and_actor(current_user)
     return DataProtectionService(db, tenant_id, storage)
 
 
 @router.get("/policies", response_model=list[DataProtectionPolicyResponse])
-def list_policies(
-    db: Session = Depends(get_db),
+async def list_policies(
+    db: AsyncSession = Depends(get_async_db),
     current_user: dict[str, Any] = Depends(
-        require_roles(*READ_ROLES, resource_type="data-protection")
+        require_async_roles(*READ_ROLES, resource_type="data-protection")
     ),
 ) -> list[DataProtectionPolicyResponse]:
-    policies = _service(db, current_user).repo.list_policies()
-    return [DataProtectionPolicyResponse.model_validate(item) for item in policies]
+    tenant_id, _ = _tenant_and_actor(current_user)
+    rows = await AsyncDataProtectionReadRepository(db, tenant_id).list_policies()
+    return [DataProtectionPolicyResponse.model_validate(row) for row in rows]
 
 
 @router.put("/policies/{resource_type}", response_model=DataProtectionPolicyResponse)
@@ -62,15 +79,16 @@ def update_policy(
     ),
 ) -> DataProtectionPolicyResponse:
     try:
-        service = _service(db, current_user)
-        policy = service.set_policy(
+        _tenant_id, actor_id = _tenant_and_actor(current_user)
+        policy = _sync_service(db, current_user).set_policy(
             resource_type,
             payload.retention_days,
             payload.enabled,
             payload.legal_basis,
-            uuid.UUID(str(current_user["sub"])),
+            actor_id,
         )
         db.commit()
+        db.refresh(policy)
         return DataProtectionPolicyResponse.model_validate(policy)
     except ValueError as exc:
         db.rollback()
@@ -78,22 +96,18 @@ def update_policy(
 
 
 @router.get("/legal-holds", response_model=list[LegalHoldResponse])
-def list_legal_holds(
+async def list_legal_holds(
     active_only: bool = Query(default=True),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user: dict[str, Any] = Depends(
-        require_roles(*READ_ROLES, resource_type="data-protection")
+        require_async_roles(*READ_ROLES, resource_type="data-protection")
     ),
 ) -> list[LegalHoldResponse]:
-    service = _service(db, current_user)
-    tenant_id = service.tenant_id
-    statement = select(DataLegalHold).where(DataLegalHold.tenant_id == tenant_id)
-    if active_only:
-        statement = statement.where(DataLegalHold.active.is_(True))
-    holds = list(
-        db.scalars(statement.order_by(DataLegalHold.created_at.desc()).limit(500)).all()
+    tenant_id, _ = _tenant_and_actor(current_user)
+    rows = await AsyncDataProtectionReadRepository(db, tenant_id).list_legal_holds(
+        active_only=active_only
     )
-    return [LegalHoldResponse.model_validate(item) for item in holds]
+    return [LegalHoldResponse.model_validate(row) for row in rows]
 
 
 @router.post(
@@ -109,13 +123,12 @@ def create_legal_hold(
     ),
 ) -> LegalHoldResponse:
     try:
-        hold = _service(db, current_user).create_legal_hold(
-            payload.resource_type,
-            payload.resource_id,
-            payload.reason,
-            uuid.UUID(str(current_user["sub"])),
+        _tenant_id, actor_id = _tenant_and_actor(current_user)
+        hold = _sync_service(db, current_user).create_legal_hold(
+            payload.resource_type, payload.resource_id, payload.reason, actor_id
         )
         db.commit()
+        db.refresh(hold)
         return LegalHoldResponse.model_validate(hold)
     except ValueError as exc:
         db.rollback()
@@ -131,10 +144,10 @@ def release_legal_hold(
     ),
 ) -> LegalHoldResponse:
     try:
-        hold = _service(db, current_user).release_legal_hold(
-            hold_id, uuid.UUID(str(current_user["sub"]))
-        )
+        _tenant_id, actor_id = _tenant_and_actor(current_user)
+        hold = _sync_service(db, current_user).release_legal_hold(hold_id, actor_id)
         db.commit()
+        db.refresh(hold)
         return LegalHoldResponse.model_validate(hold)
     except ValueError as exc:
         db.rollback()
@@ -156,29 +169,31 @@ def request_deletion(
     ),
 ) -> DeletionRequestResponse:
     try:
-        request = _service(db, current_user).request_deletion(
-            payload.resource_type,
-            payload.resource_id,
-            payload.reason,
-            uuid.UUID(str(current_user["sub"])),
+        _tenant_id, actor_id = _tenant_and_actor(current_user)
+        item = _sync_service(db, current_user).request_deletion(
+            payload.resource_type, payload.resource_id, payload.reason, actor_id
         )
         db.commit()
-        return DeletionRequestResponse.model_validate(request)
+        db.refresh(item)
+        return DeletionRequestResponse.model_validate(item)
     except ValueError as exc:
         db.rollback()
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 @router.get("/deletion-requests", response_model=list[DeletionRequestResponse])
-def list_deletion_requests(
+async def list_deletion_requests(
     limit: int = Query(default=100, ge=1, le=500),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user: dict[str, Any] = Depends(
-        require_roles(*READ_ROLES, resource_type="data-protection-deletion")
+        require_async_roles(*READ_ROLES, resource_type="data-protection-deletion")
     ),
 ) -> list[DeletionRequestResponse]:
-    requests = _service(db, current_user).repo.list_deletion_requests(limit=limit)
-    return [DeletionRequestResponse.model_validate(item) for item in requests]
+    tenant_id, _ = _tenant_and_actor(current_user)
+    rows = await AsyncDataProtectionReadRepository(
+        db, tenant_id
+    ).list_deletion_requests(limit=limit)
+    return [DeletionRequestResponse.model_validate(row) for row in rows]
 
 
 @router.post(
@@ -192,11 +207,11 @@ def approve_deletion(
     ),
 ) -> DeletionRequestResponse:
     try:
-        request = _service(db, current_user).approve_deletion(
-            request_id, uuid.UUID(str(current_user["sub"]))
-        )
+        _tenant_id, actor_id = _tenant_and_actor(current_user)
+        item = _sync_service(db, current_user).approve_deletion(request_id, actor_id)
         db.commit()
-        return DeletionRequestResponse.model_validate(request)
+        db.refresh(item)
+        return DeletionRequestResponse.model_validate(item)
     except ValueError as exc:
         db.rollback()
         raise HTTPException(status_code=400, detail=str(exc)) from exc
@@ -214,10 +229,8 @@ def execute_deletion(
     ),
 ) -> DeletionRequestResponse:
     try:
-        service = _service(db, current_user, storage)
-        request = service.execute_deletion(request_id)
-        # execute_deletion commits its retry-safe intermediate and final states.
-        return DeletionRequestResponse.model_validate(request)
+        item = _sync_service(db, current_user, storage).execute_deletion(request_id)
+        return DeletionRequestResponse.model_validate(item)
     except ValueError as exc:
         db.rollback()
         raise HTTPException(status_code=400, detail=str(exc)) from exc

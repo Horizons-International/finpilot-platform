@@ -1,3 +1,5 @@
+"""Authentication endpoints using native async database sessions."""
+
 from typing import Any
 
 from fastapi import APIRouter, Depends, Request, status
@@ -5,7 +7,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.async_security import get_async_current_user, require_async_roles
 from app.core.database import get_async_db
-from app.core.dependencies import get_user_invitation_service
 from app.core.responses import APIResponse
 from app.models.user import User
 from app.schemas.auth import (
@@ -17,7 +18,9 @@ from app.schemas.auth import (
     RefreshTokenResponse,
 )
 from app.services.async_auth_service import AsyncAuthService
-from app.services.user_invitation_service import UserInvitationService
+from app.services.async_user_invitation_acceptance_service import (
+    AsyncUserInvitationAcceptanceService,
+)
 from app.utils.enums import UserRole
 
 router = APIRouter(prefix="/api/v1/auth", tags=["Authentication"])
@@ -112,20 +115,20 @@ async def change_password(
     )
 
 
-# Invitation acceptance is intentionally left on its existing synchronous
-# service because its repository and onboarding transaction have not yet been
-# migrated to AsyncSession.
 @router.post(
     "/accept-invitation",
     response_model=APIResponse[dict[str, str]],
     status_code=status.HTTP_201_CREATED,
     summary="Accept user invitation",
 )
-def accept_invitation(
+async def accept_invitation(
     payload: AcceptInvitationRequest,
-    service: UserInvitationService = Depends(get_user_invitation_service),
+    db: AsyncSession = Depends(get_async_db),
 ) -> APIResponse[dict[str, str]]:
-    user = service.accept(token=payload.token, password=payload.password)
+    user = await AsyncUserInvitationAcceptanceService(db).accept(
+        token=payload.token,
+        password=payload.password,
+    )
     return APIResponse(
         success=True,
         message="Invitation accepted successfully.",

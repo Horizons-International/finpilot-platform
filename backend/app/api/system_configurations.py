@@ -2,10 +2,11 @@ from typing import Any
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query, Request, status
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.dependencies import get_system_configuration_service
+from app.core.async_security import require_async_roles
+from app.core.database import get_async_db
 from app.core.responses import APIResponse
-from app.core.security import require_roles
 from app.schemas.system_configuration import (
     SystemConfigurationAuditResponse,
     SystemConfigurationCreate,
@@ -13,8 +14,8 @@ from app.schemas.system_configuration import (
     SystemConfigurationStatusUpdate,
     SystemConfigurationUpdate,
 )
-from app.services.system_configuration_service import (
-    SystemConfigurationService,
+from app.services.async_system_configuration_service import (
+    AsyncSystemConfigurationService,
 )
 from app.utils.enums import (
     SystemConfigurationCategory,
@@ -23,17 +24,17 @@ from app.utils.enums import (
 )
 
 router = APIRouter(
-    prefix="/api/v1/system-configurations",
-    tags=["System Configurations"],
+    prefix="/api/v1/system-configurations", tags=["System Configurations"]
 )
 
 
-def _request_metadata(
-    request: Request,
-) -> tuple[str | None, str | None]:
-    return (
-        request.client.host if request.client else None,
-        request.headers.get("user-agent"),
+def _service(db: AsyncSession, user: dict[str, Any]) -> AsyncSystemConfigurationService:
+    return AsyncSystemConfigurationService(db, UUID(user["tenant_id"]))
+
+
+def _request_metadata(request: Request) -> tuple[str | None, str | None]:
+    return request.client.host if request.client else None, request.headers.get(
+        "user-agent"
     )
 
 
@@ -43,35 +44,28 @@ def _request_metadata(
     status_code=status.HTTP_201_CREATED,
     summary="Create system configuration",
 )
-def create_configuration(
+async def create_configuration(
     payload: SystemConfigurationCreate,
     request: Request,
     current_user: dict[str, Any] = Depends(
-        require_roles(
-            UserRole.ADMINISTRATOR,
-            resource_type="system_configuration",
+        require_async_roles(
+            UserRole.ADMINISTRATOR, resource_type="system_configuration"
         )
     ),
-    service: SystemConfigurationService = Depends(
-        get_system_configuration_service,
-    ),
+    db: AsyncSession = Depends(get_async_db),
 ) -> APIResponse[SystemConfigurationResponse]:
     ip_address, user_agent = _request_metadata(request)
-
-    configuration = service.create(
+    configuration = await _service(db, current_user).create(
         data=payload,
         user_id=UUID(current_user["sub"]),
         email=current_user["email"],
         ip_address=ip_address,
         user_agent=user_agent,
     )
-
     return APIResponse(
         success=True,
         message="System configuration created successfully.",
-        data=SystemConfigurationResponse.model_validate(
-            configuration,
-        ),
+        data=SystemConfigurationResponse.model_validate(configuration),
     )
 
 
@@ -81,36 +75,24 @@ def create_configuration(
     status_code=status.HTTP_200_OK,
     summary="List system configurations",
 )
-def list_configurations(
-    category: SystemConfigurationCategory | None = Query(
-        default=None,
-    ),
-    status: SystemConfigurationStatus | None = Query(
-        default=None,
-    ),
-    _: dict[str, Any] = Depends(
-        require_roles(
-            UserRole.ADMINISTRATOR,
-            resource_type="system_configuration",
+async def list_configurations(
+    category: SystemConfigurationCategory | None = Query(default=None),
+    status: SystemConfigurationStatus | None = Query(default=None),
+    current_user: dict[str, Any] = Depends(
+        require_async_roles(
+            UserRole.ADMINISTRATOR, resource_type="system_configuration"
         )
     ),
-    service: SystemConfigurationService = Depends(
-        get_system_configuration_service,
-    ),
+    db: AsyncSession = Depends(get_async_db),
 ) -> APIResponse[list[SystemConfigurationResponse]]:
-    configurations = service.list_all(
-        category=category,
-        status=status,
+    configurations = await _service(db, current_user).list_all(
+        category=category, status=status
     )
-
     return APIResponse(
         success=True,
         message="System configurations retrieved successfully.",
         data=[
-            SystemConfigurationResponse.model_validate(
-                configuration,
-            )
-            for configuration in configurations
+            SystemConfigurationResponse.model_validate(item) for item in configurations
         ],
     )
 
@@ -121,28 +103,20 @@ def list_configurations(
     status_code=status.HTTP_200_OK,
     summary="Get system configuration",
 )
-def get_configuration(
+async def get_configuration(
     configuration_id: UUID,
-    _: dict[str, Any] = Depends(
-        require_roles(
-            UserRole.ADMINISTRATOR,
-            resource_type="system_configuration",
+    current_user: dict[str, Any] = Depends(
+        require_async_roles(
+            UserRole.ADMINISTRATOR, resource_type="system_configuration"
         )
     ),
-    service: SystemConfigurationService = Depends(
-        get_system_configuration_service,
-    ),
+    db: AsyncSession = Depends(get_async_db),
 ) -> APIResponse[SystemConfigurationResponse]:
-    configuration = service.get_by_id(
-        configuration_id,
-    )
-
+    configuration = await _service(db, current_user).get_by_id(configuration_id)
     return APIResponse(
         success=True,
         message="System configuration retrieved successfully.",
-        data=SystemConfigurationResponse.model_validate(
-            configuration,
-        ),
+        data=SystemConfigurationResponse.model_validate(configuration),
     )
 
 
@@ -152,23 +126,19 @@ def get_configuration(
     status_code=status.HTTP_200_OK,
     summary="Update system configuration",
 )
-def update_configuration(
+async def update_configuration(
     configuration_id: UUID,
     payload: SystemConfigurationUpdate,
     request: Request,
     current_user: dict[str, Any] = Depends(
-        require_roles(
-            UserRole.ADMINISTRATOR,
-            resource_type="system_configuration",
+        require_async_roles(
+            UserRole.ADMINISTRATOR, resource_type="system_configuration"
         )
     ),
-    service: SystemConfigurationService = Depends(
-        get_system_configuration_service,
-    ),
+    db: AsyncSession = Depends(get_async_db),
 ) -> APIResponse[SystemConfigurationResponse]:
     ip_address, user_agent = _request_metadata(request)
-
-    configuration = service.update(
+    configuration = await _service(db, current_user).update(
         configuration_id=configuration_id,
         data=payload,
         user_id=UUID(current_user["sub"]),
@@ -176,13 +146,10 @@ def update_configuration(
         ip_address=ip_address,
         user_agent=user_agent,
     )
-
     return APIResponse(
         success=True,
         message="System configuration updated successfully.",
-        data=SystemConfigurationResponse.model_validate(
-            configuration,
-        ),
+        data=SystemConfigurationResponse.model_validate(configuration),
     )
 
 
@@ -192,23 +159,19 @@ def update_configuration(
     status_code=status.HTTP_200_OK,
     summary="Activate or deactivate system configuration",
 )
-def update_configuration_status(
+async def update_configuration_status(
     configuration_id: UUID,
     payload: SystemConfigurationStatusUpdate,
     request: Request,
     current_user: dict[str, Any] = Depends(
-        require_roles(
-            UserRole.ADMINISTRATOR,
-            resource_type="system_configuration",
+        require_async_roles(
+            UserRole.ADMINISTRATOR, resource_type="system_configuration"
         )
     ),
-    service: SystemConfigurationService = Depends(
-        get_system_configuration_service,
-    ),
+    db: AsyncSession = Depends(get_async_db),
 ) -> APIResponse[SystemConfigurationResponse]:
     ip_address, user_agent = _request_metadata(request)
-
-    configuration = service.update_status(
+    configuration = await _service(db, current_user).update_status(
         configuration_id=configuration_id,
         status=payload.status,
         user_id=UUID(current_user["sub"]),
@@ -216,13 +179,10 @@ def update_configuration_status(
         ip_address=ip_address,
         user_agent=user_agent,
     )
-
     return APIResponse(
         success=True,
         message="System configuration status updated successfully.",
-        data=SystemConfigurationResponse.model_validate(
-            configuration,
-        ),
+        data=SystemConfigurationResponse.model_validate(configuration),
     )
 
 
@@ -232,29 +192,20 @@ def update_configuration_status(
     status_code=status.HTTP_200_OK,
     summary="Get system configuration history",
 )
-def get_configuration_history(
+async def get_configuration_history(
     configuration_id: UUID,
-    _: dict[str, Any] = Depends(
-        require_roles(
-            UserRole.ADMINISTRATOR,
-            resource_type="system_configuration",
+    current_user: dict[str, Any] = Depends(
+        require_async_roles(
+            UserRole.ADMINISTRATOR, resource_type="system_configuration"
         )
     ),
-    service: SystemConfigurationService = Depends(
-        get_system_configuration_service,
-    ),
+    db: AsyncSession = Depends(get_async_db),
 ) -> APIResponse[list[SystemConfigurationAuditResponse]]:
-    history = service.get_history(
-        configuration_id,
-    )
-
+    history = await _service(db, current_user).get_history(configuration_id)
     return APIResponse(
         success=True,
         message="System configuration history retrieved successfully.",
         data=[
-            SystemConfigurationAuditResponse.model_validate(
-                item,
-            )
-            for item in history
+            SystemConfigurationAuditResponse.model_validate(item) for item in history
         ],
     )

@@ -1,11 +1,18 @@
-"""API endpoints for enterprise implementation workspaces."""
+"""API endpoints for enterprise implementation workspaces.
+
+Read endpoints use AsyncSession. The existing synchronous write service remains
+in place because its cross-tenant authorization and transaction-context switching
+need to remain aligned with the established write-path safeguards.
+"""
 
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query, Response, status
+from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import Session
 
-from app.core.database import get_db
+from app.core.async_security import get_async_current_user
+from app.core.database import get_async_db, get_db
 from app.core.responses import APIResponse
 from app.core.security import get_current_user
 from app.models.user import User
@@ -27,6 +34,9 @@ from app.schemas.implementation_workspace import (
     ImplementationWorkspaceTaskUpdate,
     ImplementationWorkspaceUpdate,
 )
+from app.services.async_implementation_workspace_read_service import (
+    AsyncImplementationWorkspaceReadService,
+)
 from app.services.implementation_workspace_service import ImplementationWorkspaceService
 
 router = APIRouter(
@@ -37,6 +47,10 @@ router = APIRouter(
 
 def _service(db: Session) -> ImplementationWorkspaceService:
     return ImplementationWorkspaceService(db)
+
+
+def _read_service(db: AsyncSession) -> AsyncImplementationWorkspaceReadService:
+    return AsyncImplementationWorkspaceReadService(db)
 
 
 @router.post(
@@ -63,11 +77,11 @@ def create_workspace(
     response_model=APIResponse[list[ImplementationWorkspaceResponse]],
     summary="List workspaces shared with the current user",
 )
-def list_workspaces(
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+async def list_workspaces(
+    db: AsyncSession = Depends(get_async_db),
+    current_user: User = Depends(get_async_current_user),
 ) -> APIResponse[list[ImplementationWorkspaceResponse]]:
-    workspaces = _service(db).list_workspaces(current_user.id)
+    workspaces = await _read_service(db).list_workspaces(current_user.id)
     return APIResponse(
         success=True,
         message="Implementation workspaces retrieved successfully.",
@@ -82,12 +96,12 @@ def list_workspaces(
     response_model=APIResponse[ImplementationWorkspaceDetailResponse],
     summary="Get workspace progress, milestones, tasks, and members",
 )
-def get_workspace(
+async def get_workspace(
     workspace_id: UUID,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_async_db),
+    current_user: User = Depends(get_async_current_user),
 ) -> APIResponse[ImplementationWorkspaceDetailResponse]:
-    workspace = _service(db).get_workspace(workspace_id, current_user.id)
+    workspace = await _read_service(db).get_workspace(workspace_id, current_user.id)
     return APIResponse(
         success=True,
         message="Implementation workspace retrieved successfully.",
@@ -138,12 +152,12 @@ def update_workspace_stage(
     response_model=APIResponse[list[ImplementationWorkspaceMemberResponse]],
     summary="List internal and customer collaborators",
 )
-def list_members(
+async def list_members(
     workspace_id: UUID,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_async_db),
+    current_user: User = Depends(get_async_current_user),
 ) -> APIResponse[list[ImplementationWorkspaceMemberResponse]]:
-    members = _service(db).list_members(workspace_id, current_user.id)
+    members = await _read_service(db).list_members(workspace_id, current_user.id)
     return APIResponse(
         success=True,
         message="Workspace members retrieved successfully.",
@@ -236,15 +250,15 @@ def update_milestone(
     response_model=APIResponse[list[ImplementationWorkspaceTaskResponse]],
     summary="List implementation tasks",
 )
-def list_tasks(
+async def list_tasks(
     workspace_id: UUID,
     category: str | None = Query(
         default=None, pattern="^(PROJECT|TECHNICAL|BUSINESS)$"
     ),
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_async_db),
+    current_user: User = Depends(get_async_current_user),
 ) -> APIResponse[list[ImplementationWorkspaceTaskResponse]]:
-    tasks = _service(db).list_tasks(workspace_id, current_user.id)
+    tasks = await _read_service(db).list_tasks(workspace_id, current_user.id)
     if category is not None:
         tasks = [task for task in tasks if task.category == category]
     return APIResponse(
@@ -301,13 +315,15 @@ def update_task(
     response_model=APIResponse[ImplementationWorkspaceCommentListResponse],
     summary="List workspace or task collaboration comments",
 )
-def list_comments(
+async def list_comments(
     workspace_id: UUID,
     task_id: UUID | None = Query(default=None),
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_async_db),
+    current_user: User = Depends(get_async_current_user),
 ) -> APIResponse[ImplementationWorkspaceCommentListResponse]:
-    comments = _service(db).list_comments(workspace_id, current_user.id, task_id)
+    comments = await _read_service(db).list_comments(
+        workspace_id, current_user.id, task_id
+    )
     return APIResponse(
         success=True,
         message="Workspace comments retrieved successfully.",
