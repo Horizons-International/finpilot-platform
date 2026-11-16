@@ -2,57 +2,43 @@ from typing import Any
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Request, status
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.database import get_db
+from app.core.async_security import require_async_roles
+from app.core.database import get_async_db
 from app.core.responses import APIResponse
-from app.core.security import require_roles
 from app.schemas.investigation_note import (
     InvestigationNoteCreate,
     InvestigationNoteResponse,
 )
-from app.services.investigation_note_service import InvestigationNoteService
+from app.services.async_investigation_note_service import AsyncInvestigationNoteService
 from app.utils.enums import UserRole
 from app.utils.errors import unauthorized
 
-router = APIRouter(
-    prefix="/api/v1",
-    tags=["Investigation Notes"],
-)
+router = APIRouter(prefix="/api/v1", tags=["Investigation Notes"])
 
 
-def _get_authenticated_user(
+def _authenticated_values(
     current_user: dict[str, Any],
-) -> tuple[UUID, str]:
-    raw_user_id = current_user["sub"]
+) -> tuple[UUID, str, UserRole, UUID]:
     try:
-        user_id = UUID(str(raw_user_id))
-    except (TypeError, ValueError) as exc:
+        user_id = UUID(str(current_user["sub"]))
+        tenant_id = UUID(str(current_user["tenant_id"]))
+        role = UserRole(str(current_user.get("role")))
+    except (KeyError, TypeError, ValueError) as exc:
         raise unauthorized("Invalid authenticated user.") from exc
 
-    email = current_user["email"]
+    email = current_user.get("email")
     if not isinstance(email, str) or not email:
         raise unauthorized("Authenticated user email is missing.")
-
-    return user_id, email
-
-
-def _get_authenticated_role(
-    current_user: dict[str, Any],
-) -> UserRole:
-    raw_role = current_user.get("role")
-    try:
-        return UserRole(str(raw_role))
-    except ValueError as exc:
-        raise unauthorized("Invalid authenticated user role.") from exc
+    return user_id, email, role, tenant_id
 
 
-def _request_metadata(
-    request: Request,
-) -> tuple[str | None, str | None]:
-    client_host = request.client.host if request.client is not None else None
-    user_agent = request.headers.get("user-agent")
-    return client_host, user_agent
+def _request_metadata(request: Request) -> tuple[str | None, str | None]:
+    return (
+        request.client.host if request.client is not None else None,
+        request.headers.get("user-agent"),
+    )
 
 
 @router.post(
@@ -61,26 +47,23 @@ def _request_metadata(
     status_code=status.HTTP_201_CREATED,
     summary="Add an investigation note",
     description=(
-        "Add an investigation note, action, or resolution comment to a "
-        "verification case. Only the reviewer currently assigned to the "
-        "case can create notes."
+        "Only the reviewer currently assigned to the "
+        "verification case can create notes."
     ),
 )
-def create_investigation_note(
+async def create_investigation_note(
     customer_id: UUID,
     case_id: UUID,
     payload: InvestigationNoteCreate,
     request: Request,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user: dict[str, Any] = Depends(
-        require_roles(UserRole.REVIEWER, resource_type="investigation_note")
+        require_async_roles(UserRole.REVIEWER, resource_type="investigation_note")
     ),
 ) -> APIResponse[InvestigationNoteResponse]:
-    user_id, email = _get_authenticated_user(current_user)
+    user_id, email, _role, tenant_id = _authenticated_values(current_user)
     ip_address, user_agent = _request_metadata(request)
-
-    service = InvestigationNoteService(db)
-    note = service.create_note(
+    note = await AsyncInvestigationNoteService(db, tenant_id).create_note(
         customer_id=customer_id,
         case_id=case_id,
         user_id=user_id,
@@ -91,7 +74,6 @@ def create_investigation_note(
         ip_address=ip_address,
         user_agent=user_agent,
     )
-
     return APIResponse(
         success=True,
         message="Investigation note created successfully.",
@@ -105,17 +87,17 @@ def create_investigation_note(
     status_code=status.HTTP_200_OK,
     summary="Get investigation notes",
     description=(
-        "Return the investigation activity history for a verification case. "
-        "Administrators and compliance officers can view any case. Reviewers "
-        "can view cases assigned to them."
+        "Administrators and compliance officers can view any tenant case. "
+        "Reviewers can view cases assigned to them."
     ),
 )
-def get_investigation_notes(
+async def get_investigation_notes(
     customer_id: UUID,
     case_id: UUID,
-    db: Session = Depends(get_db),
+    request: Request,
+    db: AsyncSession = Depends(get_async_db),
     current_user: dict[str, Any] = Depends(
-        require_roles(
+        require_async_roles(
             UserRole.ADMINISTRATOR,
             UserRole.COMPLIANCE_OFFICER,
             UserRole.REVIEWER,
@@ -123,19 +105,19 @@ def get_investigation_notes(
         )
     ),
 ) -> APIResponse[list[InvestigationNoteResponse]]:
-    user_id, _ = _get_authenticated_user(current_user)
-    user_role = _get_authenticated_role(current_user)
-
-    service = InvestigationNoteService(db)
-    notes = service.get_notes(
+    user_id, email, role, tenant_id = _authenticated_values(current_user)
+    ip_address, user_agent = _request_metadata(request)
+    notes = await AsyncInvestigationNoteService(db, tenant_id).get_notes(
         customer_id=customer_id,
         case_id=case_id,
         user_id=user_id,
-        user_role=user_role,
+        user_role=role,
+        user_email=email,
+        ip_address=ip_address,
+        user_agent=user_agent,
     )
-
     return APIResponse(
         success=True,
         message="Investigation notes retrieved successfully.",
-        data=[InvestigationNoteResponse.model_validate(note) for note in notes],
+        data=[InvestigationNoteResponse.model_validate(item) for item in notes],
     )

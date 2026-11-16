@@ -2,10 +2,11 @@ from typing import Any
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Request, status
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.database import get_db
+from app.core.async_security import require_async_roles
+from app.core.database import get_async_db
 from app.core.responses import APIResponse
-from app.core.security import require_roles
 from app.schemas.ai_prompt import (
     AIPromptAssignmentCreate,
     AIPromptAssignmentResponse,
@@ -14,19 +15,20 @@ from app.schemas.ai_prompt import (
     AIPromptStatusUpdate,
     AIPromptVersionCreate,
 )
-from app.services.ai_prompt_service import AIPromptService
+from app.services.async_ai_prompt_service import AsyncAIPromptService
 from app.utils.enums import AIFunction, UserRole
 
-router = APIRouter(
-    prefix="/api/v1/ai-prompts",
-    tags=["AI Prompts"],
-)
+router = APIRouter(prefix="/api/v1/ai-prompts", tags=["AI Prompts"])
 
 
-def get_ai_prompt_service(
-    db=Depends(get_db),
-) -> AIPromptService:
-    return AIPromptService(db)
+def _service(db: AsyncSession, user: dict[str, Any]) -> AsyncAIPromptService:
+    return AsyncAIPromptService(db, UUID(user["tenant_id"]))
+
+
+def _metadata(request: Request) -> tuple[str | None, str | None]:
+    return request.client.host if request.client else None, request.headers.get(
+        "user-agent"
+    )
 
 
 @router.post(
@@ -36,25 +38,22 @@ def get_ai_prompt_service(
     summary="Post AI prompt",
     description="create AI prompt.",
 )
-def create_ai_prompt(
+async def create_ai_prompt(
     request: Request,
     data: AIPromptCreate,
     current_user: dict[str, Any] = Depends(
-        require_roles(
-            UserRole.ADMINISTRATOR,
-            resource_type="ai_prompt",
-        )
+        require_async_roles(UserRole.ADMINISTRATOR, resource_type="ai_prompt")
     ),
-    service: AIPromptService = Depends(get_ai_prompt_service),
+    db: AsyncSession = Depends(get_async_db),
 ) -> APIResponse[AIPromptResponse]:
-    prompt = service.create(
+    ip_address, user_agent = _metadata(request)
+    prompt = await _service(db, current_user).create(
         data=data,
         user_id=UUID(current_user["sub"]),
         email=current_user["email"],
-        ip_address=(request.client.host if request.client else None),
-        user_agent=request.headers.get("user-agent"),
+        ip_address=ip_address,
+        user_agent=user_agent,
     )
-
     return APIResponse(
         success=True,
         message="AI prompt created successfully.",
@@ -69,22 +68,21 @@ def create_ai_prompt(
     summary="Get AI prompts",
     description="Retrieves all AI prompts.",
 )
-def get_ai_prompts(
-    _: dict[str, Any] = Depends(
-        require_roles(
+async def get_ai_prompts(
+    current_user: dict[str, Any] = Depends(
+        require_async_roles(
             UserRole.ADMINISTRATOR,
             UserRole.COMPLIANCE_OFFICER,
             resource_type="ai_prompt",
         )
     ),
-    service: AIPromptService = Depends(get_ai_prompt_service),
+    db: AsyncSession = Depends(get_async_db),
 ) -> APIResponse[list[AIPromptResponse]]:
-    prompts = service.get_all()
-
+    prompts = await _service(db, current_user).get_all()
     return APIResponse(
         success=True,
         message="AI prompts retrieved successfully.",
-        data=[AIPromptResponse.model_validate(prompt) for prompt in prompts],
+        data=[AIPromptResponse.model_validate(item) for item in prompts],
     )
 
 
@@ -95,23 +93,22 @@ def get_ai_prompts(
     summary="Get active AI prompt",
     description="Retrieves all active AI prompts.",
 )
-def get_active_ai_prompts(
-    _: dict[str, Any] = Depends(
-        require_roles(
+async def get_active_ai_prompts(
+    current_user: dict[str, Any] = Depends(
+        require_async_roles(
             UserRole.ADMINISTRATOR,
             UserRole.COMPLIANCE_OFFICER,
             UserRole.REVIEWER,
             resource_type="ai_prompt",
         )
     ),
-    service: AIPromptService = Depends(get_ai_prompt_service),
+    db: AsyncSession = Depends(get_async_db),
 ) -> APIResponse[list[AIPromptResponse]]:
-    prompts = service.get_all_active()
-
+    prompts = await _service(db, current_user).get_all_active()
     return APIResponse(
         success=True,
         message="Active AI prompts retrieved successfully.",
-        data=[AIPromptResponse.model_validate(prompt) for prompt in prompts],
+        data=[AIPromptResponse.model_validate(item) for item in prompts],
     )
 
 
@@ -122,26 +119,22 @@ def get_active_ai_prompts(
     summary="Get AI prompt assignments",
     description="Retrieves all AI prompt assignments.",
 )
-def get_ai_prompt_assignments(
-    _: dict[str, Any] = Depends(
-        require_roles(
+async def get_ai_prompt_assignments(
+    current_user: dict[str, Any] = Depends(
+        require_async_roles(
             UserRole.ADMINISTRATOR,
             UserRole.COMPLIANCE_OFFICER,
             UserRole.REVIEWER,
             resource_type="ai_prompt",
         )
     ),
-    service: AIPromptService = Depends(get_ai_prompt_service),
+    db: AsyncSession = Depends(get_async_db),
 ) -> APIResponse[list[AIPromptAssignmentResponse]]:
-    assignments = service.get_all_assignments()
-
+    assignments = await _service(db, current_user).get_all_assignments()
     return APIResponse(
         success=True,
         message="AI prompt assignments retrieved successfully.",
-        data=[
-            AIPromptAssignmentResponse.model_validate(assignment)
-            for assignment in assignments
-        ],
+        data=[AIPromptAssignmentResponse.model_validate(item) for item in assignments],
     )
 
 
@@ -150,22 +143,21 @@ def get_ai_prompt_assignments(
     response_model=APIResponse[AIPromptAssignmentResponse],
     status_code=status.HTTP_200_OK,
     summary="Get AI prompt assignment",
-    description="Retrieves AI prompt assignment by ID.",
+    description="Retrieves AI prompt assignment by function.",
 )
-def get_ai_prompt_assignment(
+async def get_ai_prompt_assignment(
     ai_function: AIFunction,
-    _: dict[str, Any] = Depends(
-        require_roles(
+    current_user: dict[str, Any] = Depends(
+        require_async_roles(
             UserRole.ADMINISTRATOR,
             UserRole.COMPLIANCE_OFFICER,
             UserRole.REVIEWER,
             resource_type="ai_prompt",
         )
     ),
-    service: AIPromptService = Depends(get_ai_prompt_service),
+    db: AsyncSession = Depends(get_async_db),
 ) -> APIResponse[AIPromptAssignmentResponse]:
-    assignment = service.get_assignment(ai_function)
-
+    assignment = await _service(db, current_user).get_assignment(ai_function)
     return APIResponse(
         success=True,
         message="AI prompt assignment retrieved successfully.",
@@ -180,25 +172,22 @@ def get_ai_prompt_assignment(
     summary="post AI prompt assignment",
     description="Assigns AI prompt.",
 )
-def assign_ai_prompt(
+async def assign_ai_prompt(
     request: Request,
     data: AIPromptAssignmentCreate,
     current_user: dict[str, Any] = Depends(
-        require_roles(
-            UserRole.ADMINISTRATOR,
-            resource_type="ai_prompt",
-        )
+        require_async_roles(UserRole.ADMINISTRATOR, resource_type="ai_prompt")
     ),
-    service: AIPromptService = Depends(get_ai_prompt_service),
+    db: AsyncSession = Depends(get_async_db),
 ) -> APIResponse[AIPromptAssignmentResponse]:
-    assignment = service.assign(
+    ip_address, user_agent = _metadata(request)
+    assignment = await _service(db, current_user).assign(
         data=data,
         user_id=UUID(current_user["sub"]),
         email=current_user["email"],
-        ip_address=(request.client.host if request.client else None),
-        user_agent=request.headers.get("user-agent"),
+        ip_address=ip_address,
+        user_agent=user_agent,
     )
-
     return APIResponse(
         success=True,
         message="AI prompt assigned successfully.",
@@ -213,19 +202,18 @@ def assign_ai_prompt(
     summary="Get AI prompt",
     description="Retrieves AI prompt by ID",
 )
-def get_ai_prompt(
+async def get_ai_prompt(
     prompt_id: UUID,
-    _: dict[str, Any] = Depends(
-        require_roles(
+    current_user: dict[str, Any] = Depends(
+        require_async_roles(
             UserRole.ADMINISTRATOR,
             UserRole.COMPLIANCE_OFFICER,
             resource_type="ai_prompt",
         )
     ),
-    service: AIPromptService = Depends(get_ai_prompt_service),
+    db: AsyncSession = Depends(get_async_db),
 ) -> APIResponse[AIPromptResponse]:
-    prompt = service.get_by_id(prompt_id)
-
+    prompt = await _service(db, current_user).get_by_id(prompt_id)
     return APIResponse(
         success=True,
         message="AI prompt retrieved successfully.",
@@ -240,24 +228,24 @@ def get_ai_prompt(
     summary="Get AI prompt versions",
     description="Retrieves all AI prompt versions.",
 )
-def get_ai_prompt_versions(
+async def get_ai_prompt_versions(
     prompt_id: UUID,
-    _: dict[str, Any] = Depends(
-        require_roles(
+    current_user: dict[str, Any] = Depends(
+        require_async_roles(
             UserRole.ADMINISTRATOR,
             UserRole.COMPLIANCE_OFFICER,
             resource_type="ai_prompt",
         )
     ),
-    service: AIPromptService = Depends(get_ai_prompt_service),
+    db: AsyncSession = Depends(get_async_db),
 ) -> APIResponse[list[AIPromptResponse]]:
-    prompt = service.get_by_id(prompt_id)
-    versions = service.get_versions(prompt.name)
-
+    service = _service(db, current_user)
+    prompt = await service.get_by_id(prompt_id)
+    versions = await service.get_versions(prompt.name)
     return APIResponse(
         success=True,
         message="AI prompt versions retrieved successfully.",
-        data=[AIPromptResponse.model_validate(version) for version in versions],
+        data=[AIPromptResponse.model_validate(item) for item in versions],
     )
 
 
@@ -268,27 +256,24 @@ def get_ai_prompt_versions(
     summary="Post AI prompt version",
     description="Creates AI prompt version.",
 )
-def create_ai_prompt_version(
+async def create_ai_prompt_version(
     request: Request,
     prompt_id: UUID,
     data: AIPromptVersionCreate,
     current_user: dict[str, Any] = Depends(
-        require_roles(
-            UserRole.ADMINISTRATOR,
-            resource_type="ai_prompt",
-        )
+        require_async_roles(UserRole.ADMINISTRATOR, resource_type="ai_prompt")
     ),
-    service: AIPromptService = Depends(get_ai_prompt_service),
+    db: AsyncSession = Depends(get_async_db),
 ) -> APIResponse[AIPromptResponse]:
-    prompt = service.create_version(
+    ip_address, user_agent = _metadata(request)
+    prompt = await _service(db, current_user).create_version(
         prompt_id=prompt_id,
         data=data,
         user_id=UUID(current_user["sub"]),
         email=current_user["email"],
-        ip_address=(request.client.host if request.client else None),
-        user_agent=request.headers.get("user-agent"),
+        ip_address=ip_address,
+        user_agent=user_agent,
     )
-
     return APIResponse(
         success=True,
         message="AI prompt version created successfully.",
@@ -303,27 +288,24 @@ def create_ai_prompt_version(
     summary="Patch AI prompt status",
     description="updates AI prompt status.",
 )
-def update_ai_prompt_status(
+async def update_ai_prompt_status(
     request: Request,
     prompt_id: UUID,
     data: AIPromptStatusUpdate,
     current_user: dict[str, Any] = Depends(
-        require_roles(
-            UserRole.ADMINISTRATOR,
-            resource_type="ai_prompt",
-        )
+        require_async_roles(UserRole.ADMINISTRATOR, resource_type="ai_prompt")
     ),
-    service: AIPromptService = Depends(get_ai_prompt_service),
+    db: AsyncSession = Depends(get_async_db),
 ) -> APIResponse[AIPromptResponse]:
-    prompt = service.update_status(
+    ip_address, user_agent = _metadata(request)
+    prompt = await _service(db, current_user).update_status(
         prompt_id=prompt_id,
         data=data,
         user_id=UUID(current_user["sub"]),
         email=current_user["email"],
-        ip_address=(request.client.host if request.client else None),
-        user_agent=request.headers.get("user-agent"),
+        ip_address=ip_address,
+        user_agent=user_agent,
     )
-
     return APIResponse(
         success=True,
         message="AI prompt status updated successfully.",
