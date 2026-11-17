@@ -84,15 +84,17 @@ class AIPrompt(Base):
 
     __table_args__ = (
         Index(
-            "uq_ai_prompts_active_name",
+            "uq_ai_prompts_active_tenant_name",
+            "tenant_id",
             "name",
             unique=True,
             postgresql_where="status = 'ACTIVE'",
         ),
         UniqueConstraint(
+            "tenant_id",
             "name",
             "version",
-            name="uq_ai_prompts_name_version",
+            name="uq_ai_prompts_tenant_name_version",
         ),
     )
 

@@ -17,6 +17,22 @@ class Settings(BaseSettings):
     # Database. In production use sslmode=verify-full where supported.
     DATABASE_URL: str
     DATABASE_REQUIRE_SSL: bool = True
+    DATABASE_APPLICATION_NAME: str = Field(
+        default="finpilot", min_length=1, max_length=63
+    )
+
+    # Keep the sync and async pools independently configurable. Defaults are
+    # intentionally conservative for the current three-API/four-worker Compose
+    # topology; see docs/database-connection-pools.md before increasing them.
+    DATABASE_SYNC_POOL_SIZE: int = Field(default=3, ge=1, le=100)
+    DATABASE_SYNC_MAX_OVERFLOW: int = Field(default=2, ge=0, le=100)
+    DATABASE_ASYNC_POOL_SIZE: int = Field(default=5, ge=1, le=100)
+    DATABASE_ASYNC_MAX_OVERFLOW: int = Field(default=3, ge=0, le=100)
+    DATABASE_POOL_TIMEOUT_SECONDS: int = Field(default=30, ge=1, le=300)
+    DATABASE_POOL_RECYCLE_SECONDS: int = Field(default=1800, ge=60, le=86400)
+    DATABASE_POOL_PRE_PING: bool = True
+    # Enable only temporarily when diagnosing pool checkout/checkin behavior.
+    DATABASE_POOL_LOGGING: bool = False
 
     # Sandbox configuration
     SANDBOX_ENABLED: bool = False

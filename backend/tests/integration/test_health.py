@@ -1,9 +1,13 @@
+from collections.abc import AsyncGenerator
+from typing import cast
 from uuid import UUID
 
 from sqlalchemy import create_engine, text
+from sqlalchemy.exc import OperationalError
+from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import sessionmaker
 
-from app.core.database import get_db
+from app.core.database import get_async_db, get_db
 from app.main import app
 from tests.conftest import TestSessionLocal
 
@@ -69,7 +73,7 @@ def test_request_ids_are_unique(client):
     assert request_id1 != request_id2
 
 
-def test_readiness_check_database_unavailable(client):
+def test_readiness_check_sync_database_unavailable(client):
     bad_engine = create_engine(
         "postgresql+psycopg://user:123789@localhost:5432/database_that_does_not_exist"
     )
@@ -89,6 +93,7 @@ def test_readiness_check_database_unavailable(client):
         finally:
             db.close()
 
+    original_override = app.dependency_overrides[get_db]
     app.dependency_overrides[get_db] = override_get_db
 
     try:
@@ -104,5 +109,27 @@ def test_readiness_check_database_unavailable(client):
         assert data["data"]["database"] == "unavailable"
 
     finally:
-        app.dependency_overrides.clear()
+        app.dependency_overrides[get_db] = original_override
         bad_engine.dispose()
+
+
+def test_readiness_check_async_database_unavailable(client):
+    class FailingAsyncSession:
+        async def execute(self, statement: object) -> None:
+            raise OperationalError(
+                "SELECT 1", {}, RuntimeError("simulated async database failure")
+            )
+
+    async def override_get_async_db() -> AsyncGenerator[AsyncSession, None]:
+        yield cast(AsyncSession, FailingAsyncSession())
+
+    original_override = app.dependency_overrides[get_async_db]
+    app.dependency_overrides[get_async_db] = override_get_async_db
+
+    try:
+        response = client.get("/ready")
+
+        assert response.status_code == 503
+        assert response.json()["data"]["database"] == "unavailable"
+    finally:
+        app.dependency_overrides[get_async_db] = original_override

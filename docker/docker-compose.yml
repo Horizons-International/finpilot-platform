@@ -31,24 +31,26 @@ services:
   backend:
     <<: *backend-runtime
     image: finpilot-backend:local
-    # The image is built from this repository. Do not try to pull this local tag.
     pull_policy: build
     build:
       context: ..
       dockerfile: docker/Dockerfile
+    environment:
+      DATABASE_APPLICATION_NAME: finpilot-api-1
 
   backend-2:
     <<: *backend-runtime
     image: finpilot-backend:local
-    # This image is built locally by the `backend` service above. Do not try
-    # to pull this development-only tag from a remote registry.
     pull_policy: never
+    environment:
+      DATABASE_APPLICATION_NAME: finpilot-api-2
 
   backend-3:
     <<: *backend-runtime
     image: finpilot-backend:local
-    # Reuse the local image built for `backend`; this is not a published image.
     pull_policy: never
+    environment:
+      DATABASE_APPLICATION_NAME: finpilot-api-3
 
   # HAProxy is the only published HTTP entry point; each backend instance is
   # reached internally on the Compose network.
@@ -77,8 +79,6 @@ services:
     environment:
       POSTGRES_DB: customers
       POSTGRES_USER: user
-      # Development fallback retained for compatibility with the existing .env.
-      # Use a strong secret from an approved secret manager in production.
       POSTGRES_PASSWORD: "${POSTGRES_PASSWORD:-123789}"
     ports:
       - "127.0.0.1:5433:5432"
@@ -112,6 +112,8 @@ services:
       dockerfile: docker/Dockerfile
     env_file:
       - .env
+    environment:
+      DATABASE_APPLICATION_NAME: finpilot-sla-monitor
     command: ["uv", "run", "python", "-m", "app.jobs.sla_monitor"]
     depends_on:
       postgres:
@@ -124,6 +126,8 @@ services:
       dockerfile: docker/Dockerfile
     env_file:
       - .env
+    environment:
+      DATABASE_APPLICATION_NAME: finpilot-analytics-aggregator
     command: ["uv", "run", "python", "-m", "app.jobs.analytics_aggregator"]
     depends_on:
       postgres:
@@ -136,6 +140,8 @@ services:
       dockerfile: docker/Dockerfile
     env_file:
       - .env
+    environment:
+      DATABASE_APPLICATION_NAME: finpilot-report-export-worker
     volumes:
       - finpilot_storage:/app/storage
     command: ["uv", "run", "python", "-m", "app.jobs.report_export_worker"]
@@ -150,6 +156,8 @@ services:
       dockerfile: docker/Dockerfile
     env_file:
       - .env
+    environment:
+      DATABASE_APPLICATION_NAME: finpilot-webhook-delivery-worker
     command: ["uv", "run", "python", "-m", "app.jobs.webhook_delivery_worker"]
     depends_on:
       postgres:
