@@ -14,7 +14,9 @@ from fastapi import (
     UploadFile,
     status,
 )
-from fastapi import File as FastAPIFile
+from fastapi import (
+    File as FastAPIFile,
+)
 from fastapi.responses import Response
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import Session
@@ -43,6 +45,9 @@ from app.schemas.partner_onboarding import (
 )
 from app.services.async_partner_onboarding_document_service import (
     AsyncPartnerOnboardingDocumentService,
+)
+from app.services.async_partner_onboarding_read_service import (
+    AsyncPartnerOnboardingReadService,
 )
 from app.services.partner_onboarding_portal_service import (
     PartnerOnboardingPortalService,
@@ -108,15 +113,15 @@ def create_partner_request(
     response_model=APIResponse[list[PartnerOnboardingResponse]],
     summary="List partner onboarding requests",
 )
-def list_partner_requests(
+async def list_partner_requests(
     onboarding_status: PartnerOnboardingStatus | None = Query(
         default=None, alias="status"
     ),
     assigned_to: UUID | None = Query(default=None),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     _: dict[str, Any] = Depends(require_platform_admin),
 ) -> APIResponse[list[PartnerOnboardingResponse]]:
-    requests = PartnerOnboardingService(db).list_requests(
+    requests = await AsyncPartnerOnboardingReadService(db).list_requests(
         status=onboarding_status,
         assigned_to=assigned_to,
     )
@@ -132,12 +137,12 @@ def list_partner_requests(
     response_model=APIResponse[PartnerOnboardingResponse],
     summary="Get partner onboarding request",
 )
-def get_partner_request(
+async def get_partner_request(
     onboarding_id: UUID,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     _: dict[str, Any] = Depends(require_platform_admin),
 ) -> APIResponse[PartnerOnboardingResponse]:
-    onboarding = PartnerOnboardingService(db).get_request(onboarding_id)
+    onboarding = await AsyncPartnerOnboardingReadService(db).get_request(onboarding_id)
     return APIResponse(
         success=True,
         message="Partner onboarding request retrieved successfully.",
@@ -150,12 +155,14 @@ def get_partner_request(
     response_model=APIResponse[PartnerOnboardingProgressResponse],
     summary="View onboarding progress for internal review",
 )
-def get_internal_partner_progress(
+async def get_internal_partner_progress(
     onboarding_id: UUID,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     _: dict[str, Any] = Depends(require_platform_admin),
 ) -> APIResponse[PartnerOnboardingProgressResponse]:
-    progress = PartnerOnboardingPortalService(db).get_internal_progress(onboarding_id)
+    progress = await AsyncPartnerOnboardingReadService(db).get_internal_progress(
+        onboarding_id
+    )
     return APIResponse(
         success=True,
         message="Partner onboarding progress retrieved successfully.",
@@ -314,12 +321,12 @@ def reject_partner(
     response_model=APIResponse[list[PartnerOnboardingHistoryResponse]],
     summary="Get partner onboarding history",
 )
-def get_partner_history(
+async def get_partner_history(
     onboarding_id: UUID,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     _: dict[str, Any] = Depends(require_platform_admin),
 ) -> APIResponse[list[PartnerOnboardingHistoryResponse]]:
-    history = PartnerOnboardingService(db).get_history(onboarding_id)
+    history = await AsyncPartnerOnboardingReadService(db).get_history(onboarding_id)
     return APIResponse(
         success=True,
         message="Partner onboarding history retrieved successfully.",
@@ -334,16 +341,20 @@ def get_partner_history(
     response_model=APIResponse[list[PartnerOnboardingDocumentResponse]],
     summary="List onboarding evidence for internal review",
 )
-def list_onboarding_documents(
+async def list_onboarding_documents(
     onboarding_id: UUID,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     _: dict[str, Any] = Depends(require_platform_admin),
 ) -> APIResponse[list[PartnerOnboardingDocumentResponse]]:
-    progress = PartnerOnboardingPortalService(db).get_internal_progress(onboarding_id)
+    documents = await AsyncPartnerOnboardingReadService(db).list_documents(
+        onboarding_id
+    )
     return APIResponse(
         success=True,
         message="Partner onboarding documents retrieved successfully.",
-        data=progress.documents,
+        data=[
+            PartnerOnboardingDocumentResponse.model_validate(item) for item in documents
+        ],
     )
 
 
@@ -445,12 +456,12 @@ def create_onboarding_portal(
     response_model=APIResponse[PartnerOnboardingProgressResponse],
     summary="View onboarding progress from the customer portal",
 )
-def get_portal_progress(
+async def get_portal_progress(
     onboarding_id: UUID,
     token: str = Header(alias="X-Onboarding-Token"),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
 ) -> APIResponse[PartnerOnboardingProgressResponse]:
-    progress = PartnerOnboardingPortalService(db).get_portal_progress(
+    progress = await AsyncPartnerOnboardingReadService(db).get_portal_progress(
         onboarding_id, token=token
     )
     return APIResponse(

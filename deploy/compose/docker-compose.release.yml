@@ -1,12 +1,14 @@
 name: finpilot-${FINPILOT_ENVIRONMENT:?Set FINPILOT_ENVIRONMENT}
 
+x-app-environment: &app-environment
+  APP_VERSION: ${RELEASE_TAG:?Set RELEASE_TAG}
+  STORAGE_PATH: /app/storage
+
 x-app-runtime: &app-runtime
   image: ${FINPILOT_IMAGE:?Set FINPILOT_IMAGE}:${RELEASE_TAG:?Set RELEASE_TAG}
   env_file:
     - ${FINPILOT_RUNTIME_ENV_FILE:?Set FINPILOT_RUNTIME_ENV_FILE to an absolute path}
-  environment:
-    APP_VERSION: ${RELEASE_TAG:?Set RELEASE_TAG}
-    STORAGE_PATH: /app/storage
+  environment: *app-environment
   volumes:
     - finpilot_storage:/app/storage
   restart: unless-stopped
@@ -26,12 +28,21 @@ x-app-runtime: &app-runtime
 services:
   backend:
     <<: *app-runtime
+    environment:
+      <<: *app-environment
+      DATABASE_APPLICATION_NAME: finpilot-api-1
 
   backend-2:
     <<: *app-runtime
+    environment:
+      <<: *app-environment
+      DATABASE_APPLICATION_NAME: finpilot-api-2
 
   backend-3:
     <<: *app-runtime
+    environment:
+      <<: *app-environment
+      DATABASE_APPLICATION_NAME: finpilot-api-3
 
   haproxy:
     image: haproxy:3.2-alpine
@@ -55,6 +66,9 @@ services:
   sla-monitor:
     <<: *app-runtime
     profiles: [workers]
+    environment:
+      <<: *app-environment
+      DATABASE_APPLICATION_NAME: finpilot-sla-monitor
     healthcheck:
       disable: true
     command: ["uv", "run", "python", "-m", "app.jobs.sla_monitor"]
@@ -62,6 +76,9 @@ services:
   analytics-aggregator:
     <<: *app-runtime
     profiles: [workers]
+    environment:
+      <<: *app-environment
+      DATABASE_APPLICATION_NAME: finpilot-analytics-aggregator
     healthcheck:
       disable: true
     command: ["uv", "run", "python", "-m", "app.jobs.analytics_aggregator"]
@@ -69,6 +86,9 @@ services:
   report-export-worker:
     <<: *app-runtime
     profiles: [workers]
+    environment:
+      <<: *app-environment
+      DATABASE_APPLICATION_NAME: finpilot-report-export-worker
     healthcheck:
       disable: true
     command: ["uv", "run", "python", "-m", "app.jobs.report_export_worker"]
@@ -76,6 +96,9 @@ services:
   webhook-delivery-worker:
     <<: *app-runtime
     profiles: [workers]
+    environment:
+      <<: *app-environment
+      DATABASE_APPLICATION_NAME: finpilot-webhook-delivery-worker
     healthcheck:
       disable: true
     command: ["uv", "run", "python", "-m", "app.jobs.webhook_delivery_worker"]

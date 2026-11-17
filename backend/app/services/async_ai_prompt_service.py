@@ -310,8 +310,7 @@ class AsyncAIPromptService:
         except IntegrityError as exc:
             await self.db.rollback()
             raise bad_request(
-                "This AI function is already assigned or the "
-                "assignment conflicts with another tenant."
+                "This AI function already has an assignment for this tenant."
             ) from exc
         except Exception:
             await self.db.rollback()

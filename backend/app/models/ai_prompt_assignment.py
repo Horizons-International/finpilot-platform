@@ -36,7 +36,6 @@ class AIPromptAssignment(Base):
             create_constraint=True,
         ),
         nullable=False,
-        unique=True,
         index=True,
     )
 
@@ -59,7 +58,8 @@ class AIPromptAssignment(Base):
 
     __table_args__ = (
         UniqueConstraint(
+            "tenant_id",
             "ai_function",
-            name="uq_ai_prompt_assignments_function",
+            name="uq_ai_prompt_assignments_tenant_function",
         ),
     )

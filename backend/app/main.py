@@ -87,6 +87,7 @@ from app.api.verification_reports import router as verification_reports_router
 from app.api.verification_reviews import router as verification_reviews_router
 from app.api.webhooks import router as webhooks_router
 from app.api.workflows import router as workflows_router
+from app.core.async_security import get_async_current_user
 from app.core.config import settings
 from app.core.data_protection_startup import validate_data_protection_environment
 from app.core.database import async_engine, engine
@@ -99,7 +100,6 @@ from app.core.exceptions import (
 )
 from app.core.logger import get_logger, setup_logging
 from app.core.responses import APIResponse
-from app.core.security import get_current_user
 from app.core.tenant_filter import install_tenant_filter
 from app.middleware.api_key_usage import APIKeyUsageMiddleware
 from app.middleware.audit_access import AuditAccessMiddleware
@@ -237,7 +237,9 @@ app.add_exception_handler(Exception, unexpected_exception_handler)
     summary="Get current user",
     description="Returns the profile information of the currently authenticated user.",
 )
-def get_me(current_user: User = Depends(get_current_user)):
+async def get_me(
+    current_user: User = Depends(get_async_current_user),
+) -> APIResponse[MeResponse]:
     return APIResponse(
         success=True,
         message="User profile retrieved successfully.",
