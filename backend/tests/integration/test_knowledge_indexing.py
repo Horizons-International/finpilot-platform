@@ -99,19 +99,6 @@ def create_file(
     return file_record
 
 
-async def awaitable_index(
-    indexing_service,
-    document_id,
-    user_id,
-    email,
-):
-    return await indexing_service.index_document(
-        document_id=document_id,
-        user_id=user_id,
-        email=email,
-    )
-
-
 @pytest.mark.anyio
 async def test_index_active_knowledge_document(
     db_session,
@@ -146,7 +133,7 @@ async def test_index_active_knowledge_document(
         headers={"content-type": "text/plain"},
     )
 
-    file_record = await file_service.upload_file(
+    file_record = file_service.upload_file(
         file=upload,
         uploaded_by=user.id,
         email=user.email,
@@ -179,7 +166,7 @@ async def test_index_active_knowledge_document(
         tenant_id=user.tenant_id,
     )
 
-    chunks = await indexing_service.index_document(
+    chunks = indexing_service.index_document(
         document_id=document.id,
         user_id=user.id,
         email=user.email,
@@ -274,7 +261,7 @@ async def test_inactive_document_cannot_be_indexed(
     )
 
     with pytest.raises(HTTPException) as exc_info:
-        await indexing_service.index_document(
+        indexing_service.index_document(
             document_id=document.id,
             user_id=user.id,
             email=user.email,
@@ -316,7 +303,7 @@ async def test_indexing_missing_document_returns_404(
     )
 
     with pytest.raises(HTTPException) as exc_info:
-        await indexing_service.index_document(
+        indexing_service.index_document(
             document_id=UUID("00000000-0000-0000-0000-000000000000"),
             user_id=user.id,
             email=user.email,
@@ -366,7 +353,7 @@ async def test_indexing_invalid_file_reference_returns_400(
     )
 
     with pytest.raises(HTTPException) as exc_info:
-        await indexing_service.index_document(
+        indexing_service.index_document(
             document_id=document.id,
             user_id=user.id,
             email=user.email,
@@ -402,7 +389,7 @@ async def test_indexing_does_not_create_file_download_audit(
         headers={"content-type": "text/plain"},
     )
 
-    file_record = await file_service.upload_file(
+    file_record = file_service.upload_file(
         file=upload,
         uploaded_by=user.id,
         email=user.email,
@@ -433,7 +420,7 @@ async def test_indexing_does_not_create_file_download_audit(
         tenant_id=user.tenant_id,
     )
 
-    await indexing_service.index_document(
+    indexing_service.index_document(
         document_id=document.id,
         user_id=user.id,
         email=user.email,

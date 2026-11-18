@@ -1,4 +1,4 @@
-from unittest.mock import patch
+from unittest.mock import AsyncMock, patch
 
 from app.schemas.rag import RetrievalResult
 from app.utils.enums import KnowledgeDocumentCategory, UserRole
@@ -13,7 +13,7 @@ class FakeRegulatoryRetrievalService:
         self.last_category: KnowledgeDocumentCategory | None = None
         self.last_categories: set[KnowledgeDocumentCategory] | None = None
 
-    def retrieve(
+    async def retrieve(
         self,
         query: str,
         limit: int = 5,
@@ -53,7 +53,7 @@ def test_regulatory_question_returns_grounded_sources(
     )
     fake_retrieval = FakeRegulatoryRetrievalService([evidence])
     with patch(
-        "app.core.dependencies.RetrievalService",
+        "app.core.async_ai_assistant_dependencies.AsyncRetrievalService",
         return_value=fake_retrieval,
     ):
         response = client.post(
@@ -93,7 +93,7 @@ def test_regulatory_search_returns_sources_without_generating_answer(
     fake_retrieval = FakeRegulatoryRetrievalService([evidence])
 
     with patch(
-        "app.core.dependencies.RetrievalService",
+        "app.core.async_ai_assistant_dependencies.AsyncRetrievalService",
         return_value=fake_retrieval,
     ):
         response = client.post(
@@ -128,12 +128,14 @@ def test_regulatory_assistant_abstains_when_no_sources_are_found(
 
     with (
         patch(
-            "app.core.dependencies.RetrievalService",
+            "app.core.async_ai_assistant_dependencies.AsyncRetrievalService",
             return_value=fake_retrieval,
         ),
         patch(
-            "app.services.regulatory_assistant_service.AIService.generate",
-            side_effect=AssertionError("AI must not answer without evidence."),
+            "app.ai.services.async_ai_service.AsyncAIService.generate",
+            new=AsyncMock(
+                side_effect=AssertionError("AI must not answer without evidence.")
+            ),
         ),
     ):
         response = client.post(

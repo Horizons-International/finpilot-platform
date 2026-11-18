@@ -1,20 +1,13 @@
-"""API endpoints for enterprise implementation workspaces.
-
-Read endpoints use AsyncSession. The existing synchronous write service remains
-in place because its cross-tenant authorization and transaction-context switching
-need to remain aligned with the established write-path safeguards.
-"""
+"""Native-async API endpoints for enterprise implementation workspaces."""
 
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query, Response, status
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import Session
 
 from app.core.async_security import get_async_current_user
-from app.core.database import get_async_db, get_db
+from app.core.database import get_async_db
 from app.core.responses import APIResponse
-from app.core.security import get_current_user
 from app.models.user import User
 from app.schemas.implementation_workspace import (
     ImplementationWorkspaceCommentCreate,
@@ -34,10 +27,9 @@ from app.schemas.implementation_workspace import (
     ImplementationWorkspaceTaskUpdate,
     ImplementationWorkspaceUpdate,
 )
-from app.services.async_implementation_workspace_read_service import (
-    AsyncImplementationWorkspaceReadService,
+from app.services.async_implementation_workspace_service import (
+    AsyncImplementationWorkspaceService,
 )
-from app.services.implementation_workspace_service import ImplementationWorkspaceService
 
 router = APIRouter(
     prefix="/api/v1/implementation-workspaces",
@@ -45,12 +37,8 @@ router = APIRouter(
 )
 
 
-def _service(db: Session) -> ImplementationWorkspaceService:
-    return ImplementationWorkspaceService(db)
-
-
-def _read_service(db: AsyncSession) -> AsyncImplementationWorkspaceReadService:
-    return AsyncImplementationWorkspaceReadService(db)
+def _service(db: AsyncSession) -> AsyncImplementationWorkspaceService:
+    return AsyncImplementationWorkspaceService(db)
 
 
 @router.post(
@@ -59,12 +47,12 @@ def _read_service(db: AsyncSession) -> AsyncImplementationWorkspaceReadService:
     status_code=status.HTTP_201_CREATED,
     summary="Create an enterprise implementation workspace",
 )
-def create_workspace(
+async def create_workspace(
     payload: ImplementationWorkspaceCreate,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_async_db),
+    current_user: User = Depends(get_async_current_user),
 ) -> APIResponse[ImplementationWorkspaceResponse]:
-    workspace = _service(db).create_workspace(payload, current_user)
+    workspace = await _service(db).create_workspace(payload, current_user)
     return APIResponse(
         success=True,
         message="Implementation workspace created successfully.",
@@ -81,7 +69,7 @@ async def list_workspaces(
     db: AsyncSession = Depends(get_async_db),
     current_user: User = Depends(get_async_current_user),
 ) -> APIResponse[list[ImplementationWorkspaceResponse]]:
-    workspaces = await _read_service(db).list_workspaces(current_user.id)
+    workspaces = await _service(db).list_workspaces(current_user.id)
     return APIResponse(
         success=True,
         message="Implementation workspaces retrieved successfully.",
@@ -101,7 +89,7 @@ async def get_workspace(
     db: AsyncSession = Depends(get_async_db),
     current_user: User = Depends(get_async_current_user),
 ) -> APIResponse[ImplementationWorkspaceDetailResponse]:
-    workspace = await _read_service(db).get_workspace(workspace_id, current_user.id)
+    workspace = await _service(db).get_workspace(workspace_id, current_user.id)
     return APIResponse(
         success=True,
         message="Implementation workspace retrieved successfully.",
@@ -114,13 +102,15 @@ async def get_workspace(
     response_model=APIResponse[ImplementationWorkspaceResponse],
     summary="Update timeline and implementation-area status",
 )
-def update_workspace(
+async def update_workspace(
     workspace_id: UUID,
     payload: ImplementationWorkspaceUpdate,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_async_db),
+    current_user: User = Depends(get_async_current_user),
 ) -> APIResponse[ImplementationWorkspaceResponse]:
-    workspace = _service(db).update_workspace(workspace_id, current_user.id, payload)
+    workspace = await _service(db).update_workspace(
+        workspace_id, current_user.id, payload
+    )
     return APIResponse(
         success=True,
         message="Implementation workspace updated successfully.",
@@ -133,13 +123,13 @@ def update_workspace(
     response_model=APIResponse[ImplementationWorkspaceResponse],
     summary="Advance the implementation workflow to the next stage",
 )
-def update_workspace_stage(
+async def update_workspace_stage(
     workspace_id: UUID,
     payload: ImplementationWorkspaceStageUpdate,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_async_db),
+    current_user: User = Depends(get_async_current_user),
 ) -> APIResponse[ImplementationWorkspaceResponse]:
-    workspace = _service(db).update_stage(workspace_id, current_user.id, payload)
+    workspace = await _service(db).update_stage(workspace_id, current_user.id, payload)
     return APIResponse(
         success=True,
         message="Implementation stage updated successfully.",
@@ -157,7 +147,7 @@ async def list_members(
     db: AsyncSession = Depends(get_async_db),
     current_user: User = Depends(get_async_current_user),
 ) -> APIResponse[list[ImplementationWorkspaceMemberResponse]]:
-    members = await _read_service(db).list_members(workspace_id, current_user.id)
+    members = await _service(db).list_members(workspace_id, current_user.id)
     return APIResponse(
         success=True,
         message="Workspace members retrieved successfully.",
@@ -174,13 +164,13 @@ async def list_members(
     status_code=status.HTTP_201_CREATED,
     summary="Add a collaborator from the internal or customer tenant",
 )
-def add_member(
+async def add_member(
     workspace_id: UUID,
     payload: ImplementationWorkspaceMemberCreate,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_async_db),
+    current_user: User = Depends(get_async_current_user),
 ) -> APIResponse[ImplementationWorkspaceMemberResponse]:
-    member = _service(db).add_member(workspace_id, current_user.id, payload)
+    member = await _service(db).add_member(workspace_id, current_user.id, payload)
     return APIResponse(
         success=True,
         message="Workspace member added successfully.",
@@ -193,13 +183,13 @@ def add_member(
     status_code=status.HTTP_204_NO_CONTENT,
     summary="Remove a collaborator from a workspace",
 )
-def remove_member(
+async def remove_member(
     workspace_id: UUID,
     member_user_id: UUID,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_async_db),
+    current_user: User = Depends(get_async_current_user),
 ) -> Response:
-    _service(db).remove_member(workspace_id, current_user.id, member_user_id)
+    await _service(db).remove_member(workspace_id, current_user.id, member_user_id)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
@@ -209,13 +199,15 @@ def remove_member(
     status_code=status.HTTP_201_CREATED,
     summary="Create a dated implementation milestone",
 )
-def create_milestone(
+async def create_milestone(
     workspace_id: UUID,
     payload: ImplementationWorkspaceMilestoneCreate,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_async_db),
+    current_user: User = Depends(get_async_current_user),
 ) -> APIResponse[ImplementationWorkspaceMilestoneResponse]:
-    milestone = _service(db).create_milestone(workspace_id, current_user.id, payload)
+    milestone = await _service(db).create_milestone(
+        workspace_id, current_user.id, payload
+    )
     return APIResponse(
         success=True,
         message="Implementation milestone created successfully.",
@@ -228,14 +220,14 @@ def create_milestone(
     response_model=APIResponse[ImplementationWorkspaceMilestoneResponse],
     summary="Update milestone owner, due date, or status",
 )
-def update_milestone(
+async def update_milestone(
     workspace_id: UUID,
     milestone_id: UUID,
     payload: ImplementationWorkspaceMilestoneUpdate,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_async_db),
+    current_user: User = Depends(get_async_current_user),
 ) -> APIResponse[ImplementationWorkspaceMilestoneResponse]:
-    milestone = _service(db).update_milestone(
+    milestone = await _service(db).update_milestone(
         workspace_id, milestone_id, current_user.id, payload
     )
     return APIResponse(
@@ -258,7 +250,7 @@ async def list_tasks(
     db: AsyncSession = Depends(get_async_db),
     current_user: User = Depends(get_async_current_user),
 ) -> APIResponse[list[ImplementationWorkspaceTaskResponse]]:
-    tasks = await _read_service(db).list_tasks(workspace_id, current_user.id)
+    tasks = await _service(db).list_tasks(workspace_id, current_user.id)
     if category is not None:
         tasks = [task for task in tasks if task.category == category]
     return APIResponse(
@@ -276,13 +268,13 @@ async def list_tasks(
     status_code=status.HTTP_201_CREATED,
     summary="Create and optionally assign a project, technical, or business task",
 )
-def create_task(
+async def create_task(
     workspace_id: UUID,
     payload: ImplementationWorkspaceTaskCreate,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_async_db),
+    current_user: User = Depends(get_async_current_user),
 ) -> APIResponse[ImplementationWorkspaceTaskResponse]:
-    task = _service(db).create_task(workspace_id, current_user.id, payload)
+    task = await _service(db).create_task(workspace_id, current_user.id, payload)
     return APIResponse(
         success=True,
         message="Implementation task created successfully.",
@@ -295,14 +287,16 @@ def create_task(
     response_model=APIResponse[ImplementationWorkspaceTaskResponse],
     summary="Assign a task or update its category, priority, or progress",
 )
-def update_task(
+async def update_task(
     workspace_id: UUID,
     task_id: UUID,
     payload: ImplementationWorkspaceTaskUpdate,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_async_db),
+    current_user: User = Depends(get_async_current_user),
 ) -> APIResponse[ImplementationWorkspaceTaskResponse]:
-    task = _service(db).update_task(workspace_id, task_id, current_user.id, payload)
+    task = await _service(db).update_task(
+        workspace_id, task_id, current_user.id, payload
+    )
     return APIResponse(
         success=True,
         message="Implementation task updated successfully.",
@@ -321,9 +315,7 @@ async def list_comments(
     db: AsyncSession = Depends(get_async_db),
     current_user: User = Depends(get_async_current_user),
 ) -> APIResponse[ImplementationWorkspaceCommentListResponse]:
-    comments = await _read_service(db).list_comments(
-        workspace_id, current_user.id, task_id
-    )
+    comments = await _service(db).list_comments(workspace_id, current_user.id, task_id)
     return APIResponse(
         success=True,
         message="Workspace comments retrieved successfully.",
@@ -343,13 +335,13 @@ async def list_comments(
     status_code=status.HTTP_201_CREATED,
     summary="Post a collaboration comment",
 )
-def add_comment(
+async def add_comment(
     workspace_id: UUID,
     payload: ImplementationWorkspaceCommentCreate,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_async_db),
+    current_user: User = Depends(get_async_current_user),
 ) -> APIResponse[ImplementationWorkspaceCommentResponse]:
-    comment = _service(db).add_comment(workspace_id, current_user.id, payload)
+    comment = await _service(db).add_comment(workspace_id, current_user.id, payload)
     return APIResponse(
         success=True,
         message="Workspace comment added successfully.",

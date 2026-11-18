@@ -1,4 +1,9 @@
-"""Public self-service partner onboarding and platform-admin review APIs."""
+"""Public self-service partner onboarding and platform-admin review APIs.
+
+Database-backed writes use AsyncSession. File download remains synchronous because
+it reads a local storage path; document upload continues to use its dedicated async
+service, which moves blocking filesystem I/O to the thread pool.
+"""
 
 from typing import Any
 from urllib.parse import quote
@@ -21,6 +26,7 @@ from fastapi.responses import Response
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import Session
 
+from app.core.async_security import require_async_platform_admin
 from app.core.database import get_async_db, get_db
 from app.core.responses import APIResponse
 from app.core.security import require_platform_admin
@@ -49,10 +55,13 @@ from app.services.async_partner_onboarding_document_service import (
 from app.services.async_partner_onboarding_read_service import (
     AsyncPartnerOnboardingReadService,
 )
+from app.services.async_partner_onboarding_write_service import (
+    AsyncPartnerOnboardingPortalWriteService,
+    AsyncPartnerOnboardingWriteService,
+)
 from app.services.partner_onboarding_portal_service import (
     PartnerOnboardingPortalService,
 )
-from app.services.partner_onboarding_service import PartnerOnboardingService
 from app.utils.enums import PartnerOnboardingStatus
 
 router = APIRouter(
@@ -82,7 +91,7 @@ def _actor_arguments(
 
 
 # ---------------------------------------------------------------------------
-# Existing platform-managed onboarding endpoints (backward compatible)
+# Platform-managed onboarding queue
 # ---------------------------------------------------------------------------
 
 
@@ -96,11 +105,11 @@ def _actor_arguments(
         "customer portals should use POST /api/v1/partner-onboarding/portal."
     ),
 )
-def create_partner_request(
+async def create_partner_request(
     payload: PartnerOnboardingCreate,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
 ) -> APIResponse[PartnerOnboardingResponse]:
-    onboarding = PartnerOnboardingService(db).create_request(payload)
+    onboarding = await AsyncPartnerOnboardingWriteService(db).create_request(payload)
     return APIResponse(
         success=True,
         message="Partner onboarding request submitted successfully.",
@@ -119,7 +128,7 @@ async def list_partner_requests(
     ),
     assigned_to: UUID | None = Query(default=None),
     db: AsyncSession = Depends(get_async_db),
-    _: dict[str, Any] = Depends(require_platform_admin),
+    _: dict[str, Any] = Depends(require_async_platform_admin),
 ) -> APIResponse[list[PartnerOnboardingResponse]]:
     requests = await AsyncPartnerOnboardingReadService(db).list_requests(
         status=onboarding_status,
@@ -140,7 +149,7 @@ async def list_partner_requests(
 async def get_partner_request(
     onboarding_id: UUID,
     db: AsyncSession = Depends(get_async_db),
-    _: dict[str, Any] = Depends(require_platform_admin),
+    _: dict[str, Any] = Depends(require_async_platform_admin),
 ) -> APIResponse[PartnerOnboardingResponse]:
     onboarding = await AsyncPartnerOnboardingReadService(db).get_request(onboarding_id)
     return APIResponse(
@@ -158,7 +167,7 @@ async def get_partner_request(
 async def get_internal_partner_progress(
     onboarding_id: UUID,
     db: AsyncSession = Depends(get_async_db),
-    _: dict[str, Any] = Depends(require_platform_admin),
+    _: dict[str, Any] = Depends(require_async_platform_admin),
 ) -> APIResponse[PartnerOnboardingProgressResponse]:
     progress = await AsyncPartnerOnboardingReadService(db).get_internal_progress(
         onboarding_id
@@ -175,14 +184,16 @@ async def get_internal_partner_progress(
     response_model=APIResponse[PartnerOnboardingResponse],
     summary="Update partner business information as platform staff",
 )
-def update_business_information(
+async def update_business_information(
     onboarding_id: UUID,
     payload: PartnerBusinessInformationUpdate,
     request: Request,
-    db: Session = Depends(get_db),
-    current_user: dict[str, Any] = Depends(require_platform_admin),
+    db: AsyncSession = Depends(get_async_db),
+    current_user: dict[str, Any] = Depends(require_async_platform_admin),
 ) -> APIResponse[PartnerOnboardingResponse]:
-    onboarding = PartnerOnboardingService(db).update_business_information(
+    onboarding = await AsyncPartnerOnboardingWriteService(
+        db
+    ).update_business_information(
         onboarding_id=onboarding_id,
         data=payload,
         **_actor_arguments(request, current_user),
@@ -199,14 +210,14 @@ def update_business_information(
     response_model=APIResponse[PartnerOnboardingResponse],
     summary="Assign an internal reviewer",
 )
-def assign_partner_reviewer(
+async def assign_partner_reviewer(
     onboarding_id: UUID,
     payload: PartnerOnboardingAssignment,
     request: Request,
-    db: Session = Depends(get_db),
-    current_user: dict[str, Any] = Depends(require_platform_admin),
+    db: AsyncSession = Depends(get_async_db),
+    current_user: dict[str, Any] = Depends(require_async_platform_admin),
 ) -> APIResponse[PartnerOnboardingResponse]:
-    onboarding = PartnerOnboardingService(db).assign_reviewer(
+    onboarding = await AsyncPartnerOnboardingWriteService(db).assign_reviewer(
         onboarding_id=onboarding_id,
         assigned_to=payload.assigned_to,
         **_actor_arguments(request, current_user),
@@ -223,18 +234,14 @@ def assign_partner_reviewer(
     response_model=APIResponse[PartnerOnboardingResponse],
     summary="Advance partner onboarding to the next workflow stage",
 )
-def advance_partner_stage(
+async def advance_partner_stage(
     onboarding_id: UUID,
     payload: PartnerOnboardingAction,
     request: Request,
-    db: Session = Depends(get_db),
-    current_user: dict[str, Any] = Depends(require_platform_admin),
+    db: AsyncSession = Depends(get_async_db),
+    current_user: dict[str, Any] = Depends(require_async_platform_admin),
 ) -> APIResponse[PartnerOnboardingResponse]:
-    service = PartnerOnboardingService(db)
-    onboarding = service.get_request(onboarding_id)
-    if onboarding.portal_token_hash:
-        PartnerOnboardingPortalService(db).ensure_can_advance(onboarding_id)
-    onboarding = service.advance_stage(
+    onboarding = await AsyncPartnerOnboardingWriteService(db).advance_stage(
         onboarding_id=onboarding_id,
         notes=payload.notes,
         **_actor_arguments(request, current_user),
@@ -251,18 +258,18 @@ def advance_partner_stage(
     response_model=APIResponse[PartnerOnboardingActivationResponse],
     summary="Approve and activate a partner",
 )
-def approve_partner(
+async def approve_partner(
     onboarding_id: UUID,
     payload: PartnerOnboardingAction,
     request: Request,
-    db: Session = Depends(get_db),
-    current_user: dict[str, Any] = Depends(require_platform_admin),
+    db: AsyncSession = Depends(get_async_db),
+    current_user: dict[str, Any] = Depends(require_async_platform_admin),
 ) -> APIResponse[PartnerOnboardingActivationResponse]:
-    service = PartnerOnboardingService(db)
-    current = service.get_request(onboarding_id)
+    service = AsyncPartnerOnboardingWriteService(db)
+    current = await service.get_request(onboarding_id)
     actor = _actor_arguments(request, current_user)
     if current.portal_token_hash:
-        onboarding, raw_api_key = PartnerOnboardingPortalService(
+        onboarding, raw_api_key = await AsyncPartnerOnboardingPortalWriteService(
             db
         ).activate_and_issue_credentials(
             onboarding_id=onboarding_id,
@@ -270,7 +277,7 @@ def approve_partner(
             **actor,
         )
     else:
-        onboarding = service.approve_and_activate(
+        onboarding = await service.approve_and_activate(
             onboarding_id=onboarding_id,
             notes=payload.notes,
             **actor,
@@ -297,14 +304,14 @@ def approve_partner(
     response_model=APIResponse[PartnerOnboardingResponse],
     summary="Reject a partner onboarding request",
 )
-def reject_partner(
+async def reject_partner(
     onboarding_id: UUID,
     payload: PartnerOnboardingReject,
     request: Request,
-    db: Session = Depends(get_db),
-    current_user: dict[str, Any] = Depends(require_platform_admin),
+    db: AsyncSession = Depends(get_async_db),
+    current_user: dict[str, Any] = Depends(require_async_platform_admin),
 ) -> APIResponse[PartnerOnboardingResponse]:
-    onboarding = PartnerOnboardingService(db).reject(
+    onboarding = await AsyncPartnerOnboardingWriteService(db).reject(
         onboarding_id=onboarding_id,
         reason=payload.reason,
         **_actor_arguments(request, current_user),
@@ -324,7 +331,7 @@ def reject_partner(
 async def get_partner_history(
     onboarding_id: UUID,
     db: AsyncSession = Depends(get_async_db),
-    _: dict[str, Any] = Depends(require_platform_admin),
+    _: dict[str, Any] = Depends(require_async_platform_admin),
 ) -> APIResponse[list[PartnerOnboardingHistoryResponse]]:
     history = await AsyncPartnerOnboardingReadService(db).get_history(onboarding_id)
     return APIResponse(
@@ -344,7 +351,7 @@ async def get_partner_history(
 async def list_onboarding_documents(
     onboarding_id: UUID,
     db: AsyncSession = Depends(get_async_db),
-    _: dict[str, Any] = Depends(require_platform_admin),
+    _: dict[str, Any] = Depends(require_async_platform_admin),
 ) -> APIResponse[list[PartnerOnboardingDocumentResponse]]:
     documents = await AsyncPartnerOnboardingReadService(db).list_documents(
         onboarding_id
@@ -368,6 +375,7 @@ def download_onboarding_document(
     db: Session = Depends(get_db),
     _: dict[str, Any] = Depends(require_platform_admin),
 ) -> Response:
+    # Keep file I/O in the synchronous route; no AsyncSession is involved here.
     path, document = PartnerOnboardingPortalService(db).document_storage_path(
         onboarding_id, document_id
     )
@@ -390,15 +398,15 @@ def download_onboarding_document(
     response_model=APIResponse[PartnerOnboardingDocumentResponse],
     summary="Approve or reject an onboarding document",
 )
-def review_onboarding_document(
+async def review_onboarding_document(
     onboarding_id: UUID,
     document_id: UUID,
     payload: PartnerOnboardingDocumentReview,
     request: Request,
-    db: Session = Depends(get_db),
-    current_user: dict[str, Any] = Depends(require_platform_admin),
+    db: AsyncSession = Depends(get_async_db),
+    current_user: dict[str, Any] = Depends(require_async_platform_admin),
 ) -> APIResponse[PartnerOnboardingDocumentResponse]:
-    document = PartnerOnboardingPortalService(db).review_document(
+    document = await AsyncPartnerOnboardingPortalWriteService(db).review_document(
         onboarding_id=onboarding_id,
         document_id=document_id,
         review_status=payload.review_status,
@@ -413,8 +421,7 @@ def review_onboarding_document(
 
 
 # ---------------------------------------------------------------------------
-# Self-service customer portal. These routes use X-Onboarding-Token rather than
-# a user JWT because the prospective bank does not have a tenant/user account yet.
+# Self-service portal. These endpoints use X-Onboarding-Token rather than a JWT.
 # ---------------------------------------------------------------------------
 
 
@@ -424,15 +431,15 @@ def review_onboarding_document(
     status_code=status.HTTP_201_CREATED,
     summary="Create a self-service onboarding portal for a bank",
 )
-def create_onboarding_portal(
+async def create_onboarding_portal(
     payload: PartnerOnboardingCreate,
     request: Request,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
 ) -> APIResponse[PartnerOnboardingPortalCreatedResponse]:
     ip_address, user_agent = _metadata(request)
-    onboarding, portal_token = PartnerOnboardingPortalService(db).create_portal_request(
-        payload, ip_address=ip_address, user_agent=user_agent
-    )
+    onboarding, portal_token = await AsyncPartnerOnboardingPortalWriteService(
+        db
+    ).create_portal_request(payload, ip_address=ip_address, user_agent=user_agent)
     token_expires_at = onboarding.portal_token_expires_at
     if token_expires_at is None:
         raise RuntimeError("Portal token expiry was not set during request creation.")
@@ -476,15 +483,17 @@ async def get_portal_progress(
     response_model=APIResponse[PartnerOnboardingResponse],
     summary="Update company business information from the customer portal",
 )
-def update_portal_business_information(
+async def update_portal_business_information(
     onboarding_id: UUID,
     payload: PartnerBusinessInformationUpdate,
     request: Request,
     token: str = Header(alias="X-Onboarding-Token"),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
 ) -> APIResponse[PartnerOnboardingResponse]:
     ip_address, user_agent = _metadata(request)
-    onboarding = PartnerOnboardingPortalService(db).update_business_information(
+    onboarding = await AsyncPartnerOnboardingPortalWriteService(
+        db
+    ).update_business_information_with_portal_token(
         onboarding_id=onboarding_id,
         token=token,
         data=payload,
@@ -504,15 +513,15 @@ def update_portal_business_information(
     status_code=status.HTTP_201_CREATED,
     summary="Nominate an organization administrator",
 )
-def add_portal_administrator(
+async def add_portal_administrator(
     onboarding_id: UUID,
     payload: PartnerOnboardingAdministratorCreate,
     request: Request,
     token: str = Header(alias="X-Onboarding-Token"),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
 ) -> APIResponse[PartnerOnboardingAdministratorCreatedResponse]:
     ip_address, user_agent = _metadata(request)
-    administrator, invitation_token = PartnerOnboardingPortalService(
+    administrator, invitation_token = await AsyncPartnerOnboardingPortalWriteService(
         db
     ).add_administrator(
         onboarding_id=onboarding_id,
@@ -572,15 +581,17 @@ async def upload_portal_document(
     response_model=APIResponse[PartnerOnboardingResponse],
     summary="Save technical integration setup",
 )
-def update_portal_technical_setup(
+async def update_portal_technical_setup(
     onboarding_id: UUID,
     payload: PartnerTechnicalSetupUpdate,
     request: Request,
     token: str = Header(alias="X-Onboarding-Token"),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
 ) -> APIResponse[PartnerOnboardingResponse]:
     ip_address, user_agent = _metadata(request)
-    onboarding = PartnerOnboardingPortalService(db).save_technical_setup(
+    onboarding = await AsyncPartnerOnboardingPortalWriteService(
+        db
+    ).save_technical_setup(
         onboarding_id=onboarding_id,
         token=token,
         data=payload,
@@ -599,21 +610,23 @@ def update_portal_technical_setup(
     response_model=APIResponse[PartnerOnboardingPortalSubmitResponse],
     summary="Submit onboarding for internal review",
 )
-def submit_portal_onboarding(
+async def submit_portal_onboarding(
     onboarding_id: UUID,
     request: Request,
     token: str = Header(alias="X-Onboarding-Token"),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
 ) -> APIResponse[PartnerOnboardingPortalSubmitResponse]:
     ip_address, user_agent = _metadata(request)
-    service = PartnerOnboardingPortalService(db)
-    onboarding = service.submit_for_review(
+    service = AsyncPartnerOnboardingPortalWriteService(db)
+    onboarding = await service.submit_for_review(
         onboarding_id=onboarding_id,
         token=token,
         ip_address=ip_address,
         user_agent=user_agent,
     )
-    progress = service.get_portal_progress(onboarding_id, token=token)
+    progress = await AsyncPartnerOnboardingReadService(db).get_portal_progress(
+        onboarding_id, token=token
+    )
     return APIResponse(
         success=True,
         message="Onboarding submitted for internal review.",

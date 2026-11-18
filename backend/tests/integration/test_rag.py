@@ -329,7 +329,7 @@ async def test_embedding_failure_rolls_back_chunks(
     )
 
     with pytest.raises(RuntimeError):
-        await service.index_document(
+        service.index_document(
             document_id=document.id,
             user_id=admin.id,
             email=admin.email,
@@ -397,7 +397,7 @@ async def test_failed_reindex_does_not_leave_partial_chunks(
         tenant_id=admin.tenant_id,
     )
 
-    await service.index_document(
+    service.index_document(
         document_id=document.id,
         user_id=admin.id,
         email=admin.email,
@@ -423,7 +423,7 @@ async def test_failed_reindex_does_not_leave_partial_chunks(
     )
 
     with pytest.raises(RuntimeError):
-        await service.index_document(
+        service.index_document(
             document_id=document.id,
             user_id=admin.id,
             email=admin.email,

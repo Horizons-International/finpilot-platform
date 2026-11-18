@@ -41,7 +41,7 @@ class FileService:
         self.audit_service = AuditService(db)
         self.storage = storage
 
-    async def upload_file(
+    def upload_file(
         self,
         file: UploadFile,
         uploaded_by: UUID,
@@ -71,7 +71,7 @@ class FileService:
             raise bad_request("File type is not supported.")
 
         # Read file
-        file_content = await file.read()
+        file_content = file.file.read()
 
         # Validate file size
         if len(file_content) > settings.MAX_FILE_SIZE:

@@ -1,5 +1,5 @@
 from datetime import date, timedelta
-from unittest.mock import patch
+from unittest.mock import AsyncMock, patch
 from uuid import UUID, uuid4
 
 import pytest
@@ -26,6 +26,14 @@ from tests.helpers import (
     create_fake_retrieval_result,
 )
 from tests.seed import seed_ai_prompts
+
+
+class AsyncFakeRetrievalService:
+    def __init__(self, delegate):
+        self.delegate = delegate
+
+    async def retrieve(self, query, limit=5, category=None, categories=None):
+        return self.delegate.retrieve(query=query, limit=limit, category=category)
 
 
 @pytest.fixture(autouse=True)
@@ -115,12 +123,12 @@ def test_ai_analytics_assistant_answers_pending_verification(
 
     with (
         patch(
-            "app.core.dependencies.RetrievalService",
-            return_value=fake_retrieval_service,
+            "app.core.async_ai_assistant_dependencies.AsyncRetrievalService",
+            return_value=AsyncFakeRetrievalService(fake_retrieval_service),
         ),
         patch(
-            "app.services.ai_analytics_assistant_service.AIService.generate",
-            return_value=fake_ai_response,
+            "app.ai.services.async_ai_service.AsyncAIService.generate",
+            new=AsyncMock(return_value=fake_ai_response),
         ),
     ):
         response = client.post(
@@ -177,8 +185,8 @@ def test_ai_analytics_interaction_stores_supporting_data(
         output_tokens=10,
     )
     with patch(
-        "app.services.ai_analytics_assistant_service.AIService.generate",
-        return_value=fake_ai_response,
+        "app.ai.services.async_ai_service.AsyncAIService.generate",
+        new=AsyncMock(return_value=fake_ai_response),
     ):
         response = client.post(
             "/api/v1/ai-assistant/analytics/ask",
@@ -253,8 +261,8 @@ def test_ai_analytics_assistant_answers_rejection_reason(
         output_tokens=15,
     )
     with patch(
-        "app.services.ai_analytics_assistant_service.AIService.generate",
-        return_value=fake_ai_response,
+        "app.ai.services.async_ai_service.AsyncAIService.generate",
+        new=AsyncMock(return_value=fake_ai_response),
     ):
         response = client.post(
             "/api/v1/ai-assistant/analytics/ask",
@@ -318,12 +326,12 @@ def test_ai_analytics_assistant_includes_rag_context(
     )
     with (
         patch(
-            "app.core.dependencies.RetrievalService",
-            return_value=fake_retrieval_service,
+            "app.core.async_ai_assistant_dependencies.AsyncRetrievalService",
+            return_value=AsyncFakeRetrievalService(fake_retrieval_service),
         ),
         patch(
-            "app.services.ai_analytics_assistant_service.AIService.generate",
-            return_value=fake_ai_response,
+            "app.ai.services.async_ai_service.AsyncAIService.generate",
+            new=AsyncMock(return_value=fake_ai_response),
         ),
     ):
         response = client.post(

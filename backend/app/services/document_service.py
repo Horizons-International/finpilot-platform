@@ -51,7 +51,7 @@ class DocumentService:
         )
         self.storage = storage
 
-    async def upload_document(
+    def upload_document(
         self,
         customer_id: UUID,
         verification_case_id: UUID,
@@ -117,7 +117,7 @@ class DocumentService:
 
         # Keep file metadata, customer document metadata, and their audit rows
         # in one database transaction.
-        file_record = await self.file_service.upload_file(
+        file_record = self.file_service.upload_file(
             file=file,
             uploaded_by=user_id,
             email=email,

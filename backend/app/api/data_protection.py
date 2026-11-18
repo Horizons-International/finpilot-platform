@@ -1,8 +1,8 @@
 """Tenant-scoped data-protection APIs.
 
-Read-heavy list endpoints use AsyncSession. Policy/hold/deletion mutations remain
-synchronous because they are short transactional workflows; physical deletion
-also coordinates database commits with external storage cleanup.
+All policy/legal-hold/deletion-request database mutations use AsyncSession.
+Physical deletion deliberately remains synchronous because it coordinates
+multiple database commits with external storage cleanup.
 """
 
 from __future__ import annotations
@@ -29,6 +29,7 @@ from app.schemas.data_protection import (
     LegalHoldResponse,
     RetentionPolicyUpdate,
 )
+from app.services.async_data_protection_service import AsyncDataProtectionService
 from app.services.data_protection_service import DataProtectionService
 from app.storages.base_storage import BaseStorage
 from app.utils.enums import UserRole
@@ -57,6 +58,13 @@ def _sync_service(
     return DataProtectionService(db, tenant_id, storage)
 
 
+def _async_service(
+    db: AsyncSession, current_user: dict[str, Any]
+) -> AsyncDataProtectionService:
+    tenant_id, _actor_id = _tenant_and_actor(current_user)
+    return AsyncDataProtectionService(db, tenant_id)
+
+
 @router.get("/policies", response_model=list[DataProtectionPolicyResponse])
 async def list_policies(
     db: AsyncSession = Depends(get_async_db),
@@ -70,28 +78,28 @@ async def list_policies(
 
 
 @router.put("/policies/{resource_type}", response_model=DataProtectionPolicyResponse)
-def update_policy(
+async def update_policy(
     resource_type: str,
     payload: RetentionPolicyUpdate,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user: dict[str, Any] = Depends(
-        require_roles(*ADMIN_ROLES, resource_type="data-protection-policy")
+        require_async_roles(*ADMIN_ROLES, resource_type="data-protection-policy")
     ),
 ) -> DataProtectionPolicyResponse:
     try:
         _tenant_id, actor_id = _tenant_and_actor(current_user)
-        policy = _sync_service(db, current_user).set_policy(
+        policy = await _async_service(db, current_user).set_policy(
             resource_type,
             payload.retention_days,
             payload.enabled,
             payload.legal_basis,
             actor_id,
         )
-        db.commit()
-        db.refresh(policy)
+        await db.commit()
+        await db.refresh(policy)
         return DataProtectionPolicyResponse.model_validate(policy)
     except ValueError as exc:
-        db.rollback()
+        await db.rollback()
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
@@ -115,42 +123,44 @@ async def list_legal_holds(
     response_model=LegalHoldResponse,
     status_code=status.HTTP_201_CREATED,
 )
-def create_legal_hold(
+async def create_legal_hold(
     payload: LegalHoldCreate,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user: dict[str, Any] = Depends(
-        require_roles(*ADMIN_ROLES, resource_type="data-protection-legal-hold")
+        require_async_roles(*ADMIN_ROLES, resource_type="data-protection-legal-hold")
     ),
 ) -> LegalHoldResponse:
     try:
         _tenant_id, actor_id = _tenant_and_actor(current_user)
-        hold = _sync_service(db, current_user).create_legal_hold(
+        hold = await _async_service(db, current_user).create_legal_hold(
             payload.resource_type, payload.resource_id, payload.reason, actor_id
         )
-        db.commit()
-        db.refresh(hold)
+        await db.commit()
+        await db.refresh(hold)
         return LegalHoldResponse.model_validate(hold)
     except ValueError as exc:
-        db.rollback()
+        await db.rollback()
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 @router.post("/legal-holds/{hold_id}/release", response_model=LegalHoldResponse)
-def release_legal_hold(
+async def release_legal_hold(
     hold_id: uuid.UUID,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user: dict[str, Any] = Depends(
-        require_roles(*ADMIN_ROLES, resource_type="data-protection-legal-hold")
+        require_async_roles(*ADMIN_ROLES, resource_type="data-protection-legal-hold")
     ),
 ) -> LegalHoldResponse:
     try:
         _tenant_id, actor_id = _tenant_and_actor(current_user)
-        hold = _sync_service(db, current_user).release_legal_hold(hold_id, actor_id)
-        db.commit()
-        db.refresh(hold)
+        hold = await _async_service(db, current_user).release_legal_hold(
+            hold_id, actor_id
+        )
+        await db.commit()
+        await db.refresh(hold)
         return LegalHoldResponse.model_validate(hold)
     except ValueError as exc:
-        db.rollback()
+        await db.rollback()
         raise HTTPException(
             status_code=404 if "not found" in str(exc).lower() else 400, detail=str(exc)
         ) from exc
@@ -161,23 +171,23 @@ def release_legal_hold(
     response_model=DeletionRequestResponse,
     status_code=status.HTTP_201_CREATED,
 )
-def request_deletion(
+async def request_deletion(
     payload: DeletionRequestCreate,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user: dict[str, Any] = Depends(
-        require_roles(*ADMIN_ROLES, resource_type="data-protection-deletion")
+        require_async_roles(*ADMIN_ROLES, resource_type="data-protection-deletion")
     ),
 ) -> DeletionRequestResponse:
     try:
         _tenant_id, actor_id = _tenant_and_actor(current_user)
-        item = _sync_service(db, current_user).request_deletion(
+        item = await _async_service(db, current_user).request_deletion(
             payload.resource_type, payload.resource_id, payload.reason, actor_id
         )
-        db.commit()
-        db.refresh(item)
+        await db.commit()
+        await db.refresh(item)
         return DeletionRequestResponse.model_validate(item)
     except ValueError as exc:
-        db.rollback()
+        await db.rollback()
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
@@ -199,21 +209,23 @@ async def list_deletion_requests(
 @router.post(
     "/deletion-requests/{request_id}/approve", response_model=DeletionRequestResponse
 )
-def approve_deletion(
+async def approve_deletion(
     request_id: uuid.UUID,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user: dict[str, Any] = Depends(
-        require_roles(*ADMIN_ROLES, resource_type="data-protection-deletion")
+        require_async_roles(*ADMIN_ROLES, resource_type="data-protection-deletion")
     ),
 ) -> DeletionRequestResponse:
     try:
         _tenant_id, actor_id = _tenant_and_actor(current_user)
-        item = _sync_service(db, current_user).approve_deletion(request_id, actor_id)
-        db.commit()
-        db.refresh(item)
+        item = await _async_service(db, current_user).approve_deletion(
+            request_id, actor_id
+        )
+        await db.commit()
+        await db.refresh(item)
         return DeletionRequestResponse.model_validate(item)
     except ValueError as exc:
-        db.rollback()
+        await db.rollback()
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 

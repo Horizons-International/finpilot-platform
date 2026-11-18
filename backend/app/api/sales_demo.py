@@ -1,18 +1,18 @@
-"""Sales demo API; gated by SANDBOX_ENABLED and isolated sandbox API keys."""
+"""Async sales-demo API, gated by SANDBOX_ENABLED and sandbox API-key scopes."""
 
 from typing import Any
 
 from fastapi import APIRouter, Depends, Query, status
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.database import get_db
-from app.core.responses import APIResponse
-from app.core.sandbox_security import (
-    SandboxPrincipal,
+from app.core.async_sandbox_security import (
+    AsyncSandboxPrincipal,
+    require_async_sandbox_permission,
     require_sandbox_enabled,
-    require_sandbox_permission,
 )
-from app.core.security import require_roles
+from app.core.async_security import require_async_roles
+from app.core.database import get_async_db
+from app.core.responses import APIResponse
 from app.schemas.sales_demo import (
     SalesDemoAccountCreateResponse,
     SalesDemoCatalogScenario,
@@ -28,7 +28,7 @@ from app.schemas.sandbox import (
     SandboxOrganizationResponse,
     SandboxUserResponse,
 )
-from app.services.sales_demo_service import SalesDemoService
+from app.services.async_sales_demo_service import AsyncSalesDemoService
 from app.utils.enums import UserRole
 
 router = APIRouter(
@@ -48,14 +48,16 @@ router = APIRouter(
         "The test key is shown once."
     ),
 )
-def create_sales_demo_account(
+async def create_sales_demo_account(
     payload: SandboxAccountCreate,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     _: dict[str, Any] = Depends(
-        require_roles(UserRole.SALES_DEMO_MANAGER, resource_type="sales-demo-account")
+        require_async_roles(
+            UserRole.SALES_DEMO_MANAGER, resource_type="sales-demo-account"
+        )
     ),
 ) -> APIResponse[SalesDemoAccountCreateResponse]:
-    created = SalesDemoService(db).create_account(payload)
+    created = await AsyncSalesDemoService(db).create_account(payload)
     data = SalesDemoAccountCreateResponse(
         account=SandboxAccountResponse.model_validate(created["account"]),
         organization=SandboxOrganizationResponse.model_validate(
@@ -64,8 +66,8 @@ def create_sales_demo_account(
         developer=SandboxUserResponse.model_validate(created["developer"]),
         api_key=created["api_key"],
         sample_customers=[
-            SandboxCustomerResponse.model_validate(customer)
-            for customer in created["sample_customers"]
+            SandboxCustomerResponse.model_validate(item)
+            for item in created["sample_customers"]
         ],
         scenario_count=len(created["scenario_keys"]),
         scenario_keys=created["scenario_keys"],
@@ -80,16 +82,14 @@ def create_sales_demo_account(
     )
 
 
-@router.get(
-    "/dashboard",
-    response_model=APIResponse[SalesDemoDashboardResponse],
-    summary="Get counts and usage snapshots for this sales demo account",
-)
-def get_sales_demo_dashboard(
-    db: Session = Depends(get_db),
-    principal: SandboxPrincipal = Depends(require_sandbox_permission("sandbox:read")),
+@router.get("/dashboard", response_model=APIResponse[SalesDemoDashboardResponse])
+async def get_sales_demo_dashboard(
+    db: AsyncSession = Depends(get_async_db),
+    principal: AsyncSandboxPrincipal = Depends(
+        require_async_sandbox_permission("sandbox:read")
+    ),
 ) -> APIResponse[SalesDemoDashboardResponse]:
-    dashboard = SalesDemoService(db).get_dashboard(principal.account_id)
+    dashboard = await AsyncSalesDemoService(db).get_dashboard(principal.account_id)
     return APIResponse(
         success=True,
         message="Sales demo dashboard retrieved successfully.",
@@ -97,16 +97,13 @@ def get_sales_demo_dashboard(
     )
 
 
-@router.get(
-    "/scenarios",
-    response_model=APIResponse[list[SalesDemoCatalogScenario]],
-    summary="List the guided sales demo scenarios",
-)
-def list_sales_demo_scenarios(
-    db: Session = Depends(get_db),
-    principal: SandboxPrincipal = Depends(require_sandbox_permission("sandbox:read")),
+@router.get("/scenarios", response_model=APIResponse[list[SalesDemoCatalogScenario]])
+async def list_sales_demo_scenarios(
+    _: AsyncSandboxPrincipal = Depends(
+        require_async_sandbox_permission("sandbox:read")
+    ),
 ) -> APIResponse[list[SalesDemoCatalogScenario]]:
-    scenarios = SalesDemoService(db).list_catalog()
+    scenarios = AsyncSalesDemoService.list_catalog()
     return APIResponse(
         success=True,
         message="Sales demo scenarios retrieved successfully.",
@@ -117,14 +114,15 @@ def list_sales_demo_scenarios(
 @router.get(
     "/verifications",
     response_model=APIResponse[list[SalesDemoVerificationResponse]],
-    summary="List seeded verification outcomes for this demo account",
 )
-def list_sales_demo_verifications(
+async def list_sales_demo_verifications(
     limit: int = Query(default=100, ge=1, le=250),
-    db: Session = Depends(get_db),
-    principal: SandboxPrincipal = Depends(require_sandbox_permission("sandbox:read")),
+    db: AsyncSession = Depends(get_async_db),
+    principal: AsyncSandboxPrincipal = Depends(
+        require_async_sandbox_permission("sandbox:read")
+    ),
 ) -> APIResponse[list[SalesDemoVerificationResponse]]:
-    verifications = SalesDemoService(db).list_verifications(
+    verifications = await AsyncSalesDemoService(db).list_verifications(
         principal.account_id, limit=limit
     )
     return APIResponse(
@@ -134,21 +132,17 @@ def list_sales_demo_verifications(
     )
 
 
-@router.get(
-    "/records",
-    response_model=APIResponse[list[SalesDemoRecordResponse]],
-    summary="List demo records, optionally filtered by record type",
-)
-def list_sales_demo_records(
+@router.get("/records", response_model=APIResponse[list[SalesDemoRecordResponse]])
+async def list_sales_demo_records(
     record_type: SalesDemoRecordType | None = Query(default=None),
     limit: int = Query(default=100, ge=1, le=250),
-    db: Session = Depends(get_db),
-    principal: SandboxPrincipal = Depends(require_sandbox_permission("sandbox:read")),
+    db: AsyncSession = Depends(get_async_db),
+    principal: AsyncSandboxPrincipal = Depends(
+        require_async_sandbox_permission("sandbox:read")
+    ),
 ) -> APIResponse[list[SalesDemoRecordResponse]]:
-    records = SalesDemoService(db).list_records(
-        principal.account_id,
-        record_type=record_type,
-        limit=limit,
+    records = await AsyncSalesDemoService(db).list_records(
+        principal.account_id, record_type=record_type, limit=limit
     )
     return APIResponse(
         success=True,
@@ -157,20 +151,14 @@ def list_sales_demo_records(
     )
 
 
-@router.post(
-    "/reset",
-    response_model=APIResponse[SalesDemoDashboardResponse],
-    summary="Reset demo customers, verification examples and scenario records",
-    description=(
-        "Requires sandbox:admin. Preserves account, users, API keys and webhook "
-        "subscriptions; deletes only records for the authenticated demo account."
+@router.post("/reset", response_model=APIResponse[SalesDemoDashboardResponse])
+async def reset_sales_demo_data(
+    db: AsyncSession = Depends(get_async_db),
+    principal: AsyncSandboxPrincipal = Depends(
+        require_async_sandbox_permission("sandbox:admin")
     ),
-)
-def reset_sales_demo_data(
-    db: Session = Depends(get_db),
-    principal: SandboxPrincipal = Depends(require_sandbox_permission("sandbox:admin")),
 ) -> APIResponse[SalesDemoDashboardResponse]:
-    dashboard = SalesDemoService(db).reset_demo_data(principal.account_id)
+    dashboard = await AsyncSalesDemoService(db).reset_demo_data(principal.account_id)
     return APIResponse(
         success=True,
         message=(

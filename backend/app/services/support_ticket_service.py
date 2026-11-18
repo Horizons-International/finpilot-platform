@@ -314,7 +314,7 @@ class SupportTicketService:
         self._require_ticket(ticket_id)
         return self.repository.list_attachments(ticket_id)
 
-    async def add_attachment(
+    def add_attachment(
         self, ticket_id: UUID, upload: UploadFile
     ) -> SupportTicketAttachment:
         if self.storage is None:
@@ -333,7 +333,7 @@ class SupportTicketService:
             raise bad_request(
                 "Attachment upload is not enabled by server configuration."
             )
-        content = await upload.read(max_file_size + 1)
+        content = upload.file.read(max_file_size + 1)
         if not content:
             raise bad_request("Empty attachments are not allowed.")
         if len(content) > max_file_size:
