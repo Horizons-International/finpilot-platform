@@ -1,20 +1,19 @@
 from typing import Any
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Query, Request, status
+from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.ai.exceptions import AIProviderError
+from app.core.async_ai_assistant_dependencies import (
+    get_async_ai_analytics_assistant_service,
+    get_async_ai_compliance_service,
+    get_async_regulatory_assistant_service,
+)
 from app.core.async_security import require_async_roles
 from app.core.database import get_async_db
-from app.core.dependencies import (
-    get_ai_analytics_assistant_service,
-    get_ai_compliance_service,
-    get_regulatory_assistant_service,
-)
 from app.core.responses import APIResponse
-from app.core.security import require_roles
 from app.models.ai_interaction import AIInteraction
 from app.schemas.ai_analytics_assistant import AIAnalyticsResponse
 from app.schemas.ai_assistant import (
@@ -31,15 +30,19 @@ from app.schemas.regulatory_assistant import (
     RegulatoryAssistantRequest,
     RegulatoryAssistantSearchResponse,
 )
-from app.services.ai_analytics_assistant_service import AIAnalyticsAssistantService
-from app.services.ai_compliance_service import AIComplianceService
 from app.services.ai_decision_explanation_recorder import (
     install_ai_decision_explanation_recorder,
 )
+from app.services.async_ai_analytics_assistant_service import (
+    AsyncAIAnalyticsAssistantService,
+)
+from app.services.async_ai_compliance_service import AsyncAIComplianceService
 from app.services.async_ai_decision_explanation_service import (
     AsyncAIDecisionExplanationService,
 )
-from app.services.regulatory_assistant_service import RegulatoryAssistantService
+from app.services.async_regulatory_assistant_service import (
+    AsyncRegulatoryAssistantService,
+)
 from app.utils.enums import UserRole
 from app.utils.errors import bad_request, not_found, service_unavailable
 
@@ -54,28 +57,25 @@ REGULATORY_ASSISTANT_ROLES = (
 )
 
 
-# AI provider calls below intentionally remain synchronous: the configured OpenAI
-# adapter uses the synchronous SDK and FastAPI dispatches these `def` handlers to
-# its worker pool. Database-backed read endpoints use AsyncSession instead.
 @router.post(
     "/ask",
     response_model=APIResponse[AIComplianceResponse],
     status_code=status.HTTP_201_CREATED,
 )
-def ask_ai_assistant(
+async def ask_ai_assistant(
     request: AIComplianceRequest,
     current_user: dict[str, Any] = Depends(
-        require_roles(
+        require_async_roles(
             UserRole.ADMINISTRATOR,
             UserRole.COMPLIANCE_OFFICER,
             UserRole.REVIEWER,
             resource_type="ai_assistant",
         )
     ),
-    service: AIComplianceService = Depends(get_ai_compliance_service),
+    service: AsyncAIComplianceService = Depends(get_async_ai_compliance_service),
 ) -> APIResponse[AIComplianceResponse]:
     try:
-        response = service.ask(request, user_id=UUID(current_user["sub"]))
+        response = await service.ask(request, user_id=UUID(current_user["sub"]))
     except AIProviderError as exc:
         raise service_unavailable("AI service is temporarily unavailable.") from exc
     return APIResponse(
@@ -156,22 +156,23 @@ async def get_my_ai_interactions(
     response_model=APIResponse[AIAnalyticsResponse],
     status_code=status.HTTP_201_CREATED,
 )
-def ask_analytics_assistant(
-    request: Request,
+async def ask_analytics_assistant(
     question: str = Query(min_length=1, max_length=4000),
     retrieval_limit: int = Query(default=5, ge=1, le=20),
     current_user: dict[str, Any] = Depends(
-        require_roles(
+        require_async_roles(
             UserRole.ADMINISTRATOR,
             UserRole.COMPLIANCE_OFFICER,
             UserRole.AUDITOR,
             resource_type="ai-analytics-assistant",
         )
     ),
-    service: AIAnalyticsAssistantService = Depends(get_ai_analytics_assistant_service),
+    service: AsyncAIAnalyticsAssistantService = Depends(
+        get_async_ai_analytics_assistant_service
+    ),
 ) -> APIResponse[AIAnalyticsResponse]:
     try:
-        response = service.ask(
+        response = await service.ask(
             question=question,
             user_id=UUID(current_user["sub"]),
             retrieval_limit=retrieval_limit,
@@ -190,15 +191,20 @@ def ask_analytics_assistant(
     response_model=APIResponse[RegulatoryAssistantAnswerResponse],
     status_code=status.HTTP_200_OK,
 )
-def ask_regulatory_assistant(
+async def ask_regulatory_assistant(
     payload: RegulatoryAssistantRequest,
     _: dict[str, Any] = Depends(
-        require_roles(*REGULATORY_ASSISTANT_ROLES, resource_type="regulatory_assistant")
+        require_async_roles(
+            *REGULATORY_ASSISTANT_ROLES,
+            resource_type="regulatory_assistant",
+        )
     ),
-    service: RegulatoryAssistantService = Depends(get_regulatory_assistant_service),
+    service: AsyncRegulatoryAssistantService = Depends(
+        get_async_regulatory_assistant_service
+    ),
 ) -> APIResponse[RegulatoryAssistantAnswerResponse]:
     try:
-        result = service.ask(payload)
+        result = await service.ask(payload)
     except AIProviderError as exc:
         raise service_unavailable(
             "AI regulatory assistant is temporarily unavailable."
@@ -215,14 +221,19 @@ def ask_regulatory_assistant(
     response_model=APIResponse[RegulatoryAssistantSearchResponse],
     status_code=status.HTTP_200_OK,
 )
-def search_regulatory_knowledge(
+async def search_regulatory_knowledge(
     payload: RegulatoryAssistantRequest,
     _: dict[str, Any] = Depends(
-        require_roles(*REGULATORY_ASSISTANT_ROLES, resource_type="regulatory_assistant")
+        require_async_roles(
+            *REGULATORY_ASSISTANT_ROLES,
+            resource_type="regulatory_assistant",
+        )
     ),
-    service: RegulatoryAssistantService = Depends(get_regulatory_assistant_service),
+    service: AsyncRegulatoryAssistantService = Depends(
+        get_async_regulatory_assistant_service
+    ),
 ) -> APIResponse[RegulatoryAssistantSearchResponse]:
-    results = service.search(payload)
+    results = await service.search(payload)
     return APIResponse(
         success=True,
         message="Regulatory knowledge sources retrieved successfully.",
@@ -255,7 +266,8 @@ async def get_ai_decision_explanation(
     db: AsyncSession = Depends(get_async_db),
     current_user: dict[str, Any] = Depends(
         require_async_roles(
-            *_EXPLANATION_VIEW_ROLES, resource_type="ai_decision_explanation"
+            *_EXPLANATION_VIEW_ROLES,
+            resource_type="ai_decision_explanation",
         )
     ),
 ) -> APIResponse[AIDecisionExplanationResponse]:
@@ -282,7 +294,8 @@ async def get_ai_decision_explanation_history(
     db: AsyncSession = Depends(get_async_db),
     current_user: dict[str, Any] = Depends(
         require_async_roles(
-            *_EXPLANATION_VIEW_ROLES, resource_type="ai_decision_explanation"
+            *_EXPLANATION_VIEW_ROLES,
+            resource_type="ai_decision_explanation",
         )
     ),
 ) -> APIResponse[AIDecisionExplanationHistoryResponse]:

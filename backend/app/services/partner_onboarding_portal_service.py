@@ -341,7 +341,7 @@ class PartnerOnboardingPortalService:
         self.db.refresh(administrator)
         return administrator, raw_invitation_token
 
-    async def upload_document(
+    def upload_document(
         self,
         *,
         onboarding_id: UUID,
@@ -367,7 +367,7 @@ class PartnerOnboardingPortalService:
             or content_type not in _DOCUMENT_EXTENSIONS
         ):
             raise bad_request("This document content type is not supported.")
-        content = await file.read(settings.MAX_FILE_SIZE + 1)
+        content = file.file.read(settings.MAX_FILE_SIZE + 1)
         if not content:
             raise bad_request("The uploaded document is empty.")
         if len(content) > settings.MAX_FILE_SIZE:

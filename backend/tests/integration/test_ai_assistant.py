@@ -1,4 +1,4 @@
-from unittest.mock import patch
+from unittest.mock import AsyncMock, patch
 from uuid import uuid4
 
 import pytest
@@ -25,6 +25,14 @@ from tests.helpers import (
     create_verification_case,
 )
 from tests.seed import seed_ai_prompts
+
+
+class AsyncFakeRetrievalService:
+    def __init__(self, delegate):
+        self.delegate = delegate
+
+    async def retrieve(self, query, limit=5, category=None, categories=None):
+        return self.delegate.retrieve(query=query, limit=limit, category=category)
 
 
 @pytest.fixture(autouse=True)
@@ -108,7 +116,8 @@ def test_compliance_officer_can_send_ai_request(
     authenticate_client(client, compliance_officer)
     fake_retrieval_service = FakeRetrievalService(results=[])
     with patch(
-        "app.core.dependencies.RetrievalService", return_value=fake_retrieval_service
+        "app.core.async_ai_assistant_dependencies.AsyncRetrievalService",
+        return_value=AsyncFakeRetrievalService(fake_retrieval_service),
     ):
         response = client.post(
             "/api/v1/ai-assistant/ask",
@@ -151,7 +160,8 @@ def test_ai_request_returns_structured_response(
     authenticate_client(client, compliance_officer)
     fake_retrieval_service = FakeRetrievalService(results=[])
     with patch(
-        "app.core.dependencies.RetrievalService", return_value=fake_retrieval_service
+        "app.core.async_ai_assistant_dependencies.AsyncRetrievalService",
+        return_value=AsyncFakeRetrievalService(fake_retrieval_service),
     ):
         response = client.post(
             "/api/v1/ai-assistant/ask",
@@ -201,7 +211,8 @@ def test_ai_request_is_logged(
     authenticate_client(client, compliance_officer)
     fake_retrieval_service = FakeRetrievalService(results=[])
     with patch(
-        "app.core.dependencies.RetrievalService", return_value=fake_retrieval_service
+        "app.core.async_ai_assistant_dependencies.AsyncRetrievalService",
+        return_value=AsyncFakeRetrievalService(fake_retrieval_service),
     ):
         response = client.post(
             "/api/v1/ai-assistant/ask",
@@ -248,7 +259,8 @@ def test_ai_request_uses_assigned_prompt(
     authenticate_client(client, compliance_officer)
     fake_retrieval_service = FakeRetrievalService(results=[])
     with patch(
-        "app.core.dependencies.RetrievalService", return_value=fake_retrieval_service
+        "app.core.async_ai_assistant_dependencies.AsyncRetrievalService",
+        return_value=AsyncFakeRetrievalService(fake_retrieval_service),
     ):
         response = client.post(
             "/api/v1/ai-assistant/ask",
@@ -301,7 +313,8 @@ def test_ai_request_allowed_roles(
     authenticate_client(client, user)
     fake_retrieval_service = FakeRetrievalService(results=[])
     with patch(
-        "app.core.dependencies.RetrievalService", return_value=fake_retrieval_service
+        "app.core.async_ai_assistant_dependencies.AsyncRetrievalService",
+        return_value=AsyncFakeRetrievalService(fake_retrieval_service),
     ):
         response = client.post(
             "/api/v1/ai-assistant/ask",
@@ -362,7 +375,8 @@ def test_ai_interaction_can_be_retrieved(
     authenticate_client(client, compliance_officer)
     fake_retrieval_service = FakeRetrievalService(results=[])
     with patch(
-        "app.core.dependencies.RetrievalService", return_value=fake_retrieval_service
+        "app.core.async_ai_assistant_dependencies.AsyncRetrievalService",
+        return_value=AsyncFakeRetrievalService(fake_retrieval_service),
     ):
         create_response = client.post(
             "/api/v1/ai-assistant/ask",
@@ -377,7 +391,8 @@ def test_ai_interaction_can_be_retrieved(
     interaction_id = create_response.json()["data"]["interaction_id"]
     fake_retrieval_service = FakeRetrievalService(results=[])
     with patch(
-        "app.core.dependencies.RetrievalService", return_value=fake_retrieval_service
+        "app.core.async_ai_assistant_dependencies.AsyncRetrievalService",
+        return_value=AsyncFakeRetrievalService(fake_retrieval_service),
     ):
         response = client.get(f"/api/v1/ai-assistant/interactions/{interaction_id}")
     assert response.status_code == 200
@@ -412,7 +427,8 @@ def test_ai_interaction_belongs_to_requesting_user(
     authenticate_client(client, first_user)
     fake_retrieval_service = FakeRetrievalService(results=[])
     with patch(
-        "app.core.dependencies.RetrievalService", return_value=fake_retrieval_service
+        "app.core.async_ai_assistant_dependencies.AsyncRetrievalService",
+        return_value=AsyncFakeRetrievalService(fake_retrieval_service),
     ):
         create_response = client.post(
             "/api/v1/ai-assistant/ask",
@@ -429,7 +445,8 @@ def test_ai_interaction_belongs_to_requesting_user(
     authenticate_client(client, second_user)
     fake_retrieval_service = FakeRetrievalService(results=[])
     with patch(
-        "app.core.dependencies.RetrievalService", return_value=fake_retrieval_service
+        "app.core.async_ai_assistant_dependencies.AsyncRetrievalService",
+        return_value=AsyncFakeRetrievalService(fake_retrieval_service),
     ):
         response = client.get(f"/api/v1/ai-assistant/interactions/{interaction_id}")
     assert response.status_code == 400
@@ -458,7 +475,8 @@ def test_ai_request_with_customer_context(
     authenticate_client(client, compliance_officer)
     fake_retrieval_service = FakeRetrievalService(results=[])
     with patch(
-        "app.core.dependencies.RetrievalService", return_value=fake_retrieval_service
+        "app.core.async_ai_assistant_dependencies.AsyncRetrievalService",
+        return_value=AsyncFakeRetrievalService(fake_retrieval_service),
     ):
         response = client.post(
             "/api/v1/ai-assistant/ask",
@@ -499,7 +517,8 @@ def test_ai_request_with_case_context(
     authenticate_client(client, compliance_officer)
     fake_retrieval_service = FakeRetrievalService(results=[])
     with patch(
-        "app.core.dependencies.RetrievalService", return_value=fake_retrieval_service
+        "app.core.async_ai_assistant_dependencies.AsyncRetrievalService",
+        return_value=AsyncFakeRetrievalService(fake_retrieval_service),
     ):
         response = client.post(
             "/api/v1/ai-assistant/ask",
@@ -549,7 +568,8 @@ def test_ai_request_includes_retrieved_knowledge_in_context(
     )
     fake_retrieval_service = FakeRetrievalService(results=[retrieval_result])
     with patch(
-        "app.core.dependencies.RetrievalService", return_value=fake_retrieval_service
+        "app.core.async_ai_assistant_dependencies.AsyncRetrievalService",
+        return_value=AsyncFakeRetrievalService(fake_retrieval_service),
     ):
         response = client.post(
             "/api/v1/ai-assistant/ask",
@@ -597,7 +617,8 @@ def test_ai_request_passes_rag_options(
     fake_retrieval_service = FakeRetrievalService(results=[retrieval_result])
     authenticate_client(client, user)
     with patch(
-        "app.core.dependencies.RetrievalService", return_value=fake_retrieval_service
+        "app.core.async_ai_assistant_dependencies.AsyncRetrievalService",
+        return_value=AsyncFakeRetrievalService(fake_retrieval_service),
     ):
         response = client.post(
             "/api/v1/ai-assistant/ask",
@@ -666,7 +687,8 @@ def test_ai_request_works_when_no_knowledge_is_retrieved(
     fake_retrieval_service = FakeRetrievalService(results=[])
     authenticate_client(client, user)
     with patch(
-        "app.core.dependencies.RetrievalService", return_value=fake_retrieval_service
+        "app.core.async_ai_assistant_dependencies.AsyncRetrievalService",
+        return_value=AsyncFakeRetrievalService(fake_retrieval_service),
     ):
         response = client.post(
             "/api/v1/ai-assistant/ask",
@@ -698,7 +720,8 @@ def test_ai_request_creates_usage_log(
     case = create_verification_case(client, customer_id)
     fake_retrieval_service = FakeRetrievalService(results=[])
     with patch(
-        "app.core.dependencies.RetrievalService", return_value=fake_retrieval_service
+        "app.core.async_ai_assistant_dependencies.AsyncRetrievalService",
+        return_value=AsyncFakeRetrievalService(fake_retrieval_service),
     ):
         response = client.post(
             "/api/v1/ai-assistant/ask",
@@ -743,7 +766,8 @@ def test_ai_request_creates_one_usage_log(
     case = create_verification_case(client, customer_id)
     fake_retrieval_service = FakeRetrievalService(results=[])
     with patch(
-        "app.core.dependencies.RetrievalService", return_value=fake_retrieval_service
+        "app.core.async_ai_assistant_dependencies.AsyncRetrievalService",
+        return_value=AsyncFakeRetrievalService(fake_retrieval_service),
     ):
         response = client.post(
             "/api/v1/ai-assistant/ask",
@@ -784,12 +808,12 @@ def test_failed_ai_request_creates_usage_log(
     fake_retrieval_service = FakeRetrievalService(results=[])
     with (
         patch(
-            "app.core.dependencies.RetrievalService",
-            return_value=fake_retrieval_service,
+            "app.core.async_ai_assistant_dependencies.AsyncRetrievalService",
+            return_value=AsyncFakeRetrievalService(fake_retrieval_service),
         ),
         patch(
-            "app.services.ai_compliance_service.AIService.generate",
-            side_effect=RuntimeError("AI provider failed."),
+            "app.ai.services.async_ai_service.AsyncAIService.generate",
+            new=AsyncMock(side_effect=RuntimeError("AI provider failed.")),
         ),
     ):
         with pytest.raises(RuntimeError, match="AI provider failed."):

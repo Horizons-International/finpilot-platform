@@ -1,6 +1,5 @@
 """Integration tests for customer support ticket isolation and lifecycle."""
 
-import asyncio
 from io import BytesIO
 from uuid import uuid4
 
@@ -252,7 +251,7 @@ def test_attachment_upload_and_download_are_ticket_scoped(
             filename="diagnostic.pdf",
             headers=Headers({"content-type": "application/pdf"}),
         )
-        attachment = asyncio.run(service.add_attachment(ticket.id, upload))
+        attachment = service.add_attachment(ticket.id, upload)
         content, filename, content_type = service.download_attachment(
             ticket.id, attachment.id
         )

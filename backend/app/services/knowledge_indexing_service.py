@@ -39,7 +39,7 @@ class KnowledgeIndexingService:
             self.tenant_id,
         )
 
-    async def index_document(
+    def index_document(
         self,
         document_id: UUID,
         user_id: UUID,

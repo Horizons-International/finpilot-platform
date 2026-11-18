@@ -51,19 +51,23 @@ class ImplementationWorkspaceService:
     def _now() -> datetime:
         return datetime.now(timezone.utc)
 
-    def _commit(self, workspace: ImplementationWorkspace | None = None) -> None:
-        """Commit an authorized write under the workspace owner's tenant context.
-
-        Customer and implementation-team members may belong to different tenants.
-        Workspace membership is verified before reaching this method. The ORM
-        tenant guard validates rows with a ``tenant_id`` against the active tenant,
-        so temporarily switch only for the already-authorized owner-owned workspace
-        mutation. Restore the authenticated user's tenant immediately afterward.
-        """
+    def _commit(
+        self,
+        workspace: ImplementationWorkspace | None = None,
+        *,
+        refresh_updated_at: tuple[object, ...] = (),
+    ) -> None:
         previous_tenant = self.db.info.get("tenant_id")
+
         if workspace is not None:
             self.db.info["tenant_id"] = workspace.tenant_id
+
         try:
+            self.db.flush()
+
+            for instance in refresh_updated_at:
+                self.db.refresh(instance, attribute_names=["updated_at"])
+
             self.db.commit()
         except Exception:
             self.db.rollback()
@@ -350,7 +354,7 @@ class ImplementationWorkspaceService:
                     "All workspace tasks must be completed before production readiness."
                 )
         workspace.status = next_stage.value
-        self._commit(workspace)
+        self._commit(workspace, refresh_updated_at=(workspace,))
         return workspace
 
     # ------------------------------------------------------------------
@@ -576,7 +580,7 @@ class ImplementationWorkspaceService:
                 if payload.status == ImplementationWorkStatus.COMPLETED
                 else None
             )
-        self._commit(workspace)
+        self._commit(workspace, refresh_updated_at=(task,))
         if task.assigned_to is not None:
             task.assigned_user = self.repository.get_user(task.assigned_to)
         return task

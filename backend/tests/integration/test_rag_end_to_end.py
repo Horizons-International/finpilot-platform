@@ -2,8 +2,17 @@ from unittest.mock import patch
 
 import pytest
 
+from app.schemas.rag import RetrievalResult
 from app.utils.enums import UserRole
 from tests.helpers import authenticate_client
+
+
+class AsyncFakeRetrievalService:
+    def __init__(self, results):
+        self.results = results
+
+    async def retrieve(self, query, limit=5, category=None, categories=None):
+        return self.results[:limit]
 
 
 class FakeEmbeddingService:
@@ -96,9 +105,7 @@ async def test_complete_rag_pipeline(
         "government-issued" in result["content"] for result in results["results"]
     )
 
-    # 5. Ask the existing synchronous AI assistant. Its service layer is
-    # intentionally outside this migration step and continues using the
-    # synchronous retriever until that service is migrated separately.
+    # 5. Ask the now-native-async AI assistant using retrieved evidence.
     customer_response = client.post(
         "/api/v1/customers",
         json={
@@ -116,9 +123,13 @@ async def test_complete_rag_pipeline(
     assert customer_response.status_code == 201
     customer_id = customer_response.json()["data"]["id"]
 
-    with patch("app.core.dependencies.RetrievalService") as retrieval_service_class:
-        fake_retrieval_service = retrieval_service_class.return_value
-        fake_retrieval_service.search.return_value = results
+    fake_retrieval_service = AsyncFakeRetrievalService(
+        [RetrievalResult.model_validate(item) for item in results["results"]]
+    )
+    with patch(
+        "app.core.async_ai_assistant_dependencies.AsyncRetrievalService",
+        return_value=fake_retrieval_service,
+    ):
         ai_response = client.post(
             "/api/v1/ai-assistant/ask",
             json={

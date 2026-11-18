@@ -1,19 +1,19 @@
-"""Sandbox API endpoints. Never call production services from this router."""
+"""Native-async sandbox API. No route in this module calls production services."""
 
 from typing import Any
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query, status
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.database import get_db
-from app.core.responses import APIResponse
-from app.core.sandbox_security import (
-    SandboxPrincipal,
+from app.core.async_sandbox_security import (
+    AsyncSandboxPrincipal,
+    require_async_sandbox_permission,
     require_sandbox_enabled,
-    require_sandbox_permission,
 )
-from app.core.security import require_roles
+from app.core.async_security import require_async_roles
+from app.core.database import get_async_db
+from app.core.responses import APIResponse
 from app.schemas.sandbox import (
     SandboxAccountCreate,
     SandboxAccountCreatedResponse,
@@ -33,7 +33,7 @@ from app.schemas.sandbox import (
     SandboxWebhookResponse,
     SandboxWebhookSimulationRequest,
 )
-from app.services.sandbox_service import SandboxService
+from app.services.async_sandbox_service import AsyncSandboxService
 from app.utils.enums import UserRole
 
 router = APIRouter(
@@ -49,14 +49,16 @@ router = APIRouter(
     status_code=status.HTTP_201_CREATED,
     summary="Create an isolated sandbox account",
 )
-def create_sandbox_account(
+async def create_sandbox_account(
     payload: SandboxAccountCreate,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     _: dict[str, Any] = Depends(
-        require_roles(UserRole.SALES_DEMO_MANAGER, resource_type="sandbox-account")
+        require_async_roles(
+            UserRole.SALES_DEMO_MANAGER, resource_type="sandbox-account"
+        )
     ),
 ) -> APIResponse[SandboxAccountCreatedResponse]:
-    created = SandboxService(db).create_account(payload)
+    created = await AsyncSandboxService(db).create_account(payload)
     response = SandboxAccountCreatedResponse(
         account=SandboxAccountResponse.model_validate(created["account"]),
         organization=SandboxOrganizationResponse.model_validate(
@@ -65,8 +67,8 @@ def create_sandbox_account(
         developer=SandboxUserResponse.model_validate(created["developer"]),
         api_key=created["api_key"],
         sample_customers=[
-            SandboxCustomerResponse.model_validate(customer)
-            for customer in created["sample_customers"]
+            SandboxCustomerResponse.model_validate(item)
+            for item in created["sample_customers"]
         ],
     )
     return APIResponse(
@@ -78,16 +80,14 @@ def create_sandbox_account(
     )
 
 
-@router.get(
-    "/account",
-    response_model=APIResponse[SandboxAccountResponse],
-    summary="Get the sandbox account for the supplied test key",
-)
-def get_sandbox_account(
-    db: Session = Depends(get_db),
-    principal: SandboxPrincipal = Depends(require_sandbox_permission("sandbox:read")),
+@router.get("/account", response_model=APIResponse[SandboxAccountResponse])
+async def get_sandbox_account(
+    db: AsyncSession = Depends(get_async_db),
+    principal: AsyncSandboxPrincipal = Depends(
+        require_async_sandbox_permission("sandbox:read")
+    ),
 ) -> APIResponse[SandboxAccountResponse]:
-    account = SandboxService(db).get_account(principal.account_id)
+    account = await AsyncSandboxService(db).get_account(principal.account_id)
     return APIResponse(
         success=True,
         message="Sandbox account retrieved successfully.",
@@ -95,20 +95,18 @@ def get_sandbox_account(
     )
 
 
-@router.get(
-    "/users",
-    response_model=APIResponse[list[SandboxUserResponse]],
-    summary="List synthetic sandbox users",
-)
-def list_sandbox_users(
-    db: Session = Depends(get_db),
-    principal: SandboxPrincipal = Depends(require_sandbox_permission("sandbox:read")),
+@router.get("/users", response_model=APIResponse[list[SandboxUserResponse]])
+async def list_sandbox_users(
+    db: AsyncSession = Depends(get_async_db),
+    principal: AsyncSandboxPrincipal = Depends(
+        require_async_sandbox_permission("sandbox:read")
+    ),
 ) -> APIResponse[list[SandboxUserResponse]]:
-    users = SandboxService(db).list_users(principal.account_id)
+    users = await AsyncSandboxService(db).list_users(principal.account_id)
     return APIResponse(
         success=True,
         message="Sandbox users retrieved successfully.",
-        data=[SandboxUserResponse.model_validate(user) for user in users],
+        data=[SandboxUserResponse.model_validate(item) for item in users],
     )
 
 
@@ -116,14 +114,15 @@ def list_sandbox_users(
     "/users",
     response_model=APIResponse[SandboxUserResponse],
     status_code=status.HTTP_201_CREATED,
-    summary="Create a synthetic sandbox user",
 )
-def create_sandbox_user(
+async def create_sandbox_user(
     payload: SandboxUserCreate,
-    db: Session = Depends(get_db),
-    principal: SandboxPrincipal = Depends(require_sandbox_permission("sandbox:write")),
+    db: AsyncSession = Depends(get_async_db),
+    principal: AsyncSandboxPrincipal = Depends(
+        require_async_sandbox_permission("sandbox:write")
+    ),
 ) -> APIResponse[SandboxUserResponse]:
-    user = SandboxService(db).create_user(principal.account_id, payload)
+    user = await AsyncSandboxService(db).create_user(principal.account_id, payload)
     return APIResponse(
         success=True,
         message="Synthetic sandbox user created.",
@@ -134,17 +133,18 @@ def create_sandbox_user(
 @router.get(
     "/account/api-keys",
     response_model=APIResponse[list[SandboxAPIKeyResponse]],
-    summary="List sandbox API keys",
 )
-def list_sandbox_api_keys(
-    db: Session = Depends(get_db),
-    principal: SandboxPrincipal = Depends(require_sandbox_permission("sandbox:admin")),
+async def list_sandbox_api_keys(
+    db: AsyncSession = Depends(get_async_db),
+    principal: AsyncSandboxPrincipal = Depends(
+        require_async_sandbox_permission("sandbox:admin")
+    ),
 ) -> APIResponse[list[SandboxAPIKeyResponse]]:
-    keys = SandboxService(db).list_api_keys(principal.account_id)
+    keys = await AsyncSandboxService(db).list_api_keys(principal.account_id)
     return APIResponse(
         success=True,
         message="Sandbox API keys retrieved successfully.",
-        data=[SandboxAPIKeyResponse.model_validate(key) for key in keys],
+        data=[SandboxAPIKeyResponse.model_validate(item) for item in keys],
     )
 
 
@@ -152,14 +152,17 @@ def list_sandbox_api_keys(
     "/account/api-keys",
     response_model=APIResponse[SandboxAPIKeyCreatedResponse],
     status_code=status.HTTP_201_CREATED,
-    summary="Create a sandbox API key (secret shown once)",
 )
-def create_sandbox_api_key(
+async def create_sandbox_api_key(
     payload: SandboxAPIKeyCreate,
-    db: Session = Depends(get_db),
-    principal: SandboxPrincipal = Depends(require_sandbox_permission("sandbox:admin")),
+    db: AsyncSession = Depends(get_async_db),
+    principal: AsyncSandboxPrincipal = Depends(
+        require_async_sandbox_permission("sandbox:admin")
+    ),
 ) -> APIResponse[SandboxAPIKeyCreatedResponse]:
-    key, raw_key = SandboxService(db).create_api_key(principal.account_id, payload)
+    key, raw_key = await AsyncSandboxService(db).create_api_key(
+        principal.account_id, payload
+    )
     return APIResponse(
         success=True,
         message=(
@@ -167,8 +170,7 @@ def create_sandbox_api_key(
             "it cannot be retrieved later."
         ),
         data=SandboxAPIKeyCreatedResponse(
-            key=SandboxAPIKeyResponse.model_validate(key),
-            api_key=raw_key,
+            key=SandboxAPIKeyResponse.model_validate(key), api_key=raw_key
         ),
     )
 
@@ -176,14 +178,15 @@ def create_sandbox_api_key(
 @router.post(
     "/account/api-keys/{key_id}/revoke",
     response_model=APIResponse[SandboxAPIKeyResponse],
-    summary="Revoke a sandbox API key",
 )
-def revoke_sandbox_api_key(
+async def revoke_sandbox_api_key(
     key_id: UUID,
-    db: Session = Depends(get_db),
-    principal: SandboxPrincipal = Depends(require_sandbox_permission("sandbox:admin")),
+    db: AsyncSession = Depends(get_async_db),
+    principal: AsyncSandboxPrincipal = Depends(
+        require_async_sandbox_permission("sandbox:admin")
+    ),
 ) -> APIResponse[SandboxAPIKeyResponse]:
-    key = SandboxService(db).revoke_api_key(principal.account_id, key_id)
+    key = await AsyncSandboxService(db).revoke_api_key(principal.account_id, key_id)
     return APIResponse(
         success=True,
         message="Sandbox API key revoked.",
@@ -191,23 +194,21 @@ def revoke_sandbox_api_key(
     )
 
 
-@router.get(
-    "/customers",
-    response_model=APIResponse[list[SandboxCustomerResponse]],
-    summary="List synthetic sandbox customers",
-)
-def list_sandbox_customers(
+@router.get("/customers", response_model=APIResponse[list[SandboxCustomerResponse]])
+async def list_sandbox_customers(
     limit: int = Query(default=50, ge=1, le=100),
-    db: Session = Depends(get_db),
-    principal: SandboxPrincipal = Depends(require_sandbox_permission("sandbox:read")),
+    db: AsyncSession = Depends(get_async_db),
+    principal: AsyncSandboxPrincipal = Depends(
+        require_async_sandbox_permission("sandbox:read")
+    ),
 ) -> APIResponse[list[SandboxCustomerResponse]]:
-    customers = SandboxService(db).list_customers(principal.account_id, limit)
+    customers = await AsyncSandboxService(db).list_customers(
+        principal.account_id, limit
+    )
     return APIResponse(
         success=True,
         message="Sandbox customers retrieved successfully.",
-        data=[
-            SandboxCustomerResponse.model_validate(customer) for customer in customers
-        ],
+        data=[SandboxCustomerResponse.model_validate(item) for item in customers],
     )
 
 
@@ -215,14 +216,17 @@ def list_sandbox_customers(
     "/customers",
     response_model=APIResponse[SandboxCustomerResponse],
     status_code=status.HTTP_201_CREATED,
-    summary="Create a synthetic sandbox customer",
 )
-def create_sandbox_customer(
+async def create_sandbox_customer(
     payload: SandboxCustomerCreate,
-    db: Session = Depends(get_db),
-    principal: SandboxPrincipal = Depends(require_sandbox_permission("sandbox:write")),
+    db: AsyncSession = Depends(get_async_db),
+    principal: AsyncSandboxPrincipal = Depends(
+        require_async_sandbox_permission("sandbox:write")
+    ),
 ) -> APIResponse[SandboxCustomerResponse]:
-    customer = SandboxService(db).create_customer(principal.account_id, payload)
+    customer = await AsyncSandboxService(db).create_customer(
+        principal.account_id, payload
+    )
     return APIResponse(
         success=True,
         message="Synthetic sandbox customer created.",
@@ -231,16 +235,18 @@ def create_sandbox_customer(
 
 
 @router.get(
-    "/customers/{customer_id}",
-    response_model=APIResponse[SandboxCustomerResponse],
-    summary="Get a sandbox customer",
+    "/customers/{customer_id}", response_model=APIResponse[SandboxCustomerResponse]
 )
-def get_sandbox_customer(
+async def get_sandbox_customer(
     customer_id: UUID,
-    db: Session = Depends(get_db),
-    principal: SandboxPrincipal = Depends(require_sandbox_permission("sandbox:read")),
+    db: AsyncSession = Depends(get_async_db),
+    principal: AsyncSandboxPrincipal = Depends(
+        require_async_sandbox_permission("sandbox:read")
+    ),
 ) -> APIResponse[SandboxCustomerResponse]:
-    customer = SandboxService(db).get_customer(principal.account_id, customer_id)
+    customer = await AsyncSandboxService(db).get_customer(
+        principal.account_id, customer_id
+    )
     return APIResponse(
         success=True,
         message="Sandbox customer retrieved successfully.",
@@ -252,15 +258,16 @@ def get_sandbox_customer(
     "/customers/{customer_id}/verifications",
     response_model=APIResponse[SandboxVerificationResponse],
     status_code=status.HTTP_201_CREATED,
-    summary="Simulate an identity-verification result",
 )
-def simulate_verification(
+async def simulate_verification(
     customer_id: UUID,
     payload: SandboxVerificationCreate,
-    db: Session = Depends(get_db),
-    principal: SandboxPrincipal = Depends(require_sandbox_permission("sandbox:write")),
+    db: AsyncSession = Depends(get_async_db),
+    principal: AsyncSandboxPrincipal = Depends(
+        require_async_sandbox_permission("sandbox:write")
+    ),
 ) -> APIResponse[SandboxVerificationResponse]:
-    result = SandboxService(db).create_verification(
+    result = await AsyncSandboxService(db).create_verification(
         principal.account_id, customer_id, payload
     )
     return APIResponse(
@@ -275,14 +282,17 @@ def simulate_verification(
 @router.get(
     "/verifications/{verification_id}",
     response_model=APIResponse[SandboxVerificationResponse],
-    summary="Get a prior sandbox verification simulation",
 )
-def get_sandbox_verification(
+async def get_sandbox_verification(
     verification_id: UUID,
-    db: Session = Depends(get_db),
-    principal: SandboxPrincipal = Depends(require_sandbox_permission("sandbox:read")),
+    db: AsyncSession = Depends(get_async_db),
+    principal: AsyncSandboxPrincipal = Depends(
+        require_async_sandbox_permission("sandbox:read")
+    ),
 ) -> APIResponse[SandboxVerificationResponse]:
-    result = SandboxService(db).get_verification(principal.account_id, verification_id)
+    result = await AsyncSandboxService(db).get_verification(
+        principal.account_id, verification_id
+    )
     return APIResponse(
         success=True,
         message="Sandbox verification retrieved successfully.",
@@ -290,22 +300,18 @@ def get_sandbox_verification(
     )
 
 
-@router.get(
-    "/webhooks",
-    response_model=APIResponse[list[SandboxWebhookResponse]],
-    summary="List sandbox webhook subscriptions",
-)
-def list_sandbox_webhooks(
-    db: Session = Depends(get_db),
-    principal: SandboxPrincipal = Depends(
-        require_sandbox_permission("sandbox:webhooks")
+@router.get("/webhooks", response_model=APIResponse[list[SandboxWebhookResponse]])
+async def list_sandbox_webhooks(
+    db: AsyncSession = Depends(get_async_db),
+    principal: AsyncSandboxPrincipal = Depends(
+        require_async_sandbox_permission("sandbox:webhooks")
     ),
 ) -> APIResponse[list[SandboxWebhookResponse]]:
-    rows = SandboxService(db).list_webhooks(principal.account_id)
+    rows = await AsyncSandboxService(db).list_webhooks(principal.account_id)
     return APIResponse(
         success=True,
         message="Sandbox webhooks retrieved successfully.",
-        data=[SandboxWebhookResponse.model_validate(row) for row in rows],
+        data=[SandboxWebhookResponse.model_validate(item) for item in rows],
     )
 
 
@@ -313,21 +319,22 @@ def list_sandbox_webhooks(
     "/webhooks",
     response_model=APIResponse[SandboxWebhookResponse],
     status_code=status.HTTP_201_CREATED,
-    summary="Create a sandbox webhook subscription",
 )
-def create_sandbox_webhook(
+async def create_sandbox_webhook(
     payload: SandboxWebhookCreate,
-    db: Session = Depends(get_db),
-    principal: SandboxPrincipal = Depends(
-        require_sandbox_permission("sandbox:webhooks")
+    db: AsyncSession = Depends(get_async_db),
+    principal: AsyncSandboxPrincipal = Depends(
+        require_async_sandbox_permission("sandbox:webhooks")
     ),
 ) -> APIResponse[SandboxWebhookResponse]:
-    webhook = SandboxService(db).create_webhook(principal.account_id, payload)
+    webhook = await AsyncSandboxService(db).create_webhook(
+        principal.account_id, payload
+    )
     return APIResponse(
         success=True,
         message=(
-            "Sandbox webhook registered. Events are simulated and are not sent "
-            "to the endpoint URL."
+            "Sandbox webhook registered. Events are simulated and are not "
+            "sent to the endpoint URL."
         ),
         data=SandboxWebhookResponse.model_validate(webhook),
     )
@@ -337,17 +344,16 @@ def create_sandbox_webhook(
     "/webhooks/{webhook_id}/simulate",
     response_model=APIResponse[SandboxWebhookEventResponse],
     status_code=status.HTTP_201_CREATED,
-    summary="Create a simulated webhook delivery payload",
 )
-def simulate_sandbox_webhook(
+async def simulate_sandbox_webhook(
     webhook_id: UUID,
     payload: SandboxWebhookSimulationRequest,
-    db: Session = Depends(get_db),
-    principal: SandboxPrincipal = Depends(
-        require_sandbox_permission("sandbox:webhooks")
+    db: AsyncSession = Depends(get_async_db),
+    principal: AsyncSandboxPrincipal = Depends(
+        require_async_sandbox_permission("sandbox:webhooks")
     ),
 ) -> APIResponse[SandboxWebhookEventResponse]:
-    event = SandboxService(db).simulate_webhook(
+    event = await AsyncSandboxService(db).simulate_webhook(
         principal.account_id, webhook_id, payload
     )
     return APIResponse(
@@ -360,21 +366,20 @@ def simulate_sandbox_webhook(
 @router.get(
     "/webhooks/{webhook_id}/events",
     response_model=APIResponse[list[SandboxWebhookEventResponse]],
-    summary="List simulated webhook events",
 )
-def list_sandbox_webhook_events(
+async def list_sandbox_webhook_events(
     webhook_id: UUID,
     limit: int = Query(default=50, ge=1, le=100),
-    db: Session = Depends(get_db),
-    principal: SandboxPrincipal = Depends(
-        require_sandbox_permission("sandbox:webhooks")
+    db: AsyncSession = Depends(get_async_db),
+    principal: AsyncSandboxPrincipal = Depends(
+        require_async_sandbox_permission("sandbox:webhooks")
     ),
 ) -> APIResponse[list[SandboxWebhookEventResponse]]:
-    events = SandboxService(db).list_webhook_events(
+    events = await AsyncSandboxService(db).list_webhook_events(
         principal.account_id, webhook_id, limit
     )
     return APIResponse(
         success=True,
         message="Sandbox webhook events retrieved successfully.",
-        data=[SandboxWebhookEventResponse.model_validate(event) for event in events],
+        data=[SandboxWebhookEventResponse.model_validate(item) for item in events],
     )
